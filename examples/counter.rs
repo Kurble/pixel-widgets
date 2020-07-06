@@ -80,6 +80,7 @@ async fn run(event_loop: EventLoop<()>, window: Window, swapchain_format: wgpu::
                 sc_desc.width = size.width;
                 sc_desc.height = size.height;
                 swap_chain = device.create_swap_chain(&surface, &sc_desc);
+                viewport = Rectangle::from_wh(size.width as f32, size.height as f32);
             }
             Event::RedrawRequested(_) => {
                 let frame = swap_chain

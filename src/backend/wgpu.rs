@@ -3,10 +3,7 @@ use std::ops::{Deref, DerefMut};
 
 use zerocopy::AsBytes;
 
-use wgpu::{
-    BindGroup, BindGroupLayout, Buffer, CommandEncoderDescriptor, Device, Queue, RenderPass, RenderPipeline, Sampler,
-    Texture, TextureView,
-};
+use wgpu::*;
 
 use crate::draw::{Command, DrawList, Update, Vertex};
 use crate::event::Event;
@@ -24,7 +21,6 @@ pub struct WgpuUi<I> {
 
 struct TextureEntry {
     texture: Texture,
-    view: TextureView,
     bind_group: BindGroup,
 }
 
@@ -178,7 +174,11 @@ impl<I: Model> WgpuUi<I> {
                                 sample_count: 1,
                                 dimension: wgpu::TextureDimension::D2,
                                 format: wgpu::TextureFormat::Rgba8Unorm,
-                                usage: wgpu::TextureUsage::READ_ALL,
+                                usage: if atlas {
+                                    wgpu::TextureUsage::SAMPLED | wgpu::TextureUsage::COPY_DST
+                                } else {
+                                    wgpu::TextureUsage::SAMPLED
+                                },
                             });
 
                             if data.len() > 0 {
@@ -224,7 +224,6 @@ impl<I: Model> WgpuUi<I> {
                             self.textures.insert(
                                 id,
                                 TextureEntry {
-                                    view,
                                     bind_group,
                                     texture,
                                 },

@@ -24,7 +24,7 @@ impl Space {
 
 impl<'a, T> Element<'a, T> for Space {
     fn size(&self) -> (Size, Size) {
-        (Size::Exact(500), Size::Exact(500))
+        self.size
     }
 
     fn event(&mut self, _layout: Rectangle, _event: Event) -> Option<T> {
