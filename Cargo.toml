@@ -1,0 +1,19 @@
+[package]
+name = "gui"
+version = "0.1.0"
+authors = ["Bram Buurlage <bram@aeroscan.nl>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+rusttype = { version = "0.9.2", features = ["gpu_cache"] }
+image = "0.23.6"
+smallvec = "1.4.0"
+wgpu = "0.5.0"
+zerocopy = "0.3.0"
+
+[dev-dependencies]
+winit = "0.22.2"
+pretty_env_logger = "0.4.0"
+futures = "0.3"
