@@ -1,5 +1,6 @@
 use crate::draw::Color;
 use crate::layout::Rectangle;
+use std::borrow::Cow;
 
 #[derive(Clone, Copy, Debug)]
 pub enum TextWrap {
@@ -16,8 +17,8 @@ pub struct Font {
 }
 
 #[derive(Clone)]
-pub struct Text {
-    pub text: String,
+pub struct Text<'a> {
+    pub text: Cow<'a, str>,
     pub font: Font,
     pub size: f32,
     pub wrap: TextWrap,
@@ -111,7 +112,7 @@ impl<'a, 'b: 'a> WordWrapper<'a, 'b> {
     }
 }
 
-impl Text {
+impl<'t> Text<'t> {
     pub fn char_positions<'a, 'b>(&'b self) -> CharPositionIter<'a, 'b> {
         let scale = rusttype::Scale {
             x: self.size,

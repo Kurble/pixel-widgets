@@ -4,11 +4,11 @@ use smallvec::SmallVec;
 use zerocopy::AsBytes;
 
 #[derive(Clone)]
-pub enum Primitive {
+pub enum Primitive<'a> {
     PushClip(Rectangle),
     PopClip,
     DrawRect(Rectangle, Color),
-    DrawText(Text, Rectangle),
+    DrawText(Text<'a>, Rectangle),
     Draw9(Patch, Rectangle, Color),
     DrawImage(Image, Rectangle, Color),
 }
@@ -312,6 +312,23 @@ impl Background {
         match self {
             &Background::None => false,
             &_ => true,
+        }
+    }
+
+    pub fn render(&self, rectangle: Rectangle) -> Option<Primitive> {
+        match self {
+            &Background::Color(color) => Some(Primitive::DrawRect(rectangle, color)),
+            &Background::Image(ref image, alpha) => Some(Primitive::DrawImage(
+                image.clone(),
+                rectangle,
+                Color::white().with_alpha(alpha),
+            )),
+            &Background::Patch(ref patch, alpha) => Some(Primitive::Draw9(
+                patch.clone(),
+                rectangle,
+                Color::white().with_alpha(alpha),
+            )),
+            &Background::None => None,
         }
     }
 }

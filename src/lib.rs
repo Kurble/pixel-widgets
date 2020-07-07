@@ -1,3 +1,13 @@
+use std::ops::{Deref, DerefMut};
+
+use draw::DrawList;
+use element::Element;
+
+use crate::event::Event;
+use crate::layout::Rectangle;
+use crate::stylesheet::Stylesheet;
+use std::path::PathBuf;
+
 pub mod backend;
 pub mod cache;
 pub mod draw;
@@ -6,33 +16,32 @@ pub mod event;
 pub mod layout;
 pub mod qtree;
 pub mod text;
-
-use crate::event::Event;
-use crate::layout::Rectangle;
-use draw::DrawList;
-use element::Element;
-use std::ops::{Deref, DerefMut};
+pub mod stylesheet;
 
 pub trait Model {
     type Message;
 
     fn update(&mut self, message: Self::Message);
 
-    fn view<'a>(&'a mut self) -> Box<dyn Element<'a, Self::Message>>;
+    fn view<'a>(&'a mut self) -> Box<dyn Element<'a, Self::Message> +'a>;
 }
 
 pub struct Ui<I> {
     model: I,
     cache: self::cache::Cache,
     events: Vec<Event>,
+    stylesheet: Stylesheet,
 }
 
 impl<I: Model> Ui<I> {
-    pub fn new(model: I) -> Self {
+    pub fn new(model: I, default_font: PathBuf) -> Self {
+        let mut cache = self::cache::Cache::new(512, 0);
+        let font = cache.load_font(std::fs::read(default_font).unwrap());
         Self {
             model,
-            cache: self::cache::Cache::new(512, 0),
+            cache,
             events: Vec::new(),
+            stylesheet: Stylesheet::new(font),
         }
     }
 
@@ -48,20 +57,17 @@ impl<I: Model> Ui<I> {
         use self::draw::*;
 
         let mut root = self.model.view();
+        let stylesheet = &self.stylesheet;
         let messages = self
             .events
             .drain(..)
-            .filter_map(|event| root.event(viewport, event))
+            .filter_map(|event| root.event(viewport, stylesheet, event))
             .collect::<Vec<_>>();
-        let (w, h) = root.size();
+        let (w, h) = root.size(stylesheet);
         let primitives = root.render(Rectangle::from_wh(
             w.resolve(viewport.width() as u32, w.parts()) as f32,
             h.resolve(viewport.height() as u32, h.parts()) as f32,
-        ));
-        drop(root);
-        for message in messages {
-            self.model.update(message);
-        }
+        ), stylesheet);
 
         let mut vtx = Vec::new();
         let mut cmd = Vec::new();
@@ -369,6 +375,11 @@ impl<I: Model> Ui<I> {
 
         // Flush any commands that are not finalized
         current_command.flush().and_then(|c| Some(cmd.push(c)));
+
+        drop(root);
+        for message in messages {
+            self.model.update(message);
+        }
 
         DrawList {
             updates: self.cache.take_updates(),

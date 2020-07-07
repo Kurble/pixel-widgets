@@ -7,8 +7,7 @@ use winit::{
 use gui::*;
 use gui::element::Element;
 use gui::backend::wgpu::WgpuUi;
-use gui::layout::{Rectangle, Size};
-use gui::draw::{Background, Color};
+use gui::layout::{Rectangle};
 
 struct Counter {
     pub value: i32,
@@ -29,8 +28,10 @@ impl Model for Counter {
         }
     }
 
-    fn view<'a>(&'a mut self) -> Box<dyn Element<'a, Self::Message>> {
-        Box::new(gui::element::Space::new(Size::Exact(16), Size::Exact(16)).background(Background::Color(Color::red())))
+    fn view<'a>(&'a mut self) -> Box<dyn Element<'a, Self::Message> +'a> {
+        use gui::element::*;
+
+        Box::new(Text::owned(format!("Count: {}", self.value)))
     }
 }
 
@@ -65,7 +66,7 @@ async fn run(event_loop: EventLoop<()>, window: Window, swapchain_format: wgpu::
 
     let mut viewport = Rectangle::from_wh(size.width as f32, size.height as f32);
 
-    let mut ui = WgpuUi::new(Counter { value: 0 }, swapchain_format, &device);
+    let mut ui = WgpuUi::new(Counter { value: 0 }, "default_font.ttf".into(), swapchain_format, &device);
 
     event_loop.run(move |event, _, control_flow| {
         let _ = &adapter;
@@ -95,7 +96,7 @@ async fn run(event_loop: EventLoop<()>, window: Window, swapchain_format: wgpu::
                             resolve_target: None,
                             load_op: wgpu::LoadOp::Clear,
                             store_op: wgpu::StoreOp::Clear,
-                            clear_color: wgpu::Color::GREEN,
+                            clear_color: wgpu::Color::BLACK,
                         }],
                         depth_stencil_attachment: None,
                     });

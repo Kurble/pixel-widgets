@@ -101,10 +101,10 @@ impl Cache {
                 .map(|(uv, pos)| {
                     place_glyph(
                         Rectangle {
-                            left: uv.min.x * 0.5,
-                            top: uv.min.y * 0.5,
-                            right: uv.max.x * 0.5,
-                            bottom: uv.max.y * 0.5,
+                            left: uv.min.x,
+                            top: uv.min.y,
+                            right: uv.max.x,
+                            bottom: uv.max.y,
                         },
                         Rectangle {
                             left: pos.min.x as f32,
@@ -258,7 +258,16 @@ impl Cache {
         }
     }
 
-    pub fn load_font<D: Into<Vec<u8>>>(&mut self, data: D) -> Font {
-        Font::try_from_vec(data.into()).expect("error loading font")
+    pub fn load_font<D: Into<Vec<u8>>>(&mut self, data: D) -> crate::text::Font {
+        let inner = Font::try_from_vec(data.into()).expect("error loading font");
+
+        let id = self.font_id_counter;
+        self.font_id_counter += 1;
+
+        crate::text::Font {
+            inner,
+            id,
+            tex_slot: self.textures_offset
+        }
     }
 }

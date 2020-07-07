@@ -9,6 +9,7 @@ use crate::draw::{Command, DrawList, Update, Vertex};
 use crate::event::Event;
 use crate::layout::Rectangle;
 use crate::{Model, Ui};
+use std::path::PathBuf;
 
 pub struct WgpuUi<I> {
     inner: Ui<I>,
@@ -25,7 +26,7 @@ struct TextureEntry {
 }
 
 impl<I: Model> WgpuUi<I> {
-    pub fn new(model: I, format: wgpu::TextureFormat, device: &Device) -> Self {
+    pub fn new(model: I, default_font: PathBuf, format: wgpu::TextureFormat, device: &Device) -> Self {
         let vs_module = device.create_shader_module(
             wgpu::read_spirv(std::io::Cursor::new(&include_bytes!("wgpu_shader.vert.spv")[..]))
                 .expect("unable to load shader module")
@@ -73,8 +74,16 @@ impl<I: Model> WgpuUi<I> {
             primitive_topology: wgpu::PrimitiveTopology::TriangleList,
             color_states: &[wgpu::ColorStateDescriptor {
                 format,
-                color_blend: wgpu::BlendDescriptor::REPLACE,
-                alpha_blend: wgpu::BlendDescriptor::REPLACE,
+                color_blend: wgpu::BlendDescriptor {
+                    src_factor: BlendFactor::SrcAlpha,
+                    dst_factor: BlendFactor::OneMinusSrcAlpha,
+                    operation: BlendOperation::Add,
+                },
+                alpha_blend: wgpu::BlendDescriptor {
+                    src_factor: BlendFactor::Zero,
+                    dst_factor: BlendFactor::Zero,
+                    operation: BlendOperation::Add,
+                },
                 write_mask: wgpu::ColorWrite::ALL,
             }],
             depth_stencil_state: None,
@@ -125,7 +134,7 @@ impl<I: Model> WgpuUi<I> {
         });
 
         Self {
-            inner: Ui::new(model),
+            inner: Ui::new(model, default_font),
             pipeline,
             bind_group_layout,
             sampler,
@@ -188,7 +197,7 @@ impl<I: Model> WgpuUi<I> {
                                         buffer: &staging,
                                         offset: 0,
                                         bytes_per_row: size[0] * 4,
-                                        rows_per_image: size[1],
+                                        rows_per_image: 0,
                                     },
                                     wgpu::TextureCopyView {
                                         texture: &texture,
@@ -235,13 +244,25 @@ impl<I: Model> WgpuUi<I> {
                                 .get(&id)
                                 .map(|val| &val.texture)
                                 .expect("non existing texture is updated");
+
+                            let padding = 256 - (size[0]*4) % 256;
+                            let data = if padding > 0 {
+                                data.chunks(size[0] as usize * 4)
+                                    .fold(Vec::new(), |mut data, row| {
+                                        data.extend_from_slice(row);
+                                        data.extend(std::iter::repeat(0).take(padding as _));
+                                        data
+                                    })
+                            } else {
+                                data
+                            };
                             let staging = device.create_buffer_with_data(data.as_slice(), wgpu::BufferUsage::COPY_SRC);
                             cmd.copy_buffer_to_texture(
                                 wgpu::BufferCopyView {
                                     buffer: &staging,
                                     offset: 0,
-                                    bytes_per_row: size[0] * 4,
-                                    rows_per_image: size[1],
+                                    bytes_per_row: size[0] * 4 + padding,
+                                    rows_per_image: 0,
                                 },
                                 wgpu::TextureCopyView {
                                     texture: &texture,

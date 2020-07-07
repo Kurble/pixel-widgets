@@ -2,6 +2,7 @@ use crate::draw::*;
 use crate::element::Element;
 use crate::layout::{Size, Rectangle};
 use crate::event::Event;
+use crate::stylesheet::Stylesheet;
 
 pub struct Space {
     size: (Size, Size),
@@ -23,15 +24,15 @@ impl Space {
 }
 
 impl<'a, T> Element<'a, T> for Space {
-    fn size(&self) -> (Size, Size) {
+    fn size(&self, _: &Stylesheet) -> (Size, Size) {
         self.size
     }
 
-    fn event(&mut self, _layout: Rectangle, _event: Event) -> Option<T> {
+    fn event(&mut self, _layout: Rectangle, _: &Stylesheet, _event: Event) -> Option<T> {
         None
     }
 
-    fn render(&mut self, layout: Rectangle) -> Vec<Primitive> {
+    fn render(&mut self, layout: Rectangle, _: &Stylesheet) -> Vec<Primitive<'a>> {
         match &self.background {
             &Background::Color(color) => vec![Primitive::DrawRect(layout, color)],
             &Background::Image(ref image, alpha) => vec![Primitive::DrawImage(image.clone(), layout, Color::white().with_alpha(alpha))],

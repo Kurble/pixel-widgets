@@ -12,11 +12,11 @@ layout(location = 0) out vec4 Target0;
 void main() {
     // Text
     if (v_Mode == uint(0)) {
-        Target0 = v_Color * vec4(1.0, 1.0, 1.0, texture(t_Color, v_Uv).a);
+        Target0 = v_Color * texture(sampler2D(t_Color, s_Color), v_Uv);
 
     // Image
     } else if (v_Mode == uint(1)) {
-        Target0 = v_Color * texture(t_Color, v_Uv);
+        Target0 = v_Color * texture(sampler2D(t_Color, s_Color), v_Uv);
 
     // 2D Geometry
     } else if (v_Mode == uint(2)) {
