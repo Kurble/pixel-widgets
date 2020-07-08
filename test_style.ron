@@ -1,0 +1,13 @@
+#![enable(implicit_some)]
+(
+    classes: {
+        "button": (
+            background: Color("888"),
+            hover: Color("aaa"),
+            pressed: Color("222"),
+            clicked: Color("868"),
+            padding: (left: 20.0, right: 20.0, top: 5.0, bottom: 5.0),
+            text_size: 24.0,
+        )
+    }
+)

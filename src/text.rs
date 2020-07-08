@@ -1,8 +1,9 @@
 use crate::draw::Color;
 use crate::layout::Rectangle;
 use std::borrow::Cow;
+use serde::Deserialize;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Deserialize)]
 pub enum TextWrap {
     NoWrap,
     Wrap,
@@ -182,14 +183,14 @@ impl<'t> Text<'t> {
             y: self.size,
         });
 
-        rect.map_or_else(
-            || {
+        match rect {
+            None => {
                 let mut w = 0.0;
                 self.layout(Rectangle::from_wh(f32::INFINITY, 0.0), |_, _, new_w, _| w = new_w);
 
                 Rectangle::from_wh(w.ceil(), (line.ascent - line.descent).ceil())
-            },
-            |r| {
+            }
+            Some(r) => {
                 let mut w = 0.0;
                 let mut h = line.ascent;
                 match self.wrap {
@@ -201,8 +202,8 @@ impl<'t> Text<'t> {
                 }
 
                 Rectangle::from_xywh(r.left, r.top, w.ceil(), (h - line.descent).ceil())
-            },
-        )
+            }
+        }
     }
 
     pub fn measure_range(&self, from: usize, to: usize, rect: Rectangle) -> ((f32, f32), (f32, f32)) {

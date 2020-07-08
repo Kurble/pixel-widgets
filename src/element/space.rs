@@ -1,43 +1,23 @@
 use crate::draw::*;
-use crate::element::Element;
+use crate::element::*;
 use crate::layout::{Size, Rectangle};
 use crate::event::Event;
 use crate::stylesheet::Stylesheet;
 
-pub struct Space {
-    size: (Size, Size),
-    background: Background,
-}
-
-impl Space {
-    pub fn new(width: Size, height: Size) -> Self {
-        Self {
-            size: (width, height),
-            background: Background::None,
-        }
-    }
-
-    pub fn background(mut self, background: Background) -> Self {
-        self.background = background;
-        self
-    }
-}
+pub struct Space;
 
 impl<'a, T> Element<'a, T> for Space {
-    fn size(&self, _: &Stylesheet) -> (Size, Size) {
-        self.size
+    fn size(&self, stylesheet: &Stylesheet) -> (Size, Size) {
+        (stylesheet.width, stylesheet.height)
     }
 
-    fn event(&mut self, _layout: Rectangle, _: &Stylesheet, _event: Event) -> Option<T> {
+    fn event(&mut self, _: Rectangle, _: &Stylesheet, _: Event) -> Option<T> {
         None
     }
 
-    fn render(&mut self, layout: Rectangle, _: &Stylesheet) -> Vec<Primitive<'a>> {
-        match &self.background {
-            &Background::Color(color) => vec![Primitive::DrawRect(layout, color)],
-            &Background::Image(ref image, alpha) => vec![Primitive::DrawImage(image.clone(), layout, Color::white().with_alpha(alpha))],
-            &Background::Patch(ref patch, alpha) => vec![Primitive::Draw9(patch.clone(), layout, Color::white().with_alpha(alpha))],
-            &Background::None => vec![]
-        }
+    fn render(&mut self, layout: Rectangle, stylesheet: &Stylesheet) -> Vec<Primitive<'a>> {
+        stylesheet.background.render(layout).into_iter().collect()
     }
 }
+
+impl<'a, T: 'a> IntoNode<'a, T> for Space { }

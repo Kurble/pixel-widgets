@@ -1,11 +1,20 @@
-#[derive(Clone, Copy)]
+use serde::Deserialize;
+
+#[derive(Clone, Copy, Deserialize)]
 pub enum Size {
     Shrink,
-    Exact(u32),
+    Exact(f32),
     Fill(u32),
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy, Deserialize)]
+pub enum Align {
+    Begin,
+    Center,
+    End,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
 pub struct Rectangle {
     pub left: f32,
     pub top: f32,
@@ -14,11 +23,11 @@ pub struct Rectangle {
 }
 
 impl Size {
-    pub fn resolve(self, available_space: u32, available_parts: u32) -> u32 {
+    pub fn resolve(self, available_space: f32, available_parts: u32) -> f32 {
         match self {
-            Size::Shrink => 0,
+            Size::Shrink => 0.0,
             Size::Exact(wanted) => available_space.min(wanted),
-            Size::Fill(parts) => (available_space * parts) / available_parts
+            Size::Fill(parts) => (available_space * parts as f32) / available_parts as f32
         }
     }
 
@@ -26,6 +35,23 @@ impl Size {
         match self {
             Size::Fill(parts) => *parts,
             _ => 0,
+        }
+    }
+
+    pub fn min_size(&self) -> f32 {
+        match self {
+            Size::Exact(wanted) => *wanted,
+            _ => 0.0,
+        }
+    }
+}
+
+impl Align {
+    pub fn resolve_start(self, space: f32, available_space: f32) -> f32 {
+        match self {
+            Align::Begin => 0.0,
+            Align::Center => (available_space - space) * 0.5,
+            Align::End => available_space - space,
         }
     }
 }
@@ -73,6 +99,10 @@ impl Rectangle {
             top: y,
             bottom: y + h,
         }
+    }
+
+    pub fn point_inside(&self, x: f32, y: f32) -> bool {
+        x >= self.left && x < self.right && y >= self.top && y < self.bottom
     }
 
     pub fn intersect(&self, other: &Rectangle) -> Option<Rectangle> {

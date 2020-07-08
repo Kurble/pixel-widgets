@@ -63,8 +63,8 @@ pub struct Patch {
 pub enum Background {
     None,
     Color(Color),
-    Image(Image, f32),
-    Patch(Patch, f32),
+    Image(Image, Color),
+    Patch(Patch, Color),
 }
 
 /// A collection of data needed to render the `Ui` once.
@@ -308,6 +308,13 @@ impl Background {
         }
     }
 
+    pub fn padding(&self) -> Rectangle {
+        match self {
+            &Background::Patch(ref patch, _) => patch.margin(),
+            &_ => Rectangle::zero(),
+        }
+    }
+
     pub fn is_solid(&self) -> bool {
         match self {
             &Background::None => false,
@@ -315,18 +322,18 @@ impl Background {
         }
     }
 
-    pub fn render(&self, rectangle: Rectangle) -> Option<Primitive> {
+    pub fn render(&self, rectangle: Rectangle) -> Option<Primitive<'static>> {
         match self {
             &Background::Color(color) => Some(Primitive::DrawRect(rectangle, color)),
-            &Background::Image(ref image, alpha) => Some(Primitive::DrawImage(
+            &Background::Image(ref image, color) => Some(Primitive::DrawImage(
                 image.clone(),
                 rectangle,
-                Color::white().with_alpha(alpha),
+                color,
             )),
-            &Background::Patch(ref patch, alpha) => Some(Primitive::Draw9(
+            &Background::Patch(ref patch, color) => Some(Primitive::Draw9(
                 patch.clone(),
                 rectangle,
-                Color::white().with_alpha(alpha),
+                color,
             )),
             &Background::None => None,
         }

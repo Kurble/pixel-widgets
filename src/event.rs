@@ -113,9 +113,11 @@ impl Modifiers {
 #[derive(Clone, Copy, Debug)]
 pub enum Event {
     /// A button on some input device was pressed.
-    Press(Key, Modifiers),
+    Press(Key),
     /// A button on some input device was released.
-    Release(Key, Modifiers),
+    Release(Key),
+    /// Modifiers were changed.
+    Modifiers(Modifiers),
     /// The window was resized to the given dimensions.
     Resize(f32, f32),
     /// Some motion input was received (e.g. moving mouse or joystick axis).

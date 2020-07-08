@@ -8,8 +8,7 @@ use wgpu::*;
 use crate::draw::{Command, DrawList, Update, Vertex};
 use crate::event::Event;
 use crate::layout::Rectangle;
-use crate::{Model, Ui};
-use std::path::PathBuf;
+use crate::{Model, Ui, Loader};
 
 pub struct WgpuUi<I> {
     inner: Ui<I>,
@@ -26,7 +25,15 @@ struct TextureEntry {
 }
 
 impl<I: Model> WgpuUi<I> {
-    pub fn new(model: I, default_font: PathBuf, format: wgpu::TextureFormat, device: &Device) -> Self {
+    pub fn new(model: I, format: wgpu::TextureFormat, device: &Device) -> Self {
+        Self::new_inner(Ui::new(model), format, device)
+    }
+
+    pub async fn with_stylesheet<L: Loader>(model: I, loader: L, url: impl AsRef<str>, format: wgpu::TextureFormat, device: &Device) -> Self {
+        Self::new_inner(Ui::with_stylesheet(model, loader, url).await, format, device)
+    }
+
+    fn new_inner(inner: Ui<I>, format: wgpu::TextureFormat, device: &Device) -> Self {
         let vs_module = device.create_shader_module(
             wgpu::read_spirv(std::io::Cursor::new(&include_bytes!("wgpu_shader.vert.spv")[..]))
                 .expect("unable to load shader module")
@@ -134,7 +141,7 @@ impl<I: Model> WgpuUi<I> {
         });
 
         Self {
-            inner: Ui::new(model, default_font),
+            inner,
             pipeline,
             bind_group_layout,
             sampler,

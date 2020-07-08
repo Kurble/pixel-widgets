@@ -1,12 +1,12 @@
+use std::future::Future;
 use std::ops::{Deref, DerefMut};
 
 use draw::DrawList;
-use element::Element;
 
+use crate::element::{Element, Node};
 use crate::event::Event;
 use crate::layout::Rectangle;
 use crate::stylesheet::Stylesheet;
-use std::path::PathBuf;
 
 pub mod backend;
 pub mod cache;
@@ -23,7 +23,13 @@ pub trait Model {
 
     fn update(&mut self, message: Self::Message);
 
-    fn view<'a>(&'a mut self) -> Box<dyn Element<'a, Self::Message> +'a>;
+    fn view(&mut self) -> Node<Self::Message>;
+}
+
+pub trait Loader: Send + Sync {
+    type Load: Future<Output = Vec<u8>> + Send + Sync;
+
+    fn load(&self, url: impl AsRef<str>) -> Self::Load;
 }
 
 pub struct Ui<I> {
@@ -34,14 +40,29 @@ pub struct Ui<I> {
 }
 
 impl<I: Model> Ui<I> {
-    pub fn new(model: I, default_font: PathBuf) -> Self {
+    pub fn new(model: I) -> Self {
         let mut cache = self::cache::Cache::new(512, 0);
-        let font = cache.load_font(std::fs::read(default_font).unwrap());
+
+        let stylesheet = Stylesheet::new(&mut cache);
+
         Self {
             model,
             cache,
             events: Vec::new(),
-            stylesheet: Stylesheet::new(font),
+            stylesheet,
+        }
+    }
+
+    pub async fn with_stylesheet(model: I, loader: impl Loader, url: impl AsRef<str>) -> Self {
+        let mut cache = self::cache::Cache::new(512, 0);
+
+        let stylesheet = Stylesheet::load(&loader, url, &mut cache).await.unwrap();
+
+        Self {
+            model,
+            cache,
+            events: Vec::new(),
+            stylesheet,
         }
     }
 
@@ -65,8 +86,8 @@ impl<I: Model> Ui<I> {
             .collect::<Vec<_>>();
         let (w, h) = root.size(stylesheet);
         let primitives = root.render(Rectangle::from_wh(
-            w.resolve(viewport.width() as u32, w.parts()) as f32,
-            h.resolve(viewport.height() as u32, h.parts()) as f32,
+            w.resolve(viewport.width(), w.parts()),
+            h.resolve(viewport.height(), h.parts()),
         ), stylesheet);
 
         let mut vtx = Vec::new();
@@ -400,5 +421,14 @@ impl<I> Deref for Ui<I> {
 impl<I> DerefMut for Ui<I> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.model
+    }
+}
+
+impl Loader for std::path::PathBuf {
+    type Load = futures::future::Ready<Vec<u8>>;
+
+    fn load(&self, url: impl AsRef<str>) -> Self::Load {
+        let path = self.join(std::path::Path::new(url.as_ref()));
+        futures::future::ready(std::fs::read(path).expect("read file"))
     }
 }

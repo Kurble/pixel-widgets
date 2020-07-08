@@ -4,13 +4,16 @@ use winit::{
     window::Window,
 };
 
-use gui::*;
-use gui::element::Element;
 use gui::backend::wgpu::WgpuUi;
-use gui::layout::{Rectangle};
+use gui::element::Node;
+use gui::layout::Rectangle;
+use gui::*;
+use gui::backend::winit::convert_event;
 
 struct Counter {
     pub value: i32,
+    pub up: gui::element::button::State,
+    pub down: gui::element::button::State,
 }
 
 enum Message {
@@ -23,15 +26,22 @@ impl Model for Counter {
 
     fn update(&mut self, message: Self::Message) {
         match message {
-            Message::UpPressed => self.value += 1,
-            Message::DownPressed => self.value -= 1,
+            Message::UpPressed => {
+                self.value += 1;
+            },
+            Message::DownPressed => {
+                self.value -= 1;
+            },
         }
     }
 
-    fn view<'a>(&'a mut self) -> Box<dyn Element<'a, Self::Message> +'a> {
+    fn view(&mut self) -> Node<Message> {
         use gui::element::*;
-
-        Box::new(Text::owned(format!("Count: {}", self.value)))
+        Column::new()
+            .push(Button::new(&mut self.up, Text::borrowed("Up")).on_clicked(Message::UpPressed).class("button"))
+            .push(Text::owned(format!("Count: {}", self.value)))
+            .push(Button::new(&mut self.down, Text::borrowed("Down")).on_clicked(Message::DownPressed).class("button"))
+            .into_node()
     }
 }
 
@@ -39,19 +49,22 @@ async fn run(event_loop: EventLoop<()>, window: Window, swapchain_format: wgpu::
     let size = window.inner_size();
 
     let surface = wgpu::Surface::create(&window);
-    let adapter = wgpu::Adapter::request(&wgpu::RequestAdapterOptions {
-        power_preference: wgpu::PowerPreference::Default,
-        compatible_surface: Some(&surface),
-    }, wgpu::BackendBit::PRIMARY).await.expect("Failed to find an appropriate adapter");
+    let adapter = wgpu::Adapter::request(
+        &wgpu::RequestAdapterOptions {
+            power_preference: wgpu::PowerPreference::Default,
+            compatible_surface: Some(&surface),
+        },
+        wgpu::BackendBit::PRIMARY,
+    )
+    .await
+    .expect("Failed to find an appropriate adapter");
 
     // Create the logical device and command queue
     let (device, queue) = adapter
-        .request_device(
-            &wgpu::DeviceDescriptor {
-                extensions: Default::default(),
-                limits: wgpu::Limits::default(),
-            }
-        )
+        .request_device(&wgpu::DeviceDescriptor {
+            extensions: Default::default(),
+            limits: wgpu::Limits::default(),
+        })
         .await;
 
     let mut sc_desc = wgpu::SwapChainDescriptor {
@@ -66,7 +79,13 @@ async fn run(event_loop: EventLoop<()>, window: Window, swapchain_format: wgpu::
 
     let mut viewport = Rectangle::from_wh(size.width as f32, size.height as f32);
 
-    let mut ui = WgpuUi::new(Counter { value: 0 }, "default_font.ttf".into(), swapchain_format, &device);
+    let mut ui = WgpuUi::with_stylesheet(
+        Counter { value: 0, up: Default::default(), down: Default::default() },
+        std::path::PathBuf::from("."),
+        "test_style.ron",
+        swapchain_format,
+        &device,
+    ).await;
 
     event_loop.run(move |event, _, control_flow| {
         let _ = &adapter;
@@ -87,8 +106,7 @@ async fn run(event_loop: EventLoop<()>, window: Window, swapchain_format: wgpu::
                 let frame = swap_chain
                     .get_next_texture()
                     .expect("Failed to acquire next swap chain texture");
-                let mut encoder =
-                    device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+                let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
                 {
                     let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                         color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
@@ -105,12 +123,16 @@ async fn run(event_loop: EventLoop<()>, window: Window, swapchain_format: wgpu::
                 }
 
                 queue.submit(&[encoder.finish()]);
+
+                window.request_redraw();
             }
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
                 ..
             } => *control_flow = ControlFlow::Exit,
-            _ => {}
+            other => if let Some(event) = convert_event(other) {
+                ui.event(event);
+            },
         }
     });
 }
