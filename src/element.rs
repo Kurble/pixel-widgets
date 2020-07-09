@@ -9,11 +9,13 @@ pub use self::button::*;
 pub use self::column::*;
 pub use self::space::*;
 pub use self::text::*;
+pub use self::toggle::*;
 
 pub mod button;
 pub mod column;
 pub mod space;
 pub mod text;
+pub mod toggle;
 
 pub trait Element<'a, Message> {
     fn size(&self, stylesheet: &Stylesheet) -> (Size, Size);
