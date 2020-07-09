@@ -15,8 +15,8 @@ pub mod element;
 pub mod event;
 pub mod layout;
 pub mod qtree;
-pub mod text;
 pub mod stylesheet;
+pub mod text;
 
 pub trait Model {
     type Message;
@@ -85,10 +85,13 @@ impl<I: Model> Ui<I> {
             .filter_map(|event| root.event(viewport, stylesheet, event))
             .collect::<Vec<_>>();
         let (w, h) = root.size(stylesheet);
-        let primitives = root.render(Rectangle::from_wh(
-            w.resolve(viewport.width(), w.parts()),
-            h.resolve(viewport.height(), h.parts()),
-        ), stylesheet);
+        let primitives = root.render(
+            Rectangle::from_wh(
+                w.resolve(viewport.width(), w.parts()),
+                h.resolve(viewport.height(), h.parts()),
+            ),
+            stylesheet,
+        );
 
         let mut vtx = Vec::new();
         let mut cmd = Vec::new();
@@ -193,72 +196,54 @@ impl<I: Model> Ui<I> {
                 Primitive::DrawText(text, rect) => {
                     if draw_enabled {
                         let color = [text.color.r, text.color.g, text.color.b, text.color.a];
-                        let border = text.border.map(|c| [c.r, c.g, c.b, c.a]).unwrap_or(color);
                         let mode = 0;
                         let offset = vtx.len();
 
-                        let offsets = [
-                            (-1.0f32, 0.0f32, true),
-                            (1.0f32, 0.0f32, true),
-                            (0.0f32, -1.0f32, true),
-                            (0.0f32, 1.0f32, true),
-                            (0.0f32, 0.0f32, false),
-                        ];
-                        let offsets = if text.border.is_some() {
-                            &offsets[4..5]
-                        } else {
-                            &offsets[0..1]
-                        };
-
                         self.cache.draw_text(&text, rect, |uv, pos| {
-                            for (dx, dy, b) in offsets {
-                                let rc = Rectangle {
-                                    left: pos.left + *dx,
-                                    top: pos.top + *dy,
-                                    right: pos.right + *dx,
-                                    bottom: pos.bottom + *dy,
-                                }
-                                .to_device_coordinates(viewport);
-
-                                let color = if *b { border } else { color };
-
-                                vtx.push(Vertex {
-                                    pos: [rc.left, rc.top],
-                                    uv: uv.pt(0.0, 0.0),
-                                    color,
-                                    mode,
-                                });
-                                vtx.push(Vertex {
-                                    pos: [rc.right, rc.top],
-                                    uv: uv.pt(1.0, 0.0),
-                                    color,
-                                    mode,
-                                });
-                                vtx.push(Vertex {
-                                    pos: [rc.right, rc.bottom],
-                                    uv: uv.pt(1.0, 1.0),
-                                    color,
-                                    mode,
-                                });
-                                vtx.push(Vertex {
-                                    pos: [rc.left, rc.top],
-                                    uv: uv.pt(0.0, 0.0),
-                                    color,
-                                    mode,
-                                });
-                                vtx.push(Vertex {
-                                    pos: [rc.right, rc.bottom],
-                                    uv: uv.pt(1.0, 1.0),
-                                    color,
-                                    mode,
-                                });
-                                vtx.push(Vertex {
-                                    pos: [rc.left, rc.bottom],
-                                    uv: uv.pt(0.0, 1.0),
-                                    color,
-                                    mode,
-                                });
+                            let rc = Rectangle {
+                                left: pos.left,
+                                top: pos.top,
+                                right: pos.right,
+                                bottom: pos.bottom,
                             }
+                            .to_device_coordinates(viewport);
+
+                            vtx.push(Vertex {
+                                pos: [rc.left, rc.top],
+                                uv: uv.pt(0.0, 0.0),
+                                color,
+                                mode,
+                            });
+                            vtx.push(Vertex {
+                                pos: [rc.right, rc.top],
+                                uv: uv.pt(1.0, 0.0),
+                                color,
+                                mode,
+                            });
+                            vtx.push(Vertex {
+                                pos: [rc.right, rc.bottom],
+                                uv: uv.pt(1.0, 1.0),
+                                color,
+                                mode,
+                            });
+                            vtx.push(Vertex {
+                                pos: [rc.left, rc.top],
+                                uv: uv.pt(0.0, 0.0),
+                                color,
+                                mode,
+                            });
+                            vtx.push(Vertex {
+                                pos: [rc.right, rc.bottom],
+                                uv: uv.pt(1.0, 1.0),
+                                color,
+                                mode,
+                            });
+                            vtx.push(Vertex {
+                                pos: [rc.left, rc.bottom],
+                                uv: uv.pt(0.0, 1.0),
+                                color,
+                                mode,
+                            });
                         });
 
                         current_command

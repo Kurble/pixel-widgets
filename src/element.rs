@@ -7,12 +7,14 @@ use crate::stylesheet::Stylesheet;
 
 pub use self::button::*;
 pub use self::column::*;
+pub use self::input::*;
 pub use self::space::*;
 pub use self::text::*;
 pub use self::toggle::*;
 
 pub mod button;
 pub mod column;
+pub mod input;
 pub mod space;
 pub mod text;
 pub mod toggle;
@@ -51,7 +53,7 @@ impl<'a, Message> Node<'a, Message> {
         self
     }
 
-    fn stylesheet<'s>(&self, stylesheet: &'s Stylesheet) -> &'s Stylesheet {
+    fn resolve_stylesheet<'s>(&self, stylesheet: &'s Stylesheet) -> &'s Stylesheet {
         if let Some(class) = self.class {
             if let Some(stylesheet) = stylesheet.classes.get(class) {
                 stylesheet
@@ -67,19 +69,19 @@ impl<'a, Message> Node<'a, Message> {
 impl<'a, Message> Element<'a, Message> for Node<'a, Message> {
     fn size(&self, stylesheet: &Stylesheet) -> (Size, Size) {
         if self.size_cache.get().is_none() {
-            let stylesheet = self.stylesheet(stylesheet);
+            let stylesheet = self.resolve_stylesheet(stylesheet);
             self.size_cache.replace(Some(self.element.size(stylesheet)));
         }
         self.size_cache.get().unwrap()
     }
 
     fn event(&mut self, layout: Rectangle, stylesheet: &Stylesheet, event: Event) -> Option<Message> {
-        let stylesheet = self.stylesheet(stylesheet);
+        let stylesheet = self.resolve_stylesheet(stylesheet);
         self.element.event(layout, stylesheet, event)
     }
 
     fn render(&mut self, layout: Rectangle, stylesheet: &Stylesheet) -> Vec<Primitive<'a>> {
-        let stylesheet = self.stylesheet(stylesheet);
+        let stylesheet = self.resolve_stylesheet(stylesheet);
         self.element.render(layout, stylesheet)
     }
 }

@@ -8,6 +8,13 @@
             disabled: Color("868"),
             padding: (left: 20.0, right: 20.0, top: 5.0, bottom: 5.0),
             text_size: 24.0,
+        ),
+        "input": (
+            width: Fill(1),
+            background: Color("fff"),
+            color: "000",
+            text_size: 24.0,
+            padding: (left: 4.0, right: 4.0, top: 4.0, bottom: 4.0),
         )
     }
 )

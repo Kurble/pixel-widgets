@@ -24,8 +24,6 @@ pub struct Text<'a> {
     pub size: f32,
     pub wrap: TextWrap,
     pub color: Color,
-    pub border: Option<Color>,
-    pub padding: Rectangle,
 }
 
 pub struct CharPositionIter<'a, 'b: 'a> {
@@ -250,5 +248,17 @@ impl<'t> Text<'t> {
         });
 
         nearest.1
+    }
+}
+
+impl<'a> Text<'a> {
+    pub fn to_owned(&self) -> Text<'static> {
+        Text {
+            text: Cow::Owned(self.text.clone().into_owned()),
+            font: self.font.clone(),
+            size: self.size,
+            wrap: self.wrap,
+            color: self.color,
+        }
     }
 }

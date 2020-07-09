@@ -5,20 +5,26 @@ use winit::{
 };
 
 use gui::backend::wgpu::WgpuUi;
+use gui::backend::winit::convert_event;
 use gui::element::Node;
 use gui::layout::Rectangle;
 use gui::*;
-use gui::backend::winit::convert_event;
 
 struct Counter {
     pub value: i32,
+    pub name: String,
+    pub password: String,
     pub up: gui::element::button::State,
     pub down: gui::element::button::State,
+    pub name_state: gui::element::input::State,
+    pub password_state: gui::element::input::State,
 }
 
 enum Message {
     UpPressed,
     DownPressed,
+    NameChanged(String),
+    PasswordChanged(String),
 }
 
 impl Model for Counter {
@@ -28,19 +34,35 @@ impl Model for Counter {
         match message {
             Message::UpPressed => {
                 self.value += 1;
-            },
+            }
             Message::DownPressed => {
                 self.value -= 1;
-            },
+            }
+            Message::NameChanged(name) => {
+                self.name = name;
+            }
+            Message::PasswordChanged(password) => {
+                self.password = password;
+            }
         }
     }
 
     fn view(&mut self) -> Node<Message> {
         use gui::element::*;
         Column::new()
-            .push(Button::new(&mut self.up, Text::borrowed("Up")).on_clicked(Message::UpPressed).class("button"))
-            .push(Text::owned(format!("Count: {}", self.value)))
-            .push(Button::new(&mut self.down, Text::borrowed("Down")).on_clicked(Message::DownPressed).class("button"))
+            .push(
+                Button::new(&mut self.up, Text::borrowed("Up"))
+                    .on_clicked(Message::UpPressed)
+                    .class("button"),
+            )
+            .push(Text::owned(format!("Hello {}! Count: {}", self.name, self.value)))
+            .push(
+                Button::new(&mut self.down, Text::borrowed("Down"))
+                    .on_clicked(Message::DownPressed)
+                    .class("button"),
+            )
+            .push(Input::new(&mut self.name_state, "username", Message::NameChanged).class("input"))
+            .push(Input::password(&mut self.password_state, "password", Message::PasswordChanged).class("input"))
             .into_node()
     }
 }
@@ -80,12 +102,21 @@ async fn run(event_loop: EventLoop<()>, window: Window, swapchain_format: wgpu::
     let mut viewport = Rectangle::from_wh(size.width as f32, size.height as f32);
 
     let mut ui = WgpuUi::with_stylesheet(
-        Counter { value: 0, up: Default::default(), down: Default::default() },
+        Counter {
+            name: String::new(),
+            password: String::new(),
+            value: 0,
+            up: Default::default(),
+            down: Default::default(),
+            name_state: Default::default(),
+            password_state: Default::default(),
+        },
         std::path::PathBuf::from("."),
         "test_style.ron",
         swapchain_format,
         &device,
-    ).await;
+    )
+    .await;
 
     event_loop.run(move |event, _, control_flow| {
         let _ = &adapter;
@@ -130,9 +161,11 @@ async fn run(event_loop: EventLoop<()>, window: Window, swapchain_format: wgpu::
                 event: WindowEvent::CloseRequested,
                 ..
             } => *control_flow = ControlFlow::Exit,
-            other => if let Some(event) = convert_event(other) {
-                ui.event(event);
-            },
+            other => {
+                if let Some(event) = convert_event(other) {
+                    ui.event(event);
+                }
+            }
         }
     });
 }

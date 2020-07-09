@@ -49,8 +49,6 @@ impl<'a> Text<'a> {
                 size: stylesheet.text_size.clone(),
                 wrap: stylesheet.text_wrap.clone(),
                 color: stylesheet.color.clone(),
-                border: None,
-                padding: stylesheet.padding.clone(),
             }),
             styled => styled,
         });
