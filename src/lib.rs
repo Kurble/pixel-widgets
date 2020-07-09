@@ -79,19 +79,17 @@ impl<I: Model> Ui<I> {
 
         let mut root = self.model.view();
         let stylesheet = &self.stylesheet;
+        let (w, h) = root.size(stylesheet);
+        let layout = Rectangle::from_wh(
+            w.resolve(viewport.width(), w.parts()),
+            h.resolve(viewport.height(), h.parts()),
+        );
         let messages = self
             .events
             .drain(..)
-            .filter_map(|event| root.event(viewport, stylesheet, event))
+            .filter_map(|event| root.event(layout, stylesheet, event))
             .collect::<Vec<_>>();
-        let (w, h) = root.size(stylesheet);
-        let primitives = root.render(
-            Rectangle::from_wh(
-                w.resolve(viewport.width(), w.parts()),
-                h.resolve(viewport.height(), h.parts()),
-            ),
-            stylesheet,
-        );
+        let primitives = root.render(layout, stylesheet);
 
         let mut vtx = Vec::new();
         let mut cmd = Vec::new();

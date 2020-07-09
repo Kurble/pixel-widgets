@@ -38,6 +38,7 @@ impl<'a, T: 'a> Column<'a, T> {
                     let h = h.resolve(available_space, available_parts);
                     let x = align.resolve_start(w, layout.width());
                     let y = cursor;
+
                     cursor += h;
                     available_space -= h;
                     available_parts -= parts;

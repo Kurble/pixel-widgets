@@ -51,13 +51,13 @@ impl Model for Counter {
         use gui::element::*;
         Column::new()
             .push(
-                Button::new(&mut self.up, Text::borrowed("Up"))
+                Button::new(&mut self.up, Text::borrowed("Up").class("content"))
                     .on_clicked(Message::UpPressed)
                     .class("button"),
             )
             .push(Text::owned(format!("Hello {}! Count: {}", self.name, self.value)))
             .push(
-                Button::new(&mut self.down, Text::borrowed("Down"))
+                Button::new(&mut self.down, Text::borrowed("Down").class("content"))
                     .on_clicked(Message::DownPressed)
                     .class("button"),
             )
