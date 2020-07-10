@@ -8,7 +8,7 @@ use wgpu::*;
 use crate::draw::{Command, DrawList, Update, Vertex};
 use crate::event::Event;
 use crate::layout::Rectangle;
-use crate::{Model, Ui, Loader};
+use crate::{Loader, Model, Ui};
 
 pub struct WgpuUi<I> {
     inner: Ui<I>,
@@ -29,7 +29,13 @@ impl<I: Model> WgpuUi<I> {
         Self::new_inner(Ui::new(model), format, device)
     }
 
-    pub async fn with_stylesheet<L: Loader>(model: I, loader: L, url: impl AsRef<str>, format: wgpu::TextureFormat, device: &Device) -> Self {
+    pub async fn with_stylesheet<L: Loader>(
+        model: I,
+        loader: L,
+        url: impl AsRef<str>,
+        format: wgpu::TextureFormat,
+        device: &Device,
+    ) -> Self {
         Self::new_inner(Ui::with_stylesheet(model, loader, url).await, format, device)
     }
 
@@ -198,7 +204,8 @@ impl<I: Model> WgpuUi<I> {
                             });
 
                             if data.len() > 0 {
-                                let staging = device.create_buffer_with_data(data.as_slice(), wgpu::BufferUsage::COPY_SRC);
+                                let staging =
+                                    device.create_buffer_with_data(data.as_slice(), wgpu::BufferUsage::COPY_SRC);
                                 cmd.copy_buffer_to_texture(
                                     wgpu::BufferCopyView {
                                         buffer: &staging,
@@ -237,13 +244,7 @@ impl<I: Model> WgpuUi<I> {
                                 label: None,
                             });
 
-                            self.textures.insert(
-                                id,
-                                TextureEntry {
-                                    bind_group,
-                                    texture,
-                                },
-                            );
+                            self.textures.insert(id, TextureEntry { bind_group, texture });
                         }
                         Update::TextureSubresource { id, offset, size, data } => {
                             let texture = self
@@ -252,14 +253,13 @@ impl<I: Model> WgpuUi<I> {
                                 .map(|val| &val.texture)
                                 .expect("non existing texture is updated");
 
-                            let padding = 256 - (size[0]*4) % 256;
+                            let padding = 256 - (size[0] * 4) % 256;
                             let data = if padding > 0 {
-                                data.chunks(size[0] as usize * 4)
-                                    .fold(Vec::new(), |mut data, row| {
-                                        data.extend_from_slice(row);
-                                        data.extend(std::iter::repeat(0).take(padding as _));
-                                        data
-                                    })
+                                data.chunks(size[0] as usize * 4).fold(Vec::new(), |mut data, row| {
+                                    data.extend_from_slice(row);
+                                    data.extend(std::iter::repeat(0).take(padding as _));
+                                    data
+                                })
                             } else {
                                 data
                             };
@@ -295,10 +295,8 @@ impl<I: Model> WgpuUi<I> {
         }
 
         if vertices.len() > 0 {
-            self.vertex_buffer.replace(device.create_buffer_with_data(
-                vertices.as_bytes(),
-                wgpu::BufferUsage::VERTEX,
-            ));
+            self.vertex_buffer
+                .replace(device.create_buffer_with_data(vertices.as_bytes(), wgpu::BufferUsage::VERTEX));
 
             render_pass.set_pipeline(&self.pipeline);
             render_pass.set_bind_group(0, &self.textures.values().next().unwrap().bind_group, &[]);

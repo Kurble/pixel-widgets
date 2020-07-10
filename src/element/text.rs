@@ -72,7 +72,7 @@ impl<'a, T> Element<'a, T> for Text<'a> {
                 let measured = text.measure(Some(Rectangle::from_wh(size, std::f32::INFINITY)));
                 (Size::Exact(size), Size::Exact(measured.height()))
             }),
-            (width, height) => (width, height)
+            (width, height) => (width, height),
         }
     }
 
@@ -90,4 +90,4 @@ impl<'a, T> Element<'a, T> for Text<'a> {
     }
 }
 
-impl<'a, T: 'a> IntoNode<'a, T> for Text<'a> { }
+impl<'a, T: 'a> IntoNode<'a, T> for Text<'a> {}

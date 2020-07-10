@@ -267,7 +267,7 @@ impl Cache {
         crate::text::Font {
             inner,
             id,
-            tex_slot: self.textures_offset
+            tex_slot: self.textures_offset,
         }
     }
 }

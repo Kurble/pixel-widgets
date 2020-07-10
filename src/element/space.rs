@@ -1,7 +1,7 @@
 use crate::draw::*;
 use crate::element::*;
-use crate::layout::{Size, Rectangle};
 use crate::event::Event;
+use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
 
 pub struct Space;
@@ -20,4 +20,4 @@ impl<'a, T> Element<'a, T> for Space {
     }
 }
 
-impl<'a, T: 'a> IntoNode<'a, T> for Space { }
+impl<'a, T: 'a> IntoNode<'a, T> for Space {}

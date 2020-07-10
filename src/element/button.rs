@@ -65,19 +65,23 @@ impl<'a, T> Element<'a, T> for Button<'a, T> {
         match event {
             Event::Cursor(x, y) => {
                 *self.state = match replace(self.state, State::Idle) {
-                    State::Idle | State::Hover => if layout.point_inside(x, y) {
-                        State::Hover
-                    } else {
-                        State::Idle
-                    },
-                    State::Pressed => if layout.point_inside(x, y) {
-                        State::Pressed
-                    } else {
-                        State::Idle
-                    },
+                    State::Idle | State::Hover => {
+                        if layout.point_inside(x, y) {
+                            State::Hover
+                        } else {
+                            State::Idle
+                        }
+                    }
+                    State::Pressed => {
+                        if layout.point_inside(x, y) {
+                            State::Pressed
+                        } else {
+                            State::Idle
+                        }
+                    }
                     State::Disabled => State::Disabled,
                 };
-            },
+            }
 
             Event::Press(Key::LeftMouseButton) => {
                 *self.state = match replace(self.state, State::Idle) {
@@ -91,12 +95,12 @@ impl<'a, T> Element<'a, T> for Button<'a, T> {
                     State::Pressed => {
                         result = self.on_clicked.take();
                         State::Hover
-                    },
+                    }
                     other => other,
                 };
             }
 
-            _ => ()
+            _ => (),
         }
 
         result

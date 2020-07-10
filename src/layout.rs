@@ -27,7 +27,7 @@ impl Size {
         match self {
             Size::Shrink => 0.0,
             Size::Exact(wanted) => available_space.min(wanted),
-            Size::Fill(parts) => (available_space * parts as f32) / available_parts as f32
+            Size::Fill(parts) => (available_space * parts as f32) / available_parts as f32,
         }
     }
 

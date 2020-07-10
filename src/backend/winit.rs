@@ -1,64 +1,58 @@
 use crate::event::{Event, Key, Modifiers};
 
-use winit::event::{WindowEvent, KeyboardInput, ElementState, MouseButton, MouseScrollDelta, DeviceEvent};
+use winit::event::{DeviceEvent, ElementState, KeyboardInput, MouseButton, MouseScrollDelta, WindowEvent};
 
 pub fn convert_event<T>(ev: winit::event::Event<T>) -> Option<Event> {
     match ev {
-        winit::event::Event::WindowEvent{ event, .. } => match event {
+        winit::event::Event::WindowEvent { event, .. } => match event {
             WindowEvent::Resized(size) => Some(Event::Resize(size.width as f32, size.height as f32)),
             WindowEvent::CloseRequested => Some(Event::Exit),
             WindowEvent::Focused(f) => Some(Event::Focus(f)),
             WindowEvent::ReceivedCharacter(c) => Some(Event::Text(c)),
-            WindowEvent::KeyboardInput{ input, .. } => match input {
-                KeyboardInput{
+            WindowEvent::KeyboardInput { input, .. } => match input {
+                KeyboardInput {
                     state: ElementState::Pressed,
                     virtual_keycode: Some(key),
                     ..
-                } => {
-                    convert_key(key).map(|key| Event::Press(key))
-                },
-                KeyboardInput{
+                } => convert_key(key).map(|key| Event::Press(key)),
+                KeyboardInput {
                     state: ElementState::Released,
                     virtual_keycode: Some(key),
                     ..
-                } => {
-                    convert_key(key).map(|key| Event::Release(key))
-                },
+                } => convert_key(key).map(|key| Event::Release(key)),
                 _ => None,
             },
-            WindowEvent::ModifiersChanged(modifiers) => {
-                Some(Event::Modifiers(convert_mods(modifiers)))
-            },
-            WindowEvent::MouseInput{ state: ElementState::Pressed, button, .. } => match button {
+            WindowEvent::ModifiersChanged(modifiers) => Some(Event::Modifiers(convert_mods(modifiers))),
+            WindowEvent::MouseInput {
+                state: ElementState::Pressed,
+                button,
+                ..
+            } => match button {
                 MouseButton::Left => Some(Event::Press(Key::LeftMouseButton)),
                 MouseButton::Right => Some(Event::Press(Key::RightMouseButton)),
                 MouseButton::Middle => Some(Event::Press(Key::MiddleMouseButton)),
                 MouseButton::Other(_) => None,
             },
-            WindowEvent::MouseInput{ state: ElementState::Released, button, .. } => match button {
+            WindowEvent::MouseInput {
+                state: ElementState::Released,
+                button,
+                ..
+            } => match button {
                 MouseButton::Left => Some(Event::Release(Key::LeftMouseButton)),
                 MouseButton::Right => Some(Event::Release(Key::RightMouseButton)),
                 MouseButton::Middle => Some(Event::Release(Key::MiddleMouseButton)),
                 MouseButton::Other(_) => None,
             },
-            WindowEvent::CursorMoved{ position, .. } => {
-                Some(Event::Cursor(position.x as f32, position.y as f32))
-            },
-            WindowEvent::MouseWheel{ delta, .. } => {
-                match delta {
-                    MouseScrollDelta::LineDelta(dx, dy) =>
-                        Some(Event::Scroll(dx * 20.0, dy * 20.0)),
+            WindowEvent::CursorMoved { position, .. } => Some(Event::Cursor(position.x as f32, position.y as f32)),
+            WindowEvent::MouseWheel { delta, .. } => match delta {
+                MouseScrollDelta::LineDelta(dx, dy) => Some(Event::Scroll(dx * 20.0, dy * 20.0)),
 
-                    MouseScrollDelta::PixelDelta(delta) =>
-                        Some(Event::Scroll(delta.x as f32, delta.y as f32)),
-                }
+                MouseScrollDelta::PixelDelta(delta) => Some(Event::Scroll(delta.x as f32, delta.y as f32)),
             },
             _ => None,
         },
-        winit::event::Event::DeviceEvent{ event, .. } => match event {
-            DeviceEvent::MouseMotion{ delta: (x, y) } => {
-                Some(Event::Motion(x as f32, y as f32))
-            },
+        winit::event::Event::DeviceEvent { event, .. } => match event {
+            DeviceEvent::MouseMotion { delta: (x, y) } => Some(Event::Motion(x as f32, y as f32)),
             _ => None,
         },
         _ => None,

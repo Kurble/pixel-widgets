@@ -7,8 +7,8 @@ use serde::*;
 use crate::cache::Cache;
 use crate::draw::{Background, Color, Image, Patch};
 use crate::layout::{Align, Rectangle, Size};
-use crate::Loader;
 use crate::text::{Font, TextWrap};
+use crate::Loader;
 
 #[derive(Debug)]
 pub enum Error {
@@ -88,7 +88,7 @@ impl Stylesheet {
             height: Size::Shrink,
             align_horizontal: Align::Begin,
             align_vertical: Align::Begin,
-            classes: Default::default()
+            classes: Default::default(),
         }
     }
 
@@ -134,7 +134,9 @@ impl Stylesheet {
                     result
                 }
             } else {
-                inherit.map(|i| i.font.clone()).unwrap_or(cache.load_font(include_bytes!("../default_font.ttf").to_vec()))
+                inherit
+                    .map(|i| i.font.clone())
+                    .unwrap_or(cache.load_font(include_bytes!("../default_font.ttf").to_vec()))
             };
 
             let color = if let Some(color) = imp.color.clone() {
@@ -156,8 +158,15 @@ impl Stylesheet {
                 hover: load_background(imp.hover, inherit.map(|i| &i.hover), loader, cache, images, patches).await?,
                 pressed: load_background(imp.pressed, inherit.map(|i| &i.pressed), loader, cache, images, patches)
                     .await?,
-                disabled: load_background(imp.disabled, inherit.map(|i| &i.disabled), loader, cache, images, patches)
-                    .await?,
+                disabled: load_background(
+                    imp.disabled,
+                    inherit.map(|i| &i.disabled),
+                    loader,
+                    cache,
+                    images,
+                    patches,
+                )
+                .await?,
                 checked: load_background(imp.checked, inherit.map(|i| &i.checked), loader, cache, images, patches)
                     .await?,
                 font,
@@ -277,4 +286,4 @@ impl std::fmt::Display for Error {
     }
 }
 
-impl std::error::Error for Error { }
+impl std::error::Error for Error {}

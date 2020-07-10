@@ -1,9 +1,9 @@
 use super::{Element, Node};
 use crate::draw::Primitive;
+use crate::element::IntoNode;
 use crate::event::Event;
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
-use crate::element::IntoNode;
 
 pub struct Column<'a, T> {
     children: Vec<Node<'a, T>>,
@@ -23,13 +23,18 @@ impl<'a, T: 'a> Column<'a, T> {
         self
     }
 
-    fn layout(&mut self, layout: Rectangle, stylesheet: &Stylesheet) -> impl Iterator<Item = (&mut Node<'a, T>, Rectangle)> {
+    fn layout(
+        &mut self,
+        layout: Rectangle,
+        stylesheet: &Stylesheet,
+    ) -> impl Iterator<Item = (&mut Node<'a, T>, Rectangle)> {
         if self.layout.len() != self.children.len() {
             let align = stylesheet.align_horizontal;
             let mut available_parts = self.children.iter().map(|c| c.size(stylesheet).1.parts()).sum();
             let mut available_space = layout.height();
             let mut cursor = 0.0;
-            self.layout = self.children
+            self.layout = self
+                .children
                 .iter()
                 .map(|child| {
                     let (w, h) = child.size(stylesheet);
@@ -88,13 +93,15 @@ impl<'a, T: 'a> Element<'a, T> for Column<'a, T> {
     fn render(&mut self, layout: Rectangle, stylesheet: &Stylesheet) -> Vec<Primitive<'a>> {
         let mut result = Vec::new();
 
-        result = self.layout(layout, stylesheet).fold(result, |mut result, (child, layout)| {
-            result.append(&mut child.render(layout, stylesheet));
-            result
-        });
+        result = self
+            .layout(layout, stylesheet)
+            .fold(result, |mut result, (child, layout)| {
+                result.append(&mut child.render(layout, stylesheet));
+                result
+            });
 
         result
     }
 }
 
-impl<'a, T: 'a> IntoNode<'a, T> for Column<'a, T> { }
+impl<'a, T: 'a> IntoNode<'a, T> for Column<'a, T> {}

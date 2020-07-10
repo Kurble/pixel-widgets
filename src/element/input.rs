@@ -148,7 +148,8 @@ impl<'a, T: 'a, F: 'a + Fn(String) -> T> Element<'a, T> for Input<'a, T, F> {
                         self.state.cursor.0 - content_rect.left + self.state.scroll_x,
                         self.state.cursor.1 - content_rect.top + self.state.scroll_y,
                     );
-                    let hit = self.text(stylesheet).hitdetect(relative_cursor, content_rect);
+                    let hit =
+                        text_display(self.text(stylesheet), self.password).hitdetect(relative_cursor, content_rect);
                     self.state.inner = InnerState::Dragging(from, hit, Instant::now());
                 }
             }
@@ -163,7 +164,8 @@ impl<'a, T: 'a, F: 'a + Fn(String) -> T> Element<'a, T> for Input<'a, T, F> {
                         self.state.cursor.0 - content_rect.left + self.state.scroll_x,
                         self.state.cursor.1 - content_rect.top + self.state.scroll_y,
                     );
-                    let hit = self.text(stylesheet).hitdetect(relative_cursor, content_rect);
+                    let hit =
+                        text_display(self.text(stylesheet), self.password).hitdetect(relative_cursor, content_rect);
                     self.state.inner = InnerState::Dragging(hit, hit, Instant::now());
                 } else {
                     self.state.inner = InnerState::Idle;

@@ -325,16 +325,8 @@ impl Background {
     pub fn render(&self, rectangle: Rectangle) -> Option<Primitive<'static>> {
         match self {
             &Background::Color(color) => Some(Primitive::DrawRect(rectangle, color)),
-            &Background::Image(ref image, color) => Some(Primitive::DrawImage(
-                image.clone(),
-                rectangle,
-                color,
-            )),
-            &Background::Patch(ref patch, color) => Some(Primitive::Draw9(
-                patch.clone(),
-                rectangle,
-                color,
-            )),
+            &Background::Image(ref image, color) => Some(Primitive::DrawImage(image.clone(), rectangle, color)),
+            &Background::Patch(ref patch, color) => Some(Primitive::Draw9(patch.clone(), rectangle, color)),
             &Background::None => None,
         }
     }

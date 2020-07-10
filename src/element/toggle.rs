@@ -18,7 +18,7 @@ impl<'a, T: 'a, F: 'a + Fn(bool) -> T> Toggle<'a, T, F> {
         Self {
             checked,
             state,
-            on_toggle
+            on_toggle,
         }
     }
 }
@@ -30,10 +30,8 @@ impl<'a, T, F: Fn(bool) -> T> Element<'a, T> for Toggle<'a, T, F> {
                 let size = patch.minimum_size();
                 (Size::Exact(size.0), Size::Exact(size.1))
             }
-            Background::Image(ref image, _) => {
-                (Size::Exact(image.size.width()), Size::Exact(image.size.height()))
-            }
-            _ => (stylesheet.width, stylesheet.height)
+            Background::Image(ref image, _) => (Size::Exact(image.size.width()), Size::Exact(image.size.height())),
+            _ => (stylesheet.width, stylesheet.height),
         }
     }
 
@@ -42,19 +40,23 @@ impl<'a, T, F: Fn(bool) -> T> Element<'a, T> for Toggle<'a, T, F> {
         match event {
             Event::Cursor(x, y) => {
                 *self.state = match replace(self.state, State::Idle) {
-                    State::Idle | State::Hover => if layout.point_inside(x, y) {
-                        State::Hover
-                    } else {
-                        State::Idle
-                    },
-                    State::Pressed => if layout.point_inside(x, y) {
-                        State::Pressed
-                    } else {
-                        State::Idle
-                    },
+                    State::Idle | State::Hover => {
+                        if layout.point_inside(x, y) {
+                            State::Hover
+                        } else {
+                            State::Idle
+                        }
+                    }
+                    State::Pressed => {
+                        if layout.point_inside(x, y) {
+                            State::Pressed
+                        } else {
+                            State::Idle
+                        }
+                    }
                     State::Disabled => State::Disabled,
                 };
-            },
+            }
 
             Event::Press(Key::LeftMouseButton) => {
                 *self.state = match replace(self.state, State::Idle) {
@@ -68,12 +70,12 @@ impl<'a, T, F: Fn(bool) -> T> Element<'a, T> for Toggle<'a, T, F> {
                     State::Pressed => {
                         result.replace((self.on_toggle)(!self.checked));
                         State::Hover
-                    },
+                    }
                     other => other,
                 };
             }
 
-            _ => ()
+            _ => (),
         }
 
         result
@@ -85,10 +87,7 @@ impl<'a, T, F: Fn(bool) -> T> Element<'a, T> for Toggle<'a, T, F> {
             true => &stylesheet.checked,
         };
 
-        background
-            .render(layout)
-            .into_iter()
-            .collect()
+        background.render(layout).into_iter().collect()
     }
 }
 
