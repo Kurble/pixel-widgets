@@ -384,7 +384,6 @@ async fn parse_rule<I: Iterator<Item = PositionedToken>, L: Loader>(
     match c.tokens.next() {
         Some(PositionedToken(Token::Identifier(key), _)) => {
             c.take(Token::Colon)?;
-            println!("{}", key);
             match key.as_str() {
                 "background" => Ok(Rule::Background(parse_background(c).await?)),
                 "hover" => Ok(Rule::Hover(parse_background(c).await?)),

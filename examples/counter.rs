@@ -51,18 +51,16 @@ impl Model for Counter {
         use gui::element::*;
         Column::new()
             .push(
-                Button::new(&mut self.up, Text::borrowed("Up").class("content"))
-                    .on_clicked(Message::UpPressed)
-                    .class("button"),
+                Button::new(&mut self.up, Text::borrowed("Up"))
+                    .on_clicked(Message::UpPressed),
             )
             .push(Text::owned(format!("Hello {}! Count: {}", self.name, self.value)))
             .push(
-                Button::new(&mut self.down, Text::borrowed("Down").class("content"))
-                    .on_clicked(Message::DownPressed)
-                    .class("button"),
+                Button::new(&mut self.down, Text::borrowed("Down"))
+                    .on_clicked(Message::DownPressed),
             )
-            .push(Input::new(&mut self.name_state, "username", Message::NameChanged).class("input"))
-            .push(Input::password(&mut self.password_state, "password", Message::PasswordChanged).class("input"))
+            .push(Input::new(&mut self.name_state, "username", Message::NameChanged))
+            .push(Input::password(&mut self.password_state, "password", Message::PasswordChanged))
             .into_node()
     }
 }

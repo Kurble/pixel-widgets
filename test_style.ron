@@ -8,7 +8,15 @@ button {
     text-size: 24.0
 }
 
-input .foo {
+text {
+    color: #f00
+}
+
+button text {
+    color: #0f0
+}
+
+input {
     width: fill(1)
     background: #fff
     color: #000
