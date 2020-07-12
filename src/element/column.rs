@@ -30,14 +30,14 @@ impl<'a, T: 'a> Column<'a, T> {
     ) -> impl Iterator<Item = (&mut Node<'a, T>, Rectangle)> {
         if self.layout.len() != self.children.len() {
             let align = stylesheet.align_horizontal;
-            let mut available_parts = self.children.iter().map(|c| c.size(stylesheet).1.parts()).sum();
+            let mut available_parts = self.children.iter().map(|c| c.size().1.parts()).sum();
             let mut available_space = layout.height();
             let mut cursor = 0.0;
             self.layout = self
                 .children
                 .iter()
                 .map(|child| {
-                    let (w, h) = child.size(stylesheet);
+                    let (w, h) = child.size();
                     let parts = h.parts();
                     let w = w.resolve(layout.width(), w.parts());
                     let h = h.resolve(available_space, available_parts);
@@ -56,12 +56,20 @@ impl<'a, T: 'a> Column<'a, T> {
 }
 
 impl<'a, T: 'a> Element<'a, T> for Column<'a, T> {
+    fn element(&self) -> &'static str {
+        "column"
+    }
+
+    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut Node<'a, T>)) {
+        self.children.iter_mut().for_each(visitor);
+    }
+
     fn size(&self, stylesheet: &Stylesheet) -> (Size, Size) {
         let width = match stylesheet.width {
             Size::Shrink => Size::Exact(
                 self.children
                     .iter()
-                    .fold(0.0, |size, child| match child.size(stylesheet).0 {
+                    .fold(0.0, |size, child| match child.size().0 {
                         Size::Exact(child_size) => size.max(child_size),
                         _ => size,
                     }),
@@ -72,7 +80,7 @@ impl<'a, T: 'a> Element<'a, T> for Column<'a, T> {
             Size::Shrink => Size::Exact(
                 self.children
                     .iter()
-                    .fold(0.0, |size, child| match child.size(stylesheet).1 {
+                    .fold(0.0, |size, child| match child.size().1 {
                         Size::Exact(child_size) => size + child_size,
                         _ => size,
                     }),
@@ -85,7 +93,7 @@ impl<'a, T: 'a> Element<'a, T> for Column<'a, T> {
     fn event(&mut self, layout: Rectangle, stylesheet: &Stylesheet, event: Event) -> Option<T> {
         let mut result = None;
         for (child, layout) in self.layout(layout, stylesheet) {
-            result = result.or(child.event(layout, stylesheet, event));
+            result = result.or(child.event(layout, event));
         }
         result
     }
@@ -96,7 +104,7 @@ impl<'a, T: 'a> Element<'a, T> for Column<'a, T> {
         result = self
             .layout(layout, stylesheet)
             .fold(result, |mut result, (child, layout)| {
-                result.append(&mut child.render(layout, stylesheet));
+                result.append(&mut child.render(layout));
                 result
             });
 

@@ -1,5 +1,5 @@
 use crate::draw::*;
-use crate::element::{Element, IntoNode};
+use crate::element::{Element, IntoNode, Node};
 use crate::event::{Event, Key};
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
@@ -24,6 +24,12 @@ impl<'a, T: 'a, F: 'a + Fn(bool) -> T> Toggle<'a, T, F> {
 }
 
 impl<'a, T, F: Fn(bool) -> T> Element<'a, T> for Toggle<'a, T, F> {
+    fn element(&self) -> &'static str {
+        "toggle"
+    }
+
+    fn visit_children(&mut self, _: &mut dyn FnMut(&mut Node<'a, T>)) { }
+
     fn size(&self, stylesheet: &Stylesheet) -> (Size, Size) {
         match stylesheet.background {
             Background::Patch(ref patch, _) => {

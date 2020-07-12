@@ -34,8 +34,16 @@ impl<'a, T: 'a> Button<'a, T> {
 }
 
 impl<'a, T> Element<'a, T> for Button<'a, T> {
+    fn element(&self) -> &'static str {
+        "button"
+    }
+
+    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut Node<'a, T>)) {
+        visitor(&mut self.content);
+    }
+
     fn size(&self, stylesheet: &Stylesheet) -> (Size, Size) {
-        let (content_width, content_height) = self.content.size(stylesheet);
+        let (content_width, content_height) = self.content.size();
 
         let padding = stylesheet.background.padding();
         let padding = Rectangle {
@@ -122,7 +130,7 @@ impl<'a, T> Element<'a, T> for Button<'a, T> {
         background
             .render(layout)
             .into_iter()
-            .chain(self.content.render(content_rect, stylesheet).into_iter())
+            .chain(self.content.render(content_rect).into_iter())
             .collect()
     }
 }

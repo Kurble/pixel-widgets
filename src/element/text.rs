@@ -56,6 +56,12 @@ impl<'a> Text<'a> {
 }
 
 impl<'a, T> Element<'a, T> for Text<'a> {
+    fn element(&self) -> &'static str {
+        "text"
+    }
+
+    fn visit_children(&mut self, _: &mut dyn FnMut(&mut Node<'a, T>)) { }
+
     fn size(&self, stylesheet: &Stylesheet) -> (Size, Size) {
         let width = stylesheet.width;
         let height = stylesheet.height;

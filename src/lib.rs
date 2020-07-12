@@ -3,10 +3,10 @@ use std::ops::{Deref, DerefMut};
 
 use draw::DrawList;
 
-use crate::element::{Element, Node};
+use crate::element::Node;
 use crate::event::Event;
 use crate::layout::Rectangle;
-use crate::stylesheet::Stylesheet;
+use crate::stylesheet::{Style, Query};
 
 pub mod backend;
 pub mod cache;
@@ -27,7 +27,8 @@ pub trait Model {
 }
 
 pub trait Loader: Send + Sync {
-    type Load: Future<Output = Vec<u8>> + Send + Sync;
+    type Load: Future<Output = Result<Vec<u8>, Self::Error>> + Send + Sync;
+    type Error: std::error::Error;
 
     fn load(&self, url: impl AsRef<str>) -> Self::Load;
 }
@@ -36,14 +37,14 @@ pub struct Ui<I> {
     model: I,
     cache: self::cache::Cache,
     events: Vec<Event>,
-    stylesheet: Stylesheet,
+    stylesheet: Style,
 }
 
 impl<I: Model> Ui<I> {
     pub fn new(model: I) -> Self {
         let mut cache = self::cache::Cache::new(512, 0);
 
-        let stylesheet = Stylesheet::new(&mut cache);
+        let stylesheet = Style::new(&mut cache);
 
         Self {
             model,
@@ -56,7 +57,7 @@ impl<I: Model> Ui<I> {
     pub async fn with_stylesheet(model: I, loader: impl Loader, url: impl AsRef<str>) -> Self {
         let mut cache = self::cache::Cache::new(512, 0);
 
-        let stylesheet = Stylesheet::load(&loader, url, &mut cache).await.unwrap();
+        let stylesheet = Style::load(&loader, url, &mut cache).await.unwrap();
 
         Self {
             model,
@@ -78,8 +79,8 @@ impl<I: Model> Ui<I> {
         use self::draw::*;
 
         let mut root = self.model.view();
-        let stylesheet = &self.stylesheet;
-        let (w, h) = root.size(stylesheet);
+        root.style(&mut self.stylesheet, &mut Query::default());
+        let (w, h) = root.size();
         let layout = Rectangle::from_wh(
             w.resolve(viewport.width(), w.parts()),
             h.resolve(viewport.height(), h.parts()),
@@ -87,9 +88,9 @@ impl<I: Model> Ui<I> {
         let messages = self
             .events
             .drain(..)
-            .filter_map(|event| root.event(layout, stylesheet, event))
+            .filter_map(|event| root.event(layout, event))
             .collect::<Vec<_>>();
-        let primitives = root.render(layout, stylesheet);
+        let primitives = root.render(layout);
 
         let mut vtx = Vec::new();
         let mut cmd = Vec::new();
@@ -408,10 +409,11 @@ impl<I> DerefMut for Ui<I> {
 }
 
 impl Loader for std::path::PathBuf {
-    type Load = futures::future::Ready<Vec<u8>>;
+    type Load = futures::future::Ready<Result<Vec<u8>, Self::Error>>;
+    type Error = std::io::Error;
 
     fn load(&self, url: impl AsRef<str>) -> Self::Load {
         let path = self.join(std::path::Path::new(url.as_ref()));
-        futures::future::ready(std::fs::read(path).expect("read file"))
+        futures::future::ready(std::fs::read(path))
     }
 }

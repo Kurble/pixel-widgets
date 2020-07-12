@@ -1,27 +1,18 @@
-#![enable(implicit_some)]
-(
-    classes: {
-        "button": (
-            width: Fill(1),
-            background: Color("888"),
-            hover: Color("aaa"),
-            pressed: Color("222"),
-            disabled: Color("868"),
-            padding: (left: 20.0, right: 20.0, top: 5.0, bottom: 5.0),
-            text_size: 24.0,
+button {
+    width: FILL(1)
+    background: #888
+    hover: #aaa
+    pressed: #222
+    disabled: #868
+    padding: (left: 20.0 right: 20.0 top: 5.0 bottom: 5.0)
+    text-size: 24.0
+}
 
-            classes: {
-                "content": (
-                    width: Shrink
-                )
-            }
-        ),
-        "input": (
-            width: Fill(1),
-            background: Color("fff"),
-            color: "000",
-            text_size: 24.0,
-            padding: (left: 4.0, right: 4.0, top: 4.0, bottom: 4.0),
-        )
-    }
-)
+input .foo {
+    width: fill(1)
+    background: #fff
+    color: #000
+    text-size: 24.0
+    padding: (left: 4.0 right: 4.0 top: 4.0 bottom: 4.0)
+}
+
