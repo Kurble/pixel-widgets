@@ -1,5 +1,5 @@
 button {
-    width: FILL(1)
+    width: fill(1)
     background: #888
     hover: #aaa
     pressed: #222
@@ -23,4 +23,3 @@ input {
     text-size: 24.0
     padding: (left: 4.0 right: 4.0 top: 4.0 bottom: 4.0)
 }
-

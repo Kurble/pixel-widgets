@@ -335,11 +335,17 @@ impl<'a> Query<'a> {
 
 impl<I: Iterator<Item = PositionedToken>, L: Loader> LoadContext<'_, I, L> {
     pub fn take(&mut self, token: Token) -> Result<PositionedToken, Error<L::Error>> {
-        let next = self.tokens.next().ok_or(Error::Syntax(format!("Expected '{:?}' at end of file", token)))?;
+        let next = self
+            .tokens
+            .next()
+            .ok_or(Error::Syntax(format!("Expected '{:?}' at end of file", token)))?;
         if token == next.0 {
             Ok(next)
         } else {
-            Err(Error::Syntax(format!("Expected '{:?}' at {}:{}, found '{:?}'", token, next.1.line, next.1.col_start, next.0)))
+            Err(Error::Syntax(format!(
+                "Expected '{:?}' at {}:{}, found '{:?}'",
+                token, next.1.line, next.1.col_start, next.0
+            )))
         }
     }
 }
@@ -404,12 +410,11 @@ async fn parse_rule<I: Iterator<Item = PositionedToken>, L: Loader>(
                 unrecognized => Err(Error::Syntax(format!("Key {} not recognized", unrecognized))),
             }
         }
-        Some(PositionedToken(tok, pos)) => {
-            Err(Error::Syntax(format!("{}:{}: Expected identifier at start of rule, got '{:?}'", pos.line, pos.col_start, tok)))
-        }
-        None => {
-            Err(Error::Syntax("Unexpected end of file parsing rule".into()))
-        }
+        Some(PositionedToken(tok, pos)) => Err(Error::Syntax(format!(
+            "{}:{}: Expected identifier at start of rule, got '{:?}'",
+            pos.line, pos.col_start, tok
+        ))),
+        None => Err(Error::Syntax("Unexpected end of file parsing rule".into())),
     }
 }
 
@@ -455,7 +460,9 @@ async fn parse_background<I: Iterator<Item = PositionedToken>, L: Loader>(
             }
             other => Err(Error::Syntax(format!("{} is not a background type", other))),
         },
-        Some(PositionedToken(Token::Color(color), pos)) => Ok(Background::Color(parse_color::<L>(Some(PositionedToken(Token::Color(color), pos)))?)),
+        Some(PositionedToken(Token::Color(color), pos)) => Ok(Background::Color(parse_color::<L>(Some(
+            PositionedToken(Token::Color(color), pos),
+        ))?)),
         Some(other) => Err(Error::Syntax(format!("Unexpected token {:?}", other))),
         None => Err(Error::Syntax("Unexpected end of file while parsing background".into())),
     }
@@ -479,7 +486,9 @@ async fn parse_font<I: Iterator<Item = PositionedToken>, L: Loader>(
     }
 }
 
-fn parse_float<I: Iterator<Item = PositionedToken>, L: Loader>(c: &mut LoadContext<I, L>) -> Result<f32, Error<L::Error>> {
+fn parse_float<I: Iterator<Item = PositionedToken>, L: Loader>(
+    c: &mut LoadContext<I, L>,
+) -> Result<f32, Error<L::Error>> {
     match c.tokens.next() {
         Some(PositionedToken(Token::Number(number), _)) => number
             .parse::<f32>()
@@ -534,7 +543,9 @@ fn parse_text_wrap<I: Iterator<Item = PositionedToken>, L: Loader>(
     }
 }
 
-fn parse_align<I: Iterator<Item = PositionedToken>, L: Loader>(c: &mut LoadContext<I, L>) -> Result<Align, Error<L::Error>> {
+fn parse_align<I: Iterator<Item = PositionedToken>, L: Loader>(
+    c: &mut LoadContext<I, L>,
+) -> Result<Align, Error<L::Error>> {
     match c.tokens.next() {
         Some(PositionedToken(Token::Identifier(ty), _)) => match ty.to_lowercase().as_str() {
             "begin" | "left" | "top" => Ok(Align::Begin),
@@ -547,7 +558,9 @@ fn parse_align<I: Iterator<Item = PositionedToken>, L: Loader>(c: &mut LoadConte
     }
 }
 
-fn parse_size<I: Iterator<Item = PositionedToken>, L: Loader>(c: &mut LoadContext<I, L>) -> Result<Size, Error<L::Error>> {
+fn parse_size<I: Iterator<Item = PositionedToken>, L: Loader>(
+    c: &mut LoadContext<I, L>,
+) -> Result<Size, Error<L::Error>> {
     match c.tokens.next() {
         Some(PositionedToken(Token::Identifier(ty), _)) => match ty.to_lowercase().as_str() {
             "shrink" => Ok(Size::Shrink),
