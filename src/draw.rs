@@ -308,6 +308,14 @@ impl Background {
         }
     }
 
+    pub fn minimum_size(&self) -> (f32, f32) {
+        match self {
+            &Background::Patch(ref patch, _) => patch.minimum_size(),
+            &Background::Image(ref image, _) => (image.size.width(), image.size.height()),
+            &_ => (0.0, 0.0)
+        }
+    }
+
     pub fn padding(&self) -> Rectangle {
         match self {
             &Background::Patch(ref patch, _) => patch.margin(),

@@ -1,3 +1,9 @@
+scroll {
+    width: 150
+    height: 100
+    padding: (right: 5.0 bottom: 5.0)
+}
+
 button {
     width: fill(1)
     background: #888
