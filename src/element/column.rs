@@ -66,25 +66,17 @@ impl<'a, T: 'a> Element<'a, T> for Column<'a, T> {
 
     fn size(&self, stylesheet: &Stylesheet) -> (Size, Size) {
         let width = match stylesheet.width {
-            Size::Shrink => Size::Exact(
-                self.children
-                    .iter()
-                    .fold(0.0, |size, child| match child.size().0 {
-                        Size::Exact(child_size) => size.max(child_size),
-                        _ => size,
-                    }),
-            ),
+            Size::Shrink => Size::Exact(self.children.iter().fold(0.0, |size, child| match child.size().0 {
+                Size::Exact(child_size) => size.max(child_size),
+                _ => size,
+            })),
             other => other,
         };
         let height = match stylesheet.height {
-            Size::Shrink => Size::Exact(
-                self.children
-                    .iter()
-                    .fold(0.0, |size, child| match child.size().1 {
-                        Size::Exact(child_size) => size + child_size,
-                        _ => size,
-                    }),
-            ),
+            Size::Shrink => Size::Exact(self.children.iter().fold(0.0, |size, child| match child.size().1 {
+                Size::Exact(child_size) => size + child_size,
+                _ => size,
+            })),
             other => other,
         };
         (width, height)

@@ -6,7 +6,7 @@ use draw::DrawList;
 use crate::element::Node;
 use crate::event::Event;
 use crate::layout::Rectangle;
-use crate::stylesheet::{Style, Query};
+use crate::stylesheet::{Query, Style};
 
 pub mod backend;
 pub mod cache;

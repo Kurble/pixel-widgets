@@ -12,8 +12,8 @@ pub use self::input::*;
 pub use self::space::*;
 pub use self::text::*;
 pub use self::toggle::*;
-use std::ops::Deref;
 use std::borrow::Cow;
+use std::ops::Deref;
 
 pub mod button;
 pub mod column;
@@ -69,7 +69,8 @@ impl<'a, Message> Node<'a, Message> {
         }
 
         self.style.replace(engine.get(query));
-        self.element.visit_children(&mut |child| child.style(&mut *engine, &mut *query));
+        self.element
+            .visit_children(&mut |child| child.style(&mut *engine, &mut *query));
 
         query.elements.pop();
         if self.class.is_some() {

@@ -50,17 +50,15 @@ impl Model for Counter {
     fn view(&mut self) -> Node<Message> {
         use gui::element::*;
         Column::new()
-            .push(
-                Button::new(&mut self.up, Text::borrowed("Up"))
-                    .on_clicked(Message::UpPressed),
-            )
+            .push(Button::new(&mut self.up, Text::borrowed("Up")).on_clicked(Message::UpPressed))
             .push(Text::owned(format!("Hello {}! Count: {}", self.name, self.value)))
-            .push(
-                Button::new(&mut self.down, Text::borrowed("Down"))
-                    .on_clicked(Message::DownPressed),
-            )
+            .push(Button::new(&mut self.down, Text::borrowed("Down")).on_clicked(Message::DownPressed))
             .push(Input::new(&mut self.name_state, "username", Message::NameChanged))
-            .push(Input::password(&mut self.password_state, "password", Message::PasswordChanged))
+            .push(Input::password(
+                &mut self.password_state,
+                "password",
+                Message::PasswordChanged,
+            ))
             .into_node()
     }
 }

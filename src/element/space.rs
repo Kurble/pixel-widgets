@@ -11,7 +11,7 @@ impl<'a, T> Element<'a, T> for Space {
         "space"
     }
 
-    fn visit_children(&mut self, _: &mut dyn FnMut(&mut Node<'a, T>)) { }
+    fn visit_children(&mut self, _: &mut dyn FnMut(&mut Node<'a, T>)) {}
 
     fn size(&self, stylesheet: &Stylesheet) -> (Size, Size) {
         (stylesheet.width, stylesheet.height)

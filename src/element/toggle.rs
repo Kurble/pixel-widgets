@@ -28,7 +28,7 @@ impl<'a, T, F: Fn(bool) -> T> Element<'a, T> for Toggle<'a, T, F> {
         "toggle"
     }
 
-    fn visit_children(&mut self, _: &mut dyn FnMut(&mut Node<'a, T>)) { }
+    fn visit_children(&mut self, _: &mut dyn FnMut(&mut Node<'a, T>)) {}
 
     fn size(&self, stylesheet: &Stylesheet) -> (Size, Size) {
         match stylesheet.background {
