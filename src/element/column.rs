@@ -82,10 +82,12 @@ impl<'a, T: 'a> Element<'a, T> for Column<'a, T> {
         (width, height)
     }
 
-    fn event(&mut self, layout: Rectangle, stylesheet: &Stylesheet, event: Event) -> Option<T> {
+    fn event(&mut self, layout: Rectangle, stylesheet: &Stylesheet, event: Event, clip: Rectangle) -> Option<T> {
         let mut result = None;
         for (child, layout) in self.layout(layout, stylesheet) {
-            result = result.or(child.event(layout, event));
+            if let Some(clip) = clip.intersect(&layout) {
+                result = result.or(child.event(layout, event, clip));
+            }
         }
         result
     }

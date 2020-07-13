@@ -82,7 +82,7 @@ impl<'a, T> Element<'a, T> for Text<'a> {
         }
     }
 
-    fn event(&mut self, _: Rectangle, _: &Stylesheet, _: Event) -> Option<T> {
+    fn event(&mut self, _: Rectangle, _: &Stylesheet, _: Event, _: Rectangle) -> Option<T> {
         None
     }
 

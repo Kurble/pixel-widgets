@@ -106,7 +106,7 @@ impl<'a, T: 'a> Element<'a, T> for Scroll<'a, T> {
         (style.width, style.height)
     }
 
-    fn event(&mut self, layout: Rectangle, style: &Stylesheet, event: Event) -> Option<T> {
+    fn event(&mut self, layout: Rectangle, style: &Stylesheet, event: Event, clip: Rectangle) -> Option<T> {
         let mut result = None;
         let content_rect = style.background.content_rect(layout).after_padding(style.padding);
         let content_layout = self.content_layout(&content_rect);
@@ -148,12 +148,14 @@ impl<'a, T: 'a> Element<'a, T> for Scroll<'a, T> {
                 );
             }
             (Event::Cursor(x, y), _) => {
-                result = result.or(self.content.event(content_layout, event));
+                if let Some(clip) = clip.intersect(&content_rect) {
+                    result = result.or(self.content.event(content_layout, event, clip));
+                }
                 self.state.cursor_x = x;
                 self.state.cursor_y = y;
-                if hbar.point_inside(x, y) {
+                if hbar.point_inside(x, y) && clip.point_inside(x, y) {
                     self.state.inner = InnerState::HoverHorizontalBar;
-                } else if vbar.point_inside(x, y) {
+                } else if vbar.point_inside(x, y) && clip.point_inside(x, y) {
                     self.state.inner = InnerState::HoverVerticalBar;
                 } else {
                     self.state.inner = InnerState::Idle;
@@ -167,16 +169,18 @@ impl<'a, T: 'a> Element<'a, T> for Scroll<'a, T> {
             }
             (Event::Release(Key::LeftMouseButton), InnerState::DragHorizontalBar(_))
             | (Event::Release(Key::LeftMouseButton), InnerState::DragVerticalBar(_)) => {
-                if hbar.point_inside(self.state.cursor_x, self.state.cursor_y) {
+                if hbar.point_inside(self.state.cursor_x, self.state.cursor_y) && clip.point_inside(self.state.cursor_x, self.state.cursor_y) {
                     self.state.inner = InnerState::HoverHorizontalBar;
-                } else if vbar.point_inside(self.state.cursor_x, self.state.cursor_y) {
+                } else if vbar.point_inside(self.state.cursor_x, self.state.cursor_y) && clip.point_inside(self.state.cursor_x, self.state.cursor_y) {
                     self.state.inner = InnerState::HoverVerticalBar;
                 } else {
                     self.state.inner = InnerState::Idle;
                 }
             }
             (event, InnerState::Idle) => {
-                result = result.or(self.content.event(content_layout, event));
+                if let Some(clip) = clip.intersect(&content_rect) {
+                    result = result.or(self.content.event(content_layout, event, clip));
+                }
             }
             _ => (),
         }

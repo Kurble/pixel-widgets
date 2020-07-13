@@ -114,7 +114,7 @@ impl<'a, T: 'a, F: 'a + Fn(String) -> T> Element<'a, T> for Input<'a, T, F> {
         }
     }
 
-    fn event(&mut self, layout: Rectangle, stylesheet: &Stylesheet, event: Event) -> Option<T> {
+    fn event(&mut self, layout: Rectangle, stylesheet: &Stylesheet, event: Event, clip: Rectangle) -> Option<T> {
         let content_rect = self.content_rect(layout, stylesheet);
         let mut result = None;
 
@@ -165,7 +165,7 @@ impl<'a, T: 'a, F: 'a + Fn(String) -> T> Element<'a, T> for Input<'a, T, F> {
             }
 
             Event::Press(Key::LeftMouseButton) => {
-                if layout.point_inside(self.state.cursor.0, self.state.cursor.1) {
+                if layout.point_inside(self.state.cursor.0, self.state.cursor.1) && clip.point_inside(self.state.cursor.0, self.state.cursor.1) {
                     let relative_cursor = (
                         self.state.cursor.0 - content_rect.left + self.state.scroll_x,
                         self.state.cursor.1 - content_rect.top + self.state.scroll_y,

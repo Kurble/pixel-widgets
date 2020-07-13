@@ -41,20 +41,20 @@ impl<'a, T, F: Fn(bool) -> T> Element<'a, T> for Toggle<'a, T, F> {
         }
     }
 
-    fn event(&mut self, layout: Rectangle, _: &Stylesheet, event: Event) -> Option<T> {
+    fn event(&mut self, layout: Rectangle, _: &Stylesheet, event: Event, clip: Rectangle) -> Option<T> {
         let mut result = None;
         match event {
             Event::Cursor(x, y) => {
                 *self.state = match replace(self.state, State::Idle) {
                     State::Idle | State::Hover => {
-                        if layout.point_inside(x, y) {
+                        if layout.point_inside(x, y) && clip.point_inside(x, y) {
                             State::Hover
                         } else {
                             State::Idle
                         }
                     }
                     State::Pressed => {
-                        if layout.point_inside(x, y) {
+                        if layout.point_inside(x, y) && clip.point_inside(x, y) {
                             State::Pressed
                         } else {
                             State::Idle

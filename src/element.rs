@@ -31,7 +31,7 @@ pub trait Element<'a, Message> {
 
     fn size(&self, style: &Stylesheet) -> (Size, Size);
 
-    fn event(&mut self, layout: Rectangle, style: &Stylesheet, event: Event) -> Option<Message>;
+    fn event(&mut self, layout: Rectangle, style: &Stylesheet, event: Event, clip: Rectangle) -> Option<Message>;
 
     fn render(&mut self, layout: Rectangle, style: &Stylesheet) -> Vec<Primitive<'a>>;
 }
@@ -88,9 +88,9 @@ impl<'a, Message> Node<'a, Message> {
         self.size_cache.get().unwrap()
     }
 
-    pub fn event(&mut self, layout: Rectangle, event: Event) -> Option<Message> {
+    pub fn event(&mut self, layout: Rectangle, event: Event, clip: Rectangle) -> Option<Message> {
         let stylesheet = self.style.as_ref().unwrap().deref();
-        self.element.event(layout, stylesheet, event)
+        self.element.event(layout, stylesheet, event, clip)
     }
 
     pub fn render(&mut self, layout: Rectangle) -> Vec<Primitive<'a>> {
@@ -112,7 +112,7 @@ impl<'a, Message: 'a> Element<'a, Message> for Node<'a, Message> {
         panic!("element methods should not be called directly on Node")
     }
 
-    fn event(&mut self, _: Rectangle, _: &Stylesheet, _: Event) -> Option<Message> {
+    fn event(&mut self, _: Rectangle, _: &Stylesheet, _: Event, _: Rectangle) -> Option<Message> {
         panic!("element methods should not be called directly on Node")
     }
 

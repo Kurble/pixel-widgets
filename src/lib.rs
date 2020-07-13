@@ -88,7 +88,7 @@ impl<I: Model> Ui<I> {
         let messages = self
             .events
             .drain(..)
-            .filter_map(|event| root.event(layout, event))
+            .filter_map(|event| root.event(layout, event, viewport))
             .collect::<Vec<_>>();
         let primitives = root.render(layout);
 
