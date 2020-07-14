@@ -41,7 +41,7 @@ impl<'a, T, F: Fn(bool) -> T> Element<'a, T> for Toggle<'a, T, F> {
         }
     }
 
-    fn event(&mut self, layout: Rectangle, _: &Stylesheet, event: Event, clip: Rectangle) -> Option<T> {
+    fn event(&mut self, layout: Rectangle, clip: Rectangle, _: &Stylesheet, event: Event) -> Option<T> {
         let mut result = None;
         match event {
             Event::Cursor(x, y) => {
@@ -87,7 +87,7 @@ impl<'a, T, F: Fn(bool) -> T> Element<'a, T> for Toggle<'a, T, F> {
         result
     }
 
-    fn render(&mut self, layout: Rectangle, stylesheet: &Stylesheet) -> Vec<Primitive<'a>> {
+    fn render(&mut self, layout: Rectangle, _: Rectangle, stylesheet: &Stylesheet) -> Vec<Primitive<'a>> {
         let background = match self.checked {
             false => &stylesheet.background,
             true => &stylesheet.checked,

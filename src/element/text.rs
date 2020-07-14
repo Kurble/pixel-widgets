@@ -82,11 +82,11 @@ impl<'a, T> Element<'a, T> for Text<'a> {
         }
     }
 
-    fn event(&mut self, _: Rectangle, _: &Stylesheet, _: Event, _: Rectangle) -> Option<T> {
+    fn event(&mut self, _: Rectangle, _: Rectangle, _: &Stylesheet, _: Event) -> Option<T> {
         None
     }
 
-    fn render(&mut self, layout: Rectangle, stylesheet: &Stylesheet) -> Vec<Primitive<'a>> {
+    fn render(&mut self, layout: Rectangle, _: Rectangle, stylesheet: &Stylesheet) -> Vec<Primitive<'a>> {
         self.style(stylesheet);
         if let TextState::Styled(inner) = self.text.replace(TextState::Consumed) {
             vec![Primitive::DrawText(inner, layout)]

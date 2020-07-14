@@ -68,7 +68,7 @@ impl<'a, T: 'a> Element<'a, T> for Button<'a, T> {
         )
     }
 
-    fn event(&mut self, layout: Rectangle, _: &Stylesheet, event: Event, clip: Rectangle) -> Option<T> {
+    fn event(&mut self, layout: Rectangle, clip: Rectangle, _: &Stylesheet, event: Event) -> Option<T> {
         let mut result = None;
         match event {
             Event::Cursor(x, y) => {
@@ -114,7 +114,7 @@ impl<'a, T: 'a> Element<'a, T> for Button<'a, T> {
         result
     }
 
-    fn render(&mut self, layout: Rectangle, stylesheet: &Stylesheet) -> Vec<Primitive<'a>> {
+    fn render(&mut self, layout: Rectangle, clip: Rectangle, stylesheet: &Stylesheet) -> Vec<Primitive<'a>> {
         let content_rect = stylesheet
             .background
             .content_rect(layout)
@@ -130,7 +130,7 @@ impl<'a, T: 'a> Element<'a, T> for Button<'a, T> {
         background
             .render(layout)
             .into_iter()
-            .chain(self.content.render(content_rect).into_iter())
+            .chain(self.content.render(content_rect, clip).into_iter())
             .collect()
     }
 }

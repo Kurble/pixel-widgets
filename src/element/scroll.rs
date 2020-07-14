@@ -106,7 +106,7 @@ impl<'a, T: 'a> Element<'a, T> for Scroll<'a, T> {
         (style.width, style.height)
     }
 
-    fn event(&mut self, layout: Rectangle, style: &Stylesheet, event: Event, clip: Rectangle) -> Option<T> {
+    fn event(&mut self, layout: Rectangle, clip: Rectangle, style: &Stylesheet, event: Event) -> Option<T> {
         let mut result = None;
         let content_rect = style.background.content_rect(layout).after_padding(style.padding);
         let content_layout = self.content_layout(&content_rect);
@@ -149,7 +149,7 @@ impl<'a, T: 'a> Element<'a, T> for Scroll<'a, T> {
             }
             (Event::Cursor(x, y), _) => {
                 if let Some(clip) = clip.intersect(&content_rect) {
-                    result = result.or(self.content.event(content_layout, event, clip));
+                    result = result.or(self.content.event(content_layout, clip, event));
                 }
                 self.state.cursor_x = x;
                 self.state.cursor_y = y;
@@ -179,7 +179,7 @@ impl<'a, T: 'a> Element<'a, T> for Scroll<'a, T> {
             }
             (event, InnerState::Idle) => {
                 if let Some(clip) = clip.intersect(&content_rect) {
-                    result = result.or(self.content.event(content_layout, event, clip));
+                    result = result.or(self.content.event(content_layout, clip, event));
                 }
             }
             _ => (),
@@ -188,16 +188,18 @@ impl<'a, T: 'a> Element<'a, T> for Scroll<'a, T> {
         result
     }
 
-    fn render(&mut self, layout: Rectangle, style: &Stylesheet) -> Vec<Primitive<'a>> {
+    fn render(&mut self, layout: Rectangle, clip: Rectangle, style: &Stylesheet) -> Vec<Primitive<'a>> {
         let content_rect = style.background.content_rect(layout).after_padding(style.padding);
         let content_layout = self.content_layout(&content_rect);
         let (vbar, hbar) = self.scrollbars(layout, content_layout, style);
 
         let mut result = Vec::new();
         result.extend(style.background.render(layout));
-        result.push(Primitive::PushClip(content_rect));
-        result.extend(self.content.render(content_layout));
-        result.push(Primitive::PopClip);
+        if let Some(clip) = clip.intersect(&content_rect) {
+            result.push(Primitive::PushClip(clip));
+            result.extend(self.content.render(content_layout, content_rect));
+            result.push(Primitive::PopClip);
+        }
         if content_layout.width() > layout.width() {
             result.extend(style.scrollbar_horizontal.render(hbar));
         }

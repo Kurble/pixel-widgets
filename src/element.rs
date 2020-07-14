@@ -35,9 +35,9 @@ pub trait Element<'a, Message> {
 
     fn size(&self, style: &Stylesheet) -> (Size, Size);
 
-    fn event(&mut self, layout: Rectangle, style: &Stylesheet, event: Event, clip: Rectangle) -> Option<Message>;
+    fn event(&mut self, layout: Rectangle, clip: Rectangle, style: &Stylesheet, event: Event) -> Option<Message>;
 
-    fn render(&mut self, layout: Rectangle, style: &Stylesheet) -> Vec<Primitive<'a>>;
+    fn render(&mut self, layout: Rectangle, clip: Rectangle, style: &Stylesheet) -> Vec<Primitive<'a>>;
 }
 
 pub trait IntoNode<'a, Message: 'a>: 'a + Sized + Element<'a, Message> {
@@ -80,14 +80,14 @@ impl<'a, Message> Node<'a, Message> {
         self.size_cache.get().unwrap()
     }
 
-    pub fn event(&mut self, layout: Rectangle, event: Event, clip: Rectangle) -> Option<Message> {
+    pub fn event(&mut self, layout: Rectangle, clip: Rectangle, event: Event) -> Option<Message> {
         let stylesheet = self.style.as_ref().unwrap().deref();
-        self.element.event(layout, stylesheet, event, clip)
+        self.element.event(layout, clip, stylesheet, event)
     }
 
-    pub fn render(&mut self, layout: Rectangle) -> Vec<Primitive<'a>> {
+    pub fn render(&mut self, layout: Rectangle, clip: Rectangle) -> Vec<Primitive<'a>> {
         let stylesheet = self.style.as_ref().unwrap().deref();
-        self.element.render(layout, stylesheet)
+        self.element.render(layout, clip, stylesheet)
     }
 }
 
@@ -104,11 +104,11 @@ impl<'a, Message: 'a> Element<'a, Message> for Node<'a, Message> {
         panic!("element methods should not be called directly on Node")
     }
 
-    fn event(&mut self, _: Rectangle, _: &Stylesheet, _: Event, _: Rectangle) -> Option<Message> {
+    fn event(&mut self, _: Rectangle, _: Rectangle, _: &Stylesheet, _: Event) -> Option<Message> {
         panic!("element methods should not be called directly on Node")
     }
 
-    fn render(&mut self, _: Rectangle, _: &Stylesheet) -> Vec<Primitive<'a>> {
+    fn render(&mut self, _: Rectangle, _: Rectangle, _: &Stylesheet) -> Vec<Primitive<'a>> {
         panic!("element methods should not be called directly on Node")
     }
 }

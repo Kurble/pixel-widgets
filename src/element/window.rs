@@ -79,7 +79,7 @@ impl<'a, T: 'a, S: 'a + AsRef<str>> Element<'a, T> for Window<'a, T, S> {
         (Size::Fill(1), Size::Fill(1))
     }
 
-    fn event(&mut self, viewport: Rectangle, style: &Stylesheet, event: Event, clip: Rectangle) -> Option<T> {
+    fn event(&mut self, viewport: Rectangle, clip: Rectangle, style: &Stylesheet, event: Event) -> Option<T> {
         let (layout, content) = self.layout(viewport, style);
         
         match (event, self.state.inner) {
@@ -114,14 +114,14 @@ impl<'a, T: 'a, S: 'a + AsRef<str>> Element<'a, T> for Window<'a, T, S> {
             _ => ()
         }
 
-        self.content.event(content, event, clip)
+        self.content.event(content, clip, event)
     }
 
-    fn render(&mut self, layout: Rectangle, style: &Stylesheet) -> Vec<Primitive<'a>> {
+    fn render(&mut self, layout: Rectangle, clip: Rectangle, style: &Stylesheet) -> Vec<Primitive<'a>> {
         let (layout, content) = self.layout(layout, style);
         let mut result = Vec::new();
         result.extend(style.background.render(layout));
-        result.extend(self.content.render(content));
+        result.extend(self.content.render(content, clip));
         result
     }
 }

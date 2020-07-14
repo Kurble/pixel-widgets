@@ -82,23 +82,23 @@ impl<'a, T: 'a> Element<'a, T> for Column<'a, T> {
         (width, height)
     }
 
-    fn event(&mut self, layout: Rectangle, stylesheet: &Stylesheet, event: Event, clip: Rectangle) -> Option<T> {
+    fn event(&mut self, layout: Rectangle, clip: Rectangle, stylesheet: &Stylesheet, event: Event) -> Option<T> {
         let mut result = None;
         for (child, layout) in self.layout(layout, stylesheet) {
             if let Some(clip) = clip.intersect(&layout) {
-                result = result.or(child.event(layout, event, clip));
+                result = result.or(child.event(layout, clip, event));
             }
         }
         result
     }
 
-    fn render(&mut self, layout: Rectangle, stylesheet: &Stylesheet) -> Vec<Primitive<'a>> {
+    fn render(&mut self, layout: Rectangle, clip: Rectangle, stylesheet: &Stylesheet) -> Vec<Primitive<'a>> {
         let mut result = Vec::new();
 
         result = self
             .layout(layout, stylesheet)
             .fold(result, |mut result, (child, layout)| {
-                result.append(&mut child.render(layout));
+                result.append(&mut child.render(layout, clip));
                 result
             });
 

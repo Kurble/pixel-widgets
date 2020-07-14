@@ -17,11 +17,11 @@ impl<'a, T> Element<'a, T> for Space {
         (stylesheet.width, stylesheet.height)
     }
 
-    fn event(&mut self, _: Rectangle, _: &Stylesheet, _: Event, _: Rectangle) -> Option<T> {
+    fn event(&mut self, _: Rectangle, _: Rectangle, _: &Stylesheet, _: Event) -> Option<T> {
         None
     }
 
-    fn render(&mut self, layout: Rectangle, stylesheet: &Stylesheet) -> Vec<Primitive<'a>> {
+    fn render(&mut self, layout: Rectangle, _clip: Rectangle, stylesheet: &Stylesheet) -> Vec<Primitive<'a>> {
         stylesheet.background.render(layout).into_iter().collect()
     }
 }

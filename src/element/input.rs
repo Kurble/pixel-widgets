@@ -114,7 +114,7 @@ impl<'a, T: 'a, F: 'a + Fn(String) -> T> Element<'a, T> for Input<'a, T, F> {
         }
     }
 
-    fn event(&mut self, layout: Rectangle, stylesheet: &Stylesheet, event: Event, clip: Rectangle) -> Option<T> {
+    fn event(&mut self, layout: Rectangle, clip: Rectangle, stylesheet: &Stylesheet, event: Event) -> Option<T> {
         let content_rect = self.content_rect(layout, stylesheet);
         let mut result = None;
 
@@ -386,7 +386,7 @@ impl<'a, T: 'a, F: 'a + Fn(String) -> T> Element<'a, T> for Input<'a, T, F> {
         result
     }
 
-    fn render(&mut self, layout: Rectangle, stylesheet: &Stylesheet) -> Vec<Primitive<'a>> {
+    fn render(&mut self, layout: Rectangle, clip: Rectangle, stylesheet: &Stylesheet) -> Vec<Primitive<'a>> {
         let mut result = Vec::new();
 
         let content_rect = self.content_rect(layout, stylesheet);
@@ -394,55 +394,57 @@ impl<'a, T: 'a, F: 'a + Fn(String) -> T> Element<'a, T> for Input<'a, T, F> {
         let text = text_display(self.text(stylesheet), self.password);
 
         result.extend(stylesheet.background.render(layout).into_iter());
-        result.push(Primitive::PushClip(content_rect));
-        match self.state.inner {
-            InnerState::Dragging(from, to, since) | InnerState::Focused(from, to, since) => {
-                let range = text.measure_range(from.min(to), from.max(to), text_rect);
+        if let Some(clip) = content_rect.intersect(&clip) {
+            result.push(Primitive::PushClip(clip));
+            match self.state.inner {
+                InnerState::Dragging(from, to, since) | InnerState::Focused(from, to, since) => {
+                    let range = text.measure_range(from.min(to), from.max(to), text_rect);
 
-                if to != from {
-                    result.push(Primitive::DrawRect(
-                        Rectangle {
-                            left: text_rect.left + (range.0).0,
-                            right: text_rect.left + (range.1).0,
-                            top: text_rect.top,
-                            bottom: text_rect.bottom,
-                        },
-                        Color {
-                            r: 0.0,
-                            g: 0.0,
-                            b: 0.5,
-                            a: 0.5,
-                        },
-                    ));
+                    if to != from {
+                        result.push(Primitive::DrawRect(
+                            Rectangle {
+                                left: text_rect.left + (range.0).0,
+                                right: text_rect.left + (range.1).0,
+                                top: text_rect.top,
+                                bottom: text_rect.bottom,
+                            },
+                            Color {
+                                r: 0.0,
+                                g: 0.0,
+                                b: 0.5,
+                                a: 0.5,
+                            },
+                        ));
+                    }
+
+                    if since.elapsed().subsec_nanos() < 500_000_000 {
+                        let caret = if to > from { range.1 } else { range.0 };
+
+                        result.push(Primitive::DrawRect(
+                            Rectangle {
+                                left: text_rect.left + caret.0,
+                                right: text_rect.left + caret.0 + 1.0,
+                                top: text_rect.top,
+                                bottom: text_rect.bottom,
+                            },
+                            Color {
+                                r: 0.0,
+                                g: 0.0,
+                                b: 0.0,
+                                a: 1.0,
+                            },
+                        ));
+                    }
                 }
-
-                if since.elapsed().subsec_nanos() < 500_000_000 {
-                    let caret = if to > from { range.1 } else { range.0 };
-
-                    result.push(Primitive::DrawRect(
-                        Rectangle {
-                            left: text_rect.left + caret.0,
-                            right: text_rect.left + caret.0 + 1.0,
-                            top: text_rect.top,
-                            bottom: text_rect.bottom,
-                        },
-                        Color {
-                            r: 0.0,
-                            g: 0.0,
-                            b: 0.0,
-                            a: 1.0,
-                        },
-                    ));
-                }
+                _ => (),
             }
-            _ => (),
+            if self.state.buffer.is_empty() {
+                result.push(Primitive::DrawText(self.placeholder(stylesheet).to_owned(), text_rect));
+            } else {
+                result.push(Primitive::DrawText(text, text_rect));
+            }
+            result.push(Primitive::PopClip);
         }
-        if self.state.buffer.is_empty() {
-            result.push(Primitive::DrawText(self.placeholder(stylesheet).to_owned(), text_rect));
-        } else {
-            result.push(Primitive::DrawText(text, text_rect));
-        }
-        result.push(Primitive::PopClip);
 
         result
     }

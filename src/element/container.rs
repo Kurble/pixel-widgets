@@ -48,8 +48,8 @@ where
         self.view.as_ref().unwrap().size()
     }
 
-    fn event(&mut self, layout: Rectangle, _: &Stylesheet, event: Event, clip: Rectangle) -> Option<T> {
-        let message = self.view.as_mut().unwrap().event(layout, event, clip)?;
+    fn event(&mut self, layout: Rectangle, clip: Rectangle, _: &Stylesheet, event: Event) -> Option<T> {
+        let message = self.view.as_mut().unwrap().event(layout, clip, event)?;
 
         if let Some(message) = (self.translate)(&message) {
             Some(message)
@@ -59,8 +59,8 @@ where
         }
     }
 
-    fn render(&mut self, layout: Rectangle, _: &Stylesheet) -> Vec<Primitive<'a>> {
-        self.view.as_mut().unwrap().render(layout)
+    fn render(&mut self, layout: Rectangle, clip: Rectangle, _: &Stylesheet) -> Vec<Primitive<'a>> {
+        self.view.as_mut().unwrap().render(layout, clip)
     }
 }
 
