@@ -17,6 +17,7 @@ pub mod layout;
 pub mod qtree;
 pub mod stylesheet;
 pub mod text;
+pub mod tracker;
 
 pub trait Model {
     type Message;
