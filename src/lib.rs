@@ -3,7 +3,7 @@ use std::ops::{Deref, DerefMut};
 
 use draw::DrawList;
 
-use crate::element::Node;
+use crate::element::{Node, Stylable};
 use crate::event::Event;
 use crate::layout::Rectangle;
 use crate::stylesheet::{Query, Style};

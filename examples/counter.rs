@@ -59,6 +59,7 @@ impl Model for Counter {
                     .push(Input::new(state.get("name"), "username", Message::NameChanged))
                     .push(Input::password(state.get("password"), "password", Message::PasswordChanged)),
             ),
+            "Counter"
         )
         .into_node()
     }

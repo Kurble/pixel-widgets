@@ -1,12 +1,14 @@
 use crate::draw::*;
-use crate::element::{Element, IntoNode, Node};
+use crate::element::{Element, IntoNode, Node, Stylable};
 use crate::event::{Event, Key};
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
 
-pub struct Window<'a, T> {
+pub struct Window<'a, T, S> {
     state: &'a mut State,
     content: Node<'a, T>,
+    title: S,
+    on_close: Option<T>,
 }
 
 pub struct State {
@@ -23,11 +25,22 @@ enum InnerState {
     Dragging(f32, f32),
 }
 
-impl<'a, T: 'a> Window<'a, T> {
-    pub fn new(state: &'a mut State, content: impl IntoNode<'a, T>) -> Self {
+impl<'a, T: 'a, S: 'a + AsRef<str>> Window<'a, T, S> {
+    pub fn new(state: &'a mut State, content: impl IntoNode<'a, T>, title: S) -> Self {
         Self {
             state,
             content: content.into_node(),
+            title,
+            on_close: None,
+        }
+    }
+
+    pub fn closable(state: &'a mut State, content: impl IntoNode<'a, T>, title: S, on_close: T) -> Self {
+        Self {
+            state,
+            content: content.into_node(),
+            title,
+            on_close: Some(on_close),
         }
     }
 
@@ -53,12 +66,12 @@ impl<'a, T: 'a> Window<'a, T> {
     }
 }
 
-impl<'a, T: 'a> Element<'a, T> for Window<'a, T> {
+impl<'a, T: 'a, S: 'a + AsRef<str>> Element<'a, T> for Window<'a, T, S> {
     fn element(&self) -> &'static str {
         "window"
     }
 
-    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut Node<'a, T>)) {
+    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn Stylable<'a>)) {
         visitor(&mut self.content);
     }
 
@@ -80,7 +93,10 @@ impl<'a, T: 'a> Element<'a, T> for Window<'a, T> {
                     && !content.point_inside(self.state.cursor_x, self.state.cursor_y)
                     && layout.point_inside(self.state.cursor_x, self.state.cursor_y)
                 {
-                    self.state.inner = InnerState::Dragging(self.state.cursor_x - layout.left, self.state.cursor_y - layout.top);
+                    self.state.inner = InnerState::Dragging(
+                        self.state.cursor_x - layout.left,
+                        self.state.cursor_y - layout.top
+                    );
                 }
             }
 
@@ -110,7 +126,7 @@ impl<'a, T: 'a> Element<'a, T> for Window<'a, T> {
     }
 }
 
-impl<'a, T: 'a> IntoNode<'a, T> for Window<'a, T> { }
+impl<'a, T: 'a, S: 'a + AsRef<str>> IntoNode<'a, T> for Window<'a, T, S> { }
 
 impl Default for State {
     fn default() -> Self {

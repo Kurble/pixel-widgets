@@ -8,6 +8,7 @@ use crate::stylesheet::*;
 
 pub use self::button::*;
 pub use self::column::*;
+pub use self::container::*;
 pub use self::input::*;
 pub use self::scroll::*;
 pub use self::space::*;
@@ -19,6 +20,7 @@ use std::ops::Deref;
 
 pub mod button;
 pub mod column;
+pub mod container;
 pub mod input;
 pub mod scroll;
 pub mod space;
@@ -29,7 +31,7 @@ pub mod window;
 pub trait Element<'a, Message> {
     fn element(&self) -> &'static str;
 
-    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut Node<'a, Message>));
+    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn Stylable<'a>));
 
     fn size(&self, style: &Stylesheet) -> (Size, Size);
 
@@ -53,6 +55,10 @@ pub trait IntoNode<'a, Message: 'a>: 'a + Sized + Element<'a, Message> {
     }
 }
 
+pub trait Stylable<'a> {
+    fn style(&mut self, engine: &mut Style, query: &mut Query<'a>);
+}
+
 pub struct Node<'a, Message> {
     element: Box<dyn Element<'a, Message> + 'a>,
     size_cache: Cell<Option<(Size, Size)>>,
@@ -64,22 +70,6 @@ impl<'a, Message> Node<'a, Message> {
     pub fn class(mut self, class: &'a str) -> Self {
         self.class = Some(class);
         self
-    }
-
-    pub fn style(&mut self, engine: &mut Style, query: &mut Query<'a>) {
-        query.elements.push(self.element.element());
-        if let Some(class) = self.class {
-            query.classes.push(Cow::Borrowed(class));
-        }
-
-        self.style.replace(engine.get(query));
-        self.element
-            .visit_children(&mut |child| child.style(&mut *engine, &mut *query));
-
-        query.elements.pop();
-        if self.class.is_some() {
-            query.classes.pop();
-        }
     }
 
     pub fn size(&self) -> (Size, Size) {
@@ -106,7 +96,7 @@ impl<'a, Message: 'a> Element<'a, Message> for Node<'a, Message> {
         panic!("element methods should not be called directly on Node")
     }
 
-    fn visit_children(&mut self, _: &mut dyn FnMut(&mut Node<'a, Message>)) {
+    fn visit_children(&mut self, _: &mut dyn FnMut(&mut dyn Stylable<'a>)) {
         panic!("element methods should not be called directly on Node")
     }
 
@@ -126,5 +116,22 @@ impl<'a, Message: 'a> Element<'a, Message> for Node<'a, Message> {
 impl<'a, Message: 'a> IntoNode<'a, Message> for Node<'a, Message> {
     fn into_node(self) -> Node<'a, Message> {
         self
+    }
+}
+
+impl<'a, Message: 'a> Stylable<'a> for Node<'a, Message> {
+    fn style(&mut self, engine: &mut Style, query: &mut Query<'a>) {
+        query.elements.push(self.element.element());
+        if let Some(class) = self.class {
+            query.classes.push(Cow::Borrowed(class));
+        }
+
+        self.style.replace(engine.get(query));
+        self.element.visit_children(&mut |child| child.style(&mut *engine, &mut *query));
+
+        query.elements.pop();
+        if self.class.is_some() {
+            query.classes.pop();
+        }
     }
 }

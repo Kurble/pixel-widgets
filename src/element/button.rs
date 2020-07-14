@@ -1,5 +1,5 @@
 use crate::draw::*;
-use crate::element::{Element, IntoNode, Node};
+use crate::element::{Element, IntoNode, Node, Stylable};
 use crate::event::{Event, Key};
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
@@ -33,12 +33,12 @@ impl<'a, T: 'a> Button<'a, T> {
     }
 }
 
-impl<'a, T> Element<'a, T> for Button<'a, T> {
+impl<'a, T: 'a> Element<'a, T> for Button<'a, T> {
     fn element(&self) -> &'static str {
         "button"
     }
 
-    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut Node<'a, T>)) {
+    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn Stylable<'a>)) {
         visitor(&mut self.content);
     }
 
