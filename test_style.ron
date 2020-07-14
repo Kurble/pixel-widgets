@@ -1,3 +1,8 @@
+window {
+    background: #800
+    padding: (left: 2 right: 2 top: 25 bottom: 2)
+}
+
 scroll {
     width: 150
     height: 100

@@ -13,6 +13,7 @@ pub use self::scroll::*;
 pub use self::space::*;
 pub use self::text::*;
 pub use self::toggle::*;
+pub use self::window::*;
 use std::borrow::Cow;
 use std::ops::Deref;
 
@@ -23,6 +24,7 @@ pub mod scroll;
 pub mod space;
 pub mod text;
 pub mod toggle;
+pub mod window;
 
 pub trait Element<'a, Message> {
     fn element(&self) -> &'static str;

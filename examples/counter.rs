@@ -19,6 +19,7 @@ struct Counter {
     pub name_state: gui::element::input::State,
     pub password_state: gui::element::input::State,
     pub scroll_state: gui::element::scroll::State,
+    pub window_state: gui::element::window::State,
 }
 
 enum Message {
@@ -50,18 +51,21 @@ impl Model for Counter {
 
     fn view(&mut self) -> Node<Message> {
         use gui::element::*;
-        Scroll::new(
-            &mut self.scroll_state,
-            Column::new()
-                .push(Button::new(&mut self.up, Text::borrowed("Up")).on_clicked(Message::UpPressed))
-                .push(Text::owned(format!("Hello {}! Count: {}", self.name, self.value)))
-                .push(Button::new(&mut self.down, Text::borrowed("Down")).on_clicked(Message::DownPressed))
-                .push(Input::new(&mut self.name_state, "username", Message::NameChanged))
-                .push(Input::password(
-                    &mut self.password_state,
-                    "password",
-                    Message::PasswordChanged,
-                )),
+        Window::new(
+            &mut self.window_state,
+            Scroll::new(
+                &mut self.scroll_state,
+                Column::new()
+                    .push(Button::new(&mut self.up, Text::borrowed("Up")).on_clicked(Message::UpPressed))
+                    .push(Text::owned(format!("Hello {}! Count: {}", self.name, self.value)))
+                    .push(Button::new(&mut self.down, Text::borrowed("Down")).on_clicked(Message::DownPressed))
+                    .push(Input::new(&mut self.name_state, "username", Message::NameChanged))
+                    .push(Input::password(
+                        &mut self.password_state,
+                        "password",
+                        Message::PasswordChanged,
+                    )),
+            ),
         )
         .into_node()
     }
@@ -111,6 +115,7 @@ async fn run(event_loop: EventLoop<()>, window: Window, swapchain_format: wgpu::
             name_state: Default::default(),
             password_state: Default::default(),
             scroll_state: Default::default(),
+            window_state: Default::default(),
         },
         std::path::PathBuf::from("."),
         "test_style.ron",
