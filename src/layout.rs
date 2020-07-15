@@ -26,7 +26,7 @@ impl Size {
     pub fn resolve(self, available_space: f32, available_parts: u32) -> f32 {
         match self {
             Size::Shrink => 0.0,
-            Size::Exact(wanted) => available_space.min(wanted),
+            Size::Exact(wanted) => wanted,
             Size::Fill(parts) => (available_space * parts as f32) / available_parts as f32,
         }
     }

@@ -1,6 +1,5 @@
 window {
     background: #800
-    padding: (left: 2 right: 2 top: 25 bottom: 2)
 }
 
 scroll {
@@ -33,4 +32,24 @@ input {
     color: #000
     text-size: 24.0
     padding: (left: 4.0 right: 4.0 top: 4.0 bottom: 4.0)
+}
+
+window text .title {
+    color: #fff
+    text-size: 18
+}
+
+window space .close {
+    width: 20
+    height: fill(1)
+    background: #00f
+}
+
+row .title {
+    width: fill(1)
+}
+
+.fill {
+    width: fill(1)
+    height: fill(1)
 }

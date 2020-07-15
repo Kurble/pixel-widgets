@@ -50,6 +50,11 @@ impl Model for Counter {
         let mut state = self.state.tracker();
         Window::new(
             state.get("window"),
+            Row::new()
+                .push(Text::borrowed("Counter window").class("title"))
+                .push(Space.class("fill"))
+                .push(Space.class("close"))
+                .class("title"),
             Scroll::new(
                 state.get("scroll"),
                 Column::new()
@@ -59,7 +64,6 @@ impl Model for Counter {
                     .push(Input::new(state.get("name"), "username", Message::NameChanged))
                     .push(Input::password(state.get("password"), "password", Message::PasswordChanged)),
             ),
-            "Counter"
         )
         .into_node()
     }

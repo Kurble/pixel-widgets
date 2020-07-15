@@ -4,11 +4,10 @@ use crate::event::{Event, Key};
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
 
-pub struct Window<'a, T, S> {
+pub struct Window<'a, T> {
     state: &'a mut State,
+    title: Node<'a, T>,
     content: Node<'a, T>,
-    title: S,
-    on_close: Option<T>,
 }
 
 pub struct State {
@@ -25,29 +24,24 @@ enum InnerState {
     Dragging(f32, f32),
 }
 
-impl<'a, T: 'a, S: 'a + AsRef<str>> Window<'a, T, S> {
-    pub fn new(state: &'a mut State, content: impl IntoNode<'a, T>, title: S) -> Self {
+impl<'a, T: 'a> Window<'a, T> {
+    pub fn new(state: &'a mut State, title: impl IntoNode<'a, T>, content: impl IntoNode<'a, T>) -> Self {
         Self {
             state,
+            title: title.into_node(),
             content: content.into_node(),
-            title,
-            on_close: None,
         }
     }
 
-    pub fn closable(state: &'a mut State, content: impl IntoNode<'a, T>, title: S, on_close: T) -> Self {
-        Self {
-            state,
-            content: content.into_node(),
-            title,
-            on_close: Some(on_close),
-        }
-    }
-
-    fn layout(&self, viewport: Rectangle, style: &Stylesheet) -> (Rectangle, Rectangle) {
+    fn layout(&self, viewport: Rectangle, style: &Stylesheet) -> (Rectangle, Rectangle, Rectangle) {
+        let title_size = self.title.size();
+        let title_width = title_size.0.min_size();
+        let title_height = title_size.1.min_size();
         let content_size = self.content.size();
-        let width = content_size.0.min_size();
-        let height = content_size.1.min_size();
+        let content_width = content_size.0.min_size();
+        let content_height = content_size.1.min_size();
+        let width = title_width.max(content_width);
+        let height = title_height + content_height;
         let padding = style.background.padding();
         let padding = Rectangle {
             left: padding.left + style.padding.left,
@@ -59,19 +53,40 @@ impl<'a, T: 'a, S: 'a + AsRef<str>> Window<'a, T, S> {
             viewport.left + self.state.x,
             viewport.top + self.state.y,
             width + padding.left + padding.right,
-            height + padding.top + padding.bottom
+            height + padding.top + padding.bottom,
         );
-        let content = layout.after_padding(padding);
-        (layout, content)
+        let title_content = layout.after_padding(padding);
+        let title = Rectangle::from_xywh(
+            title_content.left,
+            title_content.top,
+            title_size.0.resolve(title_content.width(), title_size.0.parts()),
+            title_height,
+        );
+        let content = Rectangle::from_xywh(
+            title_content.left,
+            title_content.top + title_height,
+            content_size.0.resolve(title_content.width(), content_size.0.parts()),
+            content_height,
+        );
+        let align = |rect: Rectangle| {
+            rect.translate(
+                style
+                    .align_horizontal
+                    .resolve_start(rect.width(), title_content.width()),
+                0.0,
+            )
+        };
+        (layout, align(title), align(content))
     }
 }
 
-impl<'a, T: 'a, S: 'a + AsRef<str>> Element<'a, T> for Window<'a, T, S> {
+impl<'a, T: 'a> Element<'a, T> for Window<'a, T> {
     fn element(&self) -> &'static str {
         "window"
     }
 
     fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn Stylable<'a>)) {
+        visitor(&mut self.title);
         visitor(&mut self.content);
     }
 
@@ -80,8 +95,8 @@ impl<'a, T: 'a, S: 'a + AsRef<str>> Element<'a, T> for Window<'a, T, S> {
     }
 
     fn event(&mut self, viewport: Rectangle, clip: Rectangle, style: &Stylesheet, event: Event) -> Option<T> {
-        let (layout, content) = self.layout(viewport, style);
-        
+        let (layout, title, content) = self.layout(viewport, style);
+
         match (event, self.state.inner) {
             (Event::Cursor(x, y), InnerState::Idle) => {
                 self.state.cursor_x = x;
@@ -90,13 +105,10 @@ impl<'a, T: 'a, S: 'a + AsRef<str>> Element<'a, T> for Window<'a, T, S> {
 
             (Event::Press(Key::LeftMouseButton), InnerState::Idle) => {
                 if clip.point_inside(self.state.cursor_x, self.state.cursor_y)
-                    && !content.point_inside(self.state.cursor_x, self.state.cursor_y)
-                    && layout.point_inside(self.state.cursor_x, self.state.cursor_y)
+                    && title.point_inside(self.state.cursor_x, self.state.cursor_y)
                 {
-                    self.state.inner = InnerState::Dragging(
-                        self.state.cursor_x - layout.left,
-                        self.state.cursor_y - layout.top
-                    );
+                    self.state.inner =
+                        InnerState::Dragging(self.state.cursor_x - layout.left, self.state.cursor_y - layout.top);
                 }
             }
 
@@ -110,23 +122,27 @@ impl<'a, T: 'a, S: 'a + AsRef<str>> Element<'a, T> for Window<'a, T, S> {
             (Event::Release(Key::LeftMouseButton), InnerState::Dragging(_, _)) => {
                 self.state.inner = InnerState::Idle;
             }
-            
-            _ => ()
+
+            _ => (),
         }
 
-        self.content.event(content, clip, event)
+        self.title
+            .event(title, clip, event)
+            .or(self.content.event(content, clip, event))
     }
 
-    fn render(&mut self, layout: Rectangle, clip: Rectangle, style: &Stylesheet) -> Vec<Primitive<'a>> {
-        let (layout, content) = self.layout(layout, style);
+    fn render(&mut self, viewport: Rectangle, clip: Rectangle, style: &Stylesheet) -> Vec<Primitive<'a>> {
+        let (layout, title, content) = self.layout(viewport, style);
+
         let mut result = Vec::new();
         result.extend(style.background.render(layout));
+        result.extend(self.title.render(title, clip));
         result.extend(self.content.render(content, clip));
         result
     }
 }
 
-impl<'a, T: 'a, S: 'a + AsRef<str>> IntoNode<'a, T> for Window<'a, T, S> { }
+impl<'a, T: 'a> IntoNode<'a, T> for Window<'a, T> {}
 
 impl Default for State {
     fn default() -> Self {

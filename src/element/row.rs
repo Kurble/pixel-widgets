@@ -5,12 +5,12 @@ use crate::event::Event;
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
 
-pub struct Column<'a, T> {
+pub struct Row<'a, T> {
     children: Vec<Node<'a, T>>,
     layout: Vec<Rectangle>,
 }
 
-impl<'a, T: 'a> Column<'a, T> {
+impl<'a, T: 'a> Row<'a, T> {
     pub fn new() -> Self {
         Self {
             children: Vec::new(),
@@ -29,21 +29,21 @@ impl<'a, T: 'a> Column<'a, T> {
         stylesheet: &Stylesheet,
     ) -> impl Iterator<Item = (&mut Node<'a, T>, Rectangle)> {
         if self.layout.len() != self.children.len() {
-            let align = stylesheet.align_horizontal;
-            let available_parts = self.children.iter().map(|c| c.size().1.parts()).sum();
-            let available_space = layout.height() - self.children.iter().map(|c| c.size().1.min_size()).sum::<f32>();
+            let align = stylesheet.align_vertical;
+            let available_parts = self.children.iter().map(|c| c.size().0.parts()).sum();
+            let available_space = layout.width() - self.children.iter().map(|c| c.size().0.min_size()).sum::<f32>();
             let mut cursor = 0.0;
             self.layout = self
                 .children
                 .iter()
                 .map(|child| {
                     let (w, h) = child.size();
-                    let w = w.resolve(layout.width(), w.parts());
-                    let h = h.resolve(available_space, available_parts).min(layout.height() - cursor);
-                    let x = align.resolve_start(w, layout.width());
-                    let y = cursor;
+                    let w = w.resolve(available_space, available_parts).min(layout.width() - cursor);
+                    let h = h.resolve(layout.height(), h.parts());
+                    let x = cursor;
+                    let y = align.resolve_start(h, layout.height());
 
-                    cursor += h;
+                    cursor += w;
                     Rectangle::from_xywh(x, y, w, h).translate(layout.left, layout.top)
                 })
                 .collect();
@@ -52,9 +52,9 @@ impl<'a, T: 'a> Column<'a, T> {
     }
 }
 
-impl<'a, T: 'a> Element<'a, T> for Column<'a, T> {
+impl<'a, T: 'a> Element<'a, T> for Row<'a, T> {
     fn element(&self) -> &'static str {
-        "column"
+        "row"
     }
 
     fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn Stylable<'a>)) {
@@ -64,14 +64,14 @@ impl<'a, T: 'a> Element<'a, T> for Column<'a, T> {
     fn size(&self, stylesheet: &Stylesheet) -> (Size, Size) {
         let width = match stylesheet.width {
             Size::Shrink => Size::Exact(self.children.iter().fold(0.0, |size, child| match child.size().0 {
-                Size::Exact(child_size) => size.max(child_size),
+                Size::Exact(child_size) => size + child_size,
                 _ => size,
             })),
             other => other,
         };
         let height = match stylesheet.height {
             Size::Shrink => Size::Exact(self.children.iter().fold(0.0, |size, child| match child.size().1 {
-                Size::Exact(child_size) => size + child_size,
+                Size::Exact(child_size) => size.max(child_size),
                 _ => size,
             })),
             other => other,
@@ -103,4 +103,4 @@ impl<'a, T: 'a> Element<'a, T> for Column<'a, T> {
     }
 }
 
-impl<'a, T: 'a> IntoNode<'a, T> for Column<'a, T> {}
+impl<'a, T: 'a> IntoNode<'a, T> for Row<'a, T> {}
