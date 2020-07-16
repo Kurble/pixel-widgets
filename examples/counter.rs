@@ -4,12 +4,12 @@ use winit::{
     window::Window,
 };
 
-use gui::backend::wgpu::WgpuUi;
-use gui::backend::winit::convert_event;
-use gui::element::Node;
-use gui::layout::Rectangle;
-use gui::tracker::ManagedState;
-use gui::*;
+use maple::backend::wgpu::WgpuUi;
+use maple::backend::winit::convert_event;
+use maple::element::Node;
+use maple::layout::Rectangle;
+use maple::tracker::ManagedState;
+use maple::*;
 
 struct Counter {
     pub value: i32,
@@ -46,7 +46,7 @@ impl Model for Counter {
     }
 
     fn view(&mut self) -> Node<Message> {
-        use gui::element::*;
+        use maple::element::*;
         let mut state = self.state.tracker();
 
         let mut layers = Layers::<Message, &'static str>::new(state.get("layers"));
