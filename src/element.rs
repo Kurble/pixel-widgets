@@ -6,16 +6,17 @@ use crate::event::Event;
 use crate::layout::*;
 use crate::stylesheet::*;
 
-pub use self::button::*;
-pub use self::column::*;
-pub use self::container::*;
-pub use self::input::*;
-pub use self::row::*;
-pub use self::scroll::*;
-pub use self::space::*;
-pub use self::text::*;
-pub use self::toggle::*;
-pub use self::window::*;
+pub use self::button::Button;
+pub use self::column::Column;
+pub use self::container::Container;
+pub use self::input::Input;
+pub use self::layers::Layers;
+pub use self::row::Row;
+pub use self::scroll::Scroll;
+pub use self::space::Space;
+pub use self::text::Text;
+pub use self::toggle::Toggle;
+pub use self::window::Window;
 use std::borrow::Cow;
 use std::ops::Deref;
 
@@ -23,6 +24,7 @@ pub mod button;
 pub mod column;
 pub mod container;
 pub mod input;
+pub mod layers;
 pub mod row;
 pub mod scroll;
 pub mod space;
@@ -37,6 +39,10 @@ pub trait Element<'a, Message> {
 
     fn size(&self, style: &Stylesheet) -> (Size, Size);
 
+    fn hit(&self, layout: Rectangle, clip: Rectangle, _style: &Stylesheet, x: f32, y: f32) -> bool {
+        layout.point_inside(x, y) && clip.point_inside(x, y)
+    }
+
     fn event(&mut self, layout: Rectangle, clip: Rectangle, style: &Stylesheet, event: Event) -> Option<Message>;
 
     fn render(&mut self, layout: Rectangle, clip: Rectangle, style: &Stylesheet) -> Vec<Primitive<'a>>;
@@ -44,12 +50,7 @@ pub trait Element<'a, Message> {
 
 pub trait IntoNode<'a, Message: 'a>: 'a + Sized + Element<'a, Message> {
     fn into_node(self) -> Node<'a, Message> {
-        Node {
-            element: Box::new(self),
-            size_cache: Cell::new(None),
-            style: None,
-            class: None,
-        }
+        Node::new(self)
     }
 
     fn class(self, class: &'a str) -> Node<'a, Message> {
@@ -69,6 +70,15 @@ pub struct Node<'a, Message> {
 }
 
 impl<'a, Message> Node<'a, Message> {
+    pub fn new<T: 'a + Element<'a, Message>>(element: T) -> Self {
+        Node {
+            element: Box::new(element),
+            size_cache: Cell::new(None),
+            style: None,
+            class: None,
+        }
+    }
+
     pub fn class(mut self, class: &'a str) -> Self {
         self.class = Some(class);
         self
@@ -80,6 +90,11 @@ impl<'a, Message> Node<'a, Message> {
             self.size_cache.replace(Some(self.element.size(stylesheet)));
         }
         self.size_cache.get().unwrap()
+    }
+
+    pub fn hit(&self, layout: Rectangle, clip: Rectangle, x: f32, y: f32) -> bool {
+        let stylesheet = self.style.as_ref().unwrap().deref();
+        self.element.hit(layout, clip, stylesheet, x, y)
     }
 
     pub fn event(&mut self, layout: Rectangle, clip: Rectangle, event: Event) -> Option<Message> {
@@ -103,6 +118,10 @@ impl<'a, Message: 'a> Element<'a, Message> for Node<'a, Message> {
     }
 
     fn size(&self, _: &Stylesheet) -> (Size, Size) {
+        panic!("element methods should not be called directly on Node")
+    }
+
+    fn hit(&self, _: Rectangle, _: Rectangle, _: &Stylesheet, _: f32, _: f32) -> bool {
         panic!("element methods should not be called directly on Node")
     }
 

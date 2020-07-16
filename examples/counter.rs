@@ -48,24 +48,48 @@ impl Model for Counter {
     fn view(&mut self) -> Node<Message> {
         use gui::element::*;
         let mut state = self.state.tracker();
-        Window::new(
-            state.get("window"),
-            Row::new()
-                .push(Text::borrowed("Counter window").class("title"))
-                .push(Space.class("fill"))
-                .push(Space.class("close"))
-                .class("title"),
-            Scroll::new(
-                state.get("scroll"),
-                Column::new()
-                    .push(Button::new(state.get("up"), Text::borrowed("Up")).on_clicked(Message::UpPressed))
-                    .push(Text::owned(format!("Hello {}! Count: {}", self.name, self.value)))
-                    .push(Button::new(state.get("down"), Text::borrowed("Down")).on_clicked(Message::DownPressed))
-                    .push(Input::new(state.get("name"), "username", Message::NameChanged))
-                    .push(Input::password(state.get("password"), "password", Message::PasswordChanged)),
+
+        let mut layers = Layers::<Message, &'static str>::new(state.get("layers"));
+
+        layers = layers.push(
+            "w1",
+            Window::new(
+                state.get("window"),
+                Row::new()
+                    .push(Text::borrowed("Counter window").class("title"))
+                    .push(Space)
+                    .push(Space.class("close"))
+                    .class("title"),
+                Scroll::new(
+                    state.get("scroll"),
+                    Column::new()
+                        .push(Button::new(state.get("up"), Text::borrowed("Up")).on_clicked(Message::UpPressed))
+                        .push(Text::owned(format!("Hello {}! Count: {}", self.name, self.value)))
+                        .push(Button::new(state.get("down"), Text::borrowed("Down")).on_clicked(Message::DownPressed))
+                        .push(Input::new(state.get("name"), "username", Message::NameChanged))
+                        .push(Input::password(
+                            state.get("password"),
+                            "password",
+                            Message::PasswordChanged,
+                        )),
+                ),
             ),
-        )
-        .into_node()
+        );
+
+        layers = layers.push(
+            "w2",
+            Window::new(
+                state.get("w2"),
+                Row::new()
+                    .push(Text::borrowed("Dummy window").class("title"))
+                    .push(Space)
+                    .push(Space.class("close"))
+                    .class("title"),
+                Space.class("dummy"),
+            )
+        );
+
+        layers.into_node()
     }
 }
 

@@ -2,6 +2,11 @@ window {
     background: #800
 }
 
+layers {
+    width: fill(1)
+    height: fill(1)
+}
+
 scroll {
     width: 150
     height: 100
@@ -49,7 +54,12 @@ row .title {
     width: fill(1)
 }
 
-.fill {
+space {
     width: fill(1)
     height: fill(1)
+}
+
+space .dummy {
+    width: 200
+    height: 200
 }

@@ -94,6 +94,15 @@ impl<'a, T: 'a> Element<'a, T> for Window<'a, T> {
         (Size::Fill(1), Size::Fill(1))
     }
 
+    fn hit(&self, viewport: Rectangle, clip: Rectangle, style: &Stylesheet, x: f32, y: f32) -> bool {
+        if clip.point_inside(x, y) {
+            let (layout, _, _) = self.layout(viewport, style);
+            layout.point_inside(x, y)
+        } else {
+            false
+        }
+    }
+
     fn event(&mut self, viewport: Rectangle, clip: Rectangle, style: &Stylesheet, event: Event) -> Option<T> {
         let (layout, title, content) = self.layout(viewport, style);
 
