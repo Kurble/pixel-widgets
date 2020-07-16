@@ -26,4 +26,8 @@ impl<'a, T> Element<'a, T> for Space {
     }
 }
 
-impl<'a, T: 'a> IntoNode<'a, T> for Space {}
+impl<'a, T: 'a> IntoNode<'a, T> for Space {
+    fn into_node(self) -> Node<'a, T> {
+        Node::new(self)
+    }
+}

@@ -103,4 +103,8 @@ impl<'a, T: 'a> Element<'a, T> for Row<'a, T> {
     }
 }
 
-impl<'a, T: 'a> IntoNode<'a, T> for Row<'a, T> {}
+impl<'a, T: 'a> IntoNode<'a, T> for Row<'a, T> {
+    fn into_node(self) -> Node<'a, T> {
+        Node::new(self)
+    }
+}

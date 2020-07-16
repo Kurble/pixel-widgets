@@ -1,5 +1,5 @@
 use crate::draw::*;
-use crate::element::{Element, IntoNode, Stylable};
+use crate::element::{Node, Element, IntoNode, Stylable};
 use crate::event::{Event, Key};
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
@@ -97,4 +97,8 @@ impl<'a, T, F: Fn(bool) -> T> Element<'a, T> for Toggle<'a, T, F> {
     }
 }
 
-impl<'a, T: 'a, F: 'a + Fn(bool) -> T> IntoNode<'a, T> for Toggle<'a, T, F> {}
+impl<'a, T: 'a, F: 'a + Fn(bool) -> T> IntoNode<'a, T> for Toggle<'a, T, F> {
+    fn into_node(self) -> Node<'a, T> {
+        Node::new(self)
+    }
+}

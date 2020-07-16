@@ -1,5 +1,5 @@
 use crate::draw::*;
-use crate::element::{Element, IntoNode, Stylable};
+use crate::element::{Node, Element, IntoNode, Stylable};
 use crate::event::{Event, Key, Modifiers};
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
@@ -450,7 +450,11 @@ impl<'a, T: 'a, F: 'a + Fn(String) -> T> Element<'a, T> for Input<'a, T, F> {
     }
 }
 
-impl<'a, T: 'a, F: 'a + Fn(String) -> T> IntoNode<'a, T> for Input<'a, T, F> {}
+impl<'a, T: 'a, F: 'a + Fn(String) -> T> IntoNode<'a, T> for Input<'a, T, F> {
+    fn into_node(self) -> Node<'a, T> {
+        Node::new(self)
+    }
+}
 
 impl Default for State {
     fn default() -> Self {

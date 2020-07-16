@@ -69,6 +69,9 @@ where
     M: Model,
     F: Fn(&M::Message) -> Option<T>,
 {
+    fn into_node(self) -> Node<'a, T> {
+        Node::new(self)
+    }
 }
 
 impl<'a, M: Model, F> Drop for Container<'a, M, F> {

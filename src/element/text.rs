@@ -96,4 +96,8 @@ impl<'a, T> Element<'a, T> for Text<'a> {
     }
 }
 
-impl<'a, T: 'a> IntoNode<'a, T> for Text<'a> {}
+impl<'a, T: 'a> IntoNode<'a, T> for Text<'a> {
+    fn into_node(self) -> Node<'a, T> {
+        Node::new(self)
+    }
+}

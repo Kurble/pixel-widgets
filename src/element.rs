@@ -48,10 +48,8 @@ pub trait Element<'a, Message> {
     fn render(&mut self, layout: Rectangle, clip: Rectangle, style: &Stylesheet) -> Vec<Primitive<'a>>;
 }
 
-pub trait IntoNode<'a, Message: 'a>: 'a + Sized + Element<'a, Message> {
-    fn into_node(self) -> Node<'a, Message> {
-        Node::new(self)
-    }
+pub trait IntoNode<'a, Message: 'a>: 'a + Sized {
+    fn into_node(self) -> Node<'a, Message>;
 
     fn class(self, class: &'a str) -> Node<'a, Message> {
         self.into_node().class(class)
@@ -105,32 +103,6 @@ impl<'a, Message> Node<'a, Message> {
     pub fn render(&mut self, layout: Rectangle, clip: Rectangle) -> Vec<Primitive<'a>> {
         let stylesheet = self.style.as_ref().unwrap().deref();
         self.element.render(layout, clip, stylesheet)
-    }
-}
-
-impl<'a, Message: 'a> Element<'a, Message> for Node<'a, Message> {
-    fn element(&self) -> &'static str {
-        panic!("element methods should not be called directly on Node")
-    }
-
-    fn visit_children(&mut self, _: &mut dyn FnMut(&mut dyn Stylable<'a>)) {
-        panic!("element methods should not be called directly on Node")
-    }
-
-    fn size(&self, _: &Stylesheet) -> (Size, Size) {
-        panic!("element methods should not be called directly on Node")
-    }
-
-    fn hit(&self, _: Rectangle, _: Rectangle, _: &Stylesheet, _: f32, _: f32) -> bool {
-        panic!("element methods should not be called directly on Node")
-    }
-
-    fn event(&mut self, _: Rectangle, _: Rectangle, _: &Stylesheet, _: Event) -> Option<Message> {
-        panic!("element methods should not be called directly on Node")
-    }
-
-    fn render(&mut self, _: Rectangle, _: Rectangle, _: &Stylesheet) -> Vec<Primitive<'a>> {
-        panic!("element methods should not be called directly on Node")
     }
 }
 

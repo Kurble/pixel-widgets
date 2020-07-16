@@ -210,7 +210,11 @@ impl<'a, T: 'a> Element<'a, T> for Scroll<'a, T> {
     }
 }
 
-impl<'a, T: 'a> IntoNode<'a, T> for Scroll<'a, T> {}
+impl<'a, T: 'a> IntoNode<'a, T> for Scroll<'a, T> {
+    fn into_node(self) -> Node<'a, T> {
+        Node::new(self)
+    }
+}
 
 impl Default for State {
     fn default() -> State {
