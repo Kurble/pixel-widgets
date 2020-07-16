@@ -68,8 +68,12 @@ impl<'a, T: 'a, Id: 'a> Element<'a, T> for Layers<'a, T, Id> {
                         .enumerate()
                         .find_map(move |(i, l)| if l.node.hit(layout, clip, x, y) { Some(i) } else { None })
                 {
-                    let rm = self.layers.remove(hit_index);
-                    self.layers.insert(0, rm);
+                    if hit_index != 0 {
+                        let rm = self.layers.remove(hit_index);
+                        self.layers[0].node.event(layout, clip, event);
+                        self.layers.insert(0, rm);
+                        self.layers[0].node.event(layout, clip, Event::Cursor(x, y));
+                    }
                 }
             }
             _ => (),
