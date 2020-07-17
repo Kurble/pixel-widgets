@@ -8,6 +8,7 @@ use wgpu::*;
 use crate::draw::{Command, DrawList, Update, Vertex};
 use crate::event::Event;
 use crate::layout::Rectangle;
+use crate::stylesheet;
 use crate::{Loader, Model, Ui};
 
 pub struct WgpuUi<I> {
@@ -29,14 +30,18 @@ impl<I: Model> WgpuUi<I> {
         Self::new_inner(Ui::new(model), format, device)
     }
 
-    pub async fn with_stylesheet<L: Loader>(
+    pub async fn with_stylesheet<L: Loader, U: AsRef<str>>(
         model: I,
         loader: L,
-        url: impl AsRef<str>,
+        url: U,
         format: wgpu::TextureFormat,
         device: &Device,
-    ) -> Self {
-        Self::new_inner(Ui::with_stylesheet(model, loader, url).await, format, device)
+    ) -> Result<Self, stylesheet::Error<L::Error>> {
+        Ok(Self::new_inner(
+            Ui::with_stylesheet(model, loader, url).await?,
+            format,
+            device,
+        ))
     }
 
     fn new_inner(inner: Ui<I>, format: wgpu::TextureFormat, device: &Device) -> Self {

@@ -312,7 +312,7 @@ impl Background {
         match self {
             &Background::Patch(ref patch, _) => patch.minimum_size(),
             &Background::Image(ref image, _) => (image.size.width(), image.size.height()),
-            &_ => (0.0, 0.0)
+            &_ => (0.0, 0.0),
         }
     }
 

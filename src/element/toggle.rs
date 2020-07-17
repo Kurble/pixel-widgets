@@ -1,5 +1,5 @@
 use crate::draw::*;
-use crate::element::{Node, Element, IntoNode, Stylable};
+use crate::element::{Element, IntoNode, Node, Stylable};
 use crate::event::{Event, Key};
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;

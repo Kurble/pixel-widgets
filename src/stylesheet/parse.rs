@@ -11,26 +11,16 @@ struct LoadContext<'a, I: Iterator<Item = Token>, L: Loader> {
 
 impl<I: Iterator<Item = Token>, L: Loader> LoadContext<'_, I, L> {
     pub fn take(&mut self, token: TokenValue) -> Result<Token, Error<L::Error>> {
-        let next = self
-            .tokens
-            .next()
-            .ok_or(Error::Syntax(format!("Expected '{:?}' at end of file", token)))?;
-        if token == next.0 {
-            Ok(next)
+        let Token(value, pos) = self.tokens.next().ok_or(Error::Eof)?;
+        if token == value {
+            Ok(Token(value, pos))
         } else {
-            Err(Error::Syntax(format!(
-                "Expected '{:?}' at {}:{}, found '{:?}'",
-                token, next.1.line, next.1.col_start, next.0
-            )))
+            Err(Error::Syntax(format!("Expected '{:?}'", token), pos))
         }
     }
 }
 
-pub async fn parse<L: Loader>(
-    tokens: Vec<Token>,
-    loader: &L,
-    cache: &mut Cache,
-) -> Result<Style, Error<L::Error>> {
+pub async fn parse<L: Loader>(tokens: Vec<Token>, loader: &L, cache: &mut Cache) -> Result<Style, Error<L::Error>> {
     let mut result = Style::new(&mut *cache);
 
     let mut images = HashMap::new();
@@ -80,8 +70,8 @@ async fn parse_selector<I: Iterator<Item = Token>, L: Loader>(
                 c.take(TokenValue::CurlyClose)?;
                 return Ok(selector);
             }
-            Some(other) => return Err(Error::Syntax(format!("Unexpected token parsing selector: {:?}", other))),
-            None => return Err(Error::Syntax("unexpected end of file".into())),
+            Some(Token(_, pos)) => return Err(Error::Syntax("Expected <identifier>, <class> or `{`".into(), pos)),
+            None => return Err(Error::Eof),
         }
     }
 }
@@ -90,7 +80,7 @@ async fn parse_rule<I: Iterator<Item = Token>, L: Loader>(
     c: &mut LoadContext<'_, I, L>,
 ) -> Result<Rule, Error<L::Error>> {
     match c.tokens.next() {
-        Some(Token(TokenValue::Identifier(key), _)) => {
+        Some(Token(TokenValue::Identifier(key), pos)) => {
             c.take(TokenValue::Colon)?;
             match key.as_str() {
                 "background" => Ok(Rule::Background(parse_background(c).await?)),
@@ -109,14 +99,14 @@ async fn parse_rule<I: Iterator<Item = Token>, L: Loader>(
                 "height" => Ok(Rule::Height(parse_size(c)?)),
                 "align-horizontal" => Ok(Rule::AlignHorizontal(parse_align(c)?)),
                 "align-vertical" => Ok(Rule::AlignVertical(parse_align(c)?)),
-                unrecognized => Err(Error::Syntax(format!("Key {} not recognized", unrecognized))),
+                unrecognized => Err(Error::Syntax(
+                    format!("Identifier {} not recognized", unrecognized),
+                    pos,
+                )),
             }
         }
-        Some(Token(tok, pos)) => Err(Error::Syntax(format!(
-            "{}:{}: Expected identifier at start of rule, got '{:?}'",
-            pos.line, pos.col_start, tok
-        ))),
-        None => Err(Error::Syntax("Unexpected end of file parsing rule".into())),
+        Some(Token(_, pos)) => Err(Error::Syntax("Expected <identifier>".into(), pos)),
+        None => Err(Error::Eof),
     }
 }
 
@@ -124,19 +114,21 @@ async fn parse_background<I: Iterator<Item = Token>, L: Loader>(
     c: &mut LoadContext<'_, I, L>,
 ) -> Result<Background, Error<L::Error>> {
     match c.tokens.next() {
-        Some(Token(TokenValue::Identifier(ty), _)) => match ty.to_lowercase().as_str() {
+        Some(Token(TokenValue::Identifier(ty), pos)) => match ty.to_lowercase().as_str() {
             "none" => Ok(Background::None),
             "image" => {
                 c.take(TokenValue::BraceOpen)?;
-                let image = if let Some(Token(TokenValue::Path(url), _)) = c.tokens.next() {
-                    if c.images.get(&url).is_none() {
-                        let image =
-                            image::load_from_memory(c.loader.load(url.clone()).await.map_err(Error::Custom)?.as_ref())?;
-                        c.images.insert(url.clone(), c.cache.load_image(image.to_rgba()));
+                let image = match c.tokens.next() {
+                    Some(Token(TokenValue::Path(url), _)) => {
+                        if c.images.get(&url).is_none() {
+                            let image =
+                                image::load_from_memory(c.loader.load(url.clone()).await.map_err(Error::Io)?.as_ref())?;
+                            c.images.insert(url.clone(), c.cache.load_image(image.to_rgba()));
+                        }
+                        Ok(c.images[&url].clone())
                     }
-                    Ok(c.images[&url].clone())
-                } else {
-                    Err(Error::Syntax("Expected url".into()))
+                    Some(Token(_, pos)) => Err(Error::Syntax("Expected <url>".into(), pos)),
+                    None => Err(Error::Eof),
                 }?;
                 c.take(TokenValue::Comma)?;
                 let color = parse_color::<L>(c.tokens.next())?;
@@ -145,29 +137,49 @@ async fn parse_background<I: Iterator<Item = Token>, L: Loader>(
             }
             "patch" => {
                 c.take(TokenValue::BraceOpen)?;
-                let image = if let Some(Token(TokenValue::Path(url), _)) = c.tokens.next() {
-                    if c.patches.get(&url).is_none() {
-                        let image =
-                            image::load_from_memory(c.loader.load(url.clone()).await.map_err(Error::Custom)?.as_ref())?;
-                        c.patches.insert(url.clone(), c.cache.load_patch(image.to_rgba()));
+                let image = match c.tokens.next() {
+                    Some(Token(TokenValue::Path(url), _)) => {
+                        if c.patches.get(&url).is_none() {
+                            let image =
+                                image::load_from_memory(c.loader.load(url.clone()).await.map_err(Error::Io)?.as_ref())?;
+                            c.patches.insert(url.clone(), c.cache.load_patch(image.to_rgba()));
+                        }
+                        Ok(c.patches[&url].clone())
                     }
-                    Ok(c.patches[&url].clone())
-                } else {
-                    Err(Error::Syntax("Expected url".into()))
+                    Some(Token(_, pos)) => Err(Error::Syntax("Expected url".into(), pos)),
+                    None => Err(Error::Eof),
                 }?;
                 c.take(TokenValue::Comma)?;
                 let color = parse_color::<L>(c.tokens.next())?;
                 c.take(TokenValue::BraceClose)?;
                 Ok(Background::Patch(image, color))
             }
-            other => Err(Error::Syntax(format!("{} is not a background type", other))),
+            _ => Err(Error::Syntax("Expected `image`, `patch` or `none`".into(), pos)),
         },
         Some(Token(TokenValue::Color(color), pos)) => Ok(Background::Color(parse_color::<L>(Some(Token(
             TokenValue::Color(color),
             pos,
         )))?)),
-        Some(other) => Err(Error::Syntax(format!("Unexpected token {:?}", other))),
-        None => Err(Error::Syntax("Unexpected end of file while parsing background".into())),
+        Some(Token(TokenValue::Path(url), _)) => {
+            if url.ends_with(".9.png") {
+                if c.patches.get(&url).is_none() {
+                    let image = image::load_from_memory(c.loader.load(url.clone()).await.map_err(Error::Io)?.as_ref())?;
+                    c.patches.insert(url.clone(), c.cache.load_patch(image.to_rgba()));
+                }
+                Ok(Background::Patch(c.patches[&url].clone(), Color::white()))
+            } else {
+                if c.images.get(&url).is_none() {
+                    let image = image::load_from_memory(c.loader.load(url.clone()).await.map_err(Error::Io)?.as_ref())?;
+                    c.images.insert(url.clone(), c.cache.load_image(image.to_rgba()));
+                }
+                Ok(Background::Image(c.images[&url].clone(), Color::white()))
+            }
+        }
+        Some(Token(_, pos)) => Err(Error::Syntax(
+            "Expected `none`, `image(<url>, <color>)`, `patch(<url>, <color>)`, <color> or <url>".into(),
+            pos,
+        )),
+        None => Err(Error::Eof),
     }
 }
 
@@ -177,26 +189,23 @@ async fn parse_font<I: Iterator<Item = Token>, L: Loader>(
     match c.tokens.next() {
         Some(Token(TokenValue::Path(url), _)) => {
             if c.fonts.get(&url).is_none() {
-                let font = c
-                    .cache
-                    .load_font(c.loader.load(url.as_str()).await.map_err(Error::Custom)?);
+                let font = c.cache.load_font(c.loader.load(url.as_str()).await.map_err(Error::Io)?);
                 c.fonts.insert(url.clone(), font);
             }
             Ok(c.fonts[&url].clone())
         }
-        Some(other) => Err(Error::Syntax(format!("Unexpected token {:?}", other))),
-        None => Err(Error::Syntax("Unexpected end of file while parsing font".into())),
+        Some(Token(_, pos)) => Err(Error::Syntax("Expected <url>".into(), pos)),
+        None => Err(Error::Eof),
     }
 }
 
 fn parse_float<I: Iterator<Item = Token>, L: Loader>(c: &mut LoadContext<I, L>) -> Result<f32, Error<L::Error>> {
     match c.tokens.next() {
-        Some(Token(TokenValue::Number(number), _)) => number
+        Some(Token(TokenValue::Number(number), pos)) => number
             .parse::<f32>()
-            .ok()
-            .ok_or(Error::Syntax("unable to parse float".into())),
-        Some(other) => Err(Error::Syntax(format!("Unexpected token {:?}", other))),
-        None => Err(Error::Syntax("Unexpected end of file while parsing font".into())),
+            .map_err(|err| Error::Syntax(format!("{}", err), pos)),
+        Some(Token(_, pos)) => Err(Error::Syntax("Expected <number>".into(), pos)),
+        None => Err(Error::Eof),
     }
 }
 
@@ -204,25 +213,44 @@ fn parse_rectangle<I: Iterator<Item = Token>, L: Loader>(
     c: &mut LoadContext<I, L>,
 ) -> Result<Rectangle, Error<L::Error>> {
     let mut result = Rectangle::zero();
-    c.take(TokenValue::BraceOpen)?;
-    loop {
-        match c.tokens.next() {
-            Some(Token(TokenValue::Identifier(field), _)) => {
-                c.take(TokenValue::Colon)?;
-                match field.as_str() {
-                    "left" => result.left = parse_float(c)?,
-                    "top" => result.top = parse_float(c)?,
-                    "right" => result.right = parse_float(c)?,
-                    "bottom" => result.bottom = parse_float(c)?,
-                    other => Err(Error::Syntax(format!("unknown field '{}' for rectangle", other)))?,
+    match c.tokens.next() {
+        Some(Token(TokenValue::BraceOpen, _)) => loop {
+            match c.tokens.next() {
+                Some(Token(TokenValue::Identifier(field), pos)) => {
+                    c.take(TokenValue::Colon)?;
+                    match field.as_str() {
+                        "left" => result.left = parse_float(c)?,
+                        "top" => result.top = parse_float(c)?,
+                        "right" => result.right = parse_float(c)?,
+                        "bottom" => result.bottom = parse_float(c)?,
+                        _ => Err(Error::Syntax("Expected `left`, `top`, `right` or `bottom`".into(), pos))?,
+                    }
                 }
+                Some(Token(TokenValue::BraceClose, _)) => {
+                    return Ok(result);
+                }
+                Some(Token(_, pos)) => {
+                    return Err(Error::Syntax(
+                        "Expected `left`, `top`, `right`, `bottom` or `)`".into(),
+                        pos,
+                    ))
+                }
+                None => return Err(Error::Eof),
             }
-            Some(Token(TokenValue::BraceClose, _)) => {
-                return Ok(result);
-            }
-            Some(other) => return Err(Error::Syntax(format!("Unexpected token {:?}", other))),
-            None => return Err(Error::Syntax("Unexpected end of file while parsing rectangle".into())),
+        },
+        Some(Token(TokenValue::Number(number), pos)) => {
+            let uniform = number
+                .parse::<f32>()
+                .map_err(|err| Error::Syntax(format!("{}", err), pos))?;
+            Ok(Rectangle {
+                left: uniform,
+                top: uniform,
+                right: uniform,
+                bottom: uniform,
+            })
         }
+        Some(Token(_, pos)) => Err(Error::Syntax("Expected `(` or <number>".into(), pos)),
+        None => Err(Error::Eof),
     }
 }
 
@@ -230,36 +258,33 @@ fn parse_text_wrap<I: Iterator<Item = Token>, L: Loader>(
     c: &mut LoadContext<I, L>,
 ) -> Result<TextWrap, Error<L::Error>> {
     match c.tokens.next() {
-        Some(Token(TokenValue::Identifier(ty), _)) => match ty.to_lowercase().as_str() {
+        Some(Token(TokenValue::Identifier(ty), pos)) => match ty.to_lowercase().as_str() {
             "no-wrap" => Ok(TextWrap::NoWrap),
             "word-wrap" => Ok(TextWrap::WordWrap),
             "wrap" => Ok(TextWrap::Wrap),
-            other => Err(Error::Syntax(format!(
-                "{} is not one of no-wrap, word-wrap or wrap",
-                other
-            ))),
+            _ => Err(Error::Syntax("Expected `no-wrap`, `word-wrap` or `wrap`".into(), pos)),
         },
-        Some(other) => Err(Error::Syntax(format!("Unexpected token {:?}", other))),
-        None => Err(Error::Syntax("Unexpected end of file while parsing font".into())),
+        Some(Token(_, pos)) => Err(Error::Syntax("Expected `no-wrap`, `word-wrap` or `wrap`".into(), pos)),
+        None => Err(Error::Eof),
     }
 }
 
 fn parse_align<I: Iterator<Item = Token>, L: Loader>(c: &mut LoadContext<I, L>) -> Result<Align, Error<L::Error>> {
     match c.tokens.next() {
-        Some(Token(TokenValue::Identifier(ty), _)) => match ty.to_lowercase().as_str() {
+        Some(Token(TokenValue::Identifier(ty), pos)) => match ty.to_lowercase().as_str() {
             "begin" | "left" | "top" => Ok(Align::Begin),
             "center" => Ok(Align::Center),
             "end" | "right" | "bottom" => Ok(Align::End),
-            other => Err(Error::Syntax(format!("{} is not one of begin, center or end", other))),
+            _ => Err(Error::Syntax("Expected `begin`, `center` or `end`".into(), pos)),
         },
-        Some(other) => Err(Error::Syntax(format!("Unexpected token {:?}", other))),
-        None => Err(Error::Syntax("Unexpected end of file while parsing font".into())),
+        Some(Token(_, pos)) => Err(Error::Syntax("Expected `begin`, `center` or `end`".into(), pos)),
+        None => Err(Error::Eof),
     }
 }
 
 fn parse_size<I: Iterator<Item = Token>, L: Loader>(c: &mut LoadContext<I, L>) -> Result<Size, Error<L::Error>> {
     match c.tokens.next() {
-        Some(Token(TokenValue::Identifier(ty), _)) => match ty.to_lowercase().as_str() {
+        Some(Token(TokenValue::Identifier(ty), pos)) => match ty.to_lowercase().as_str() {
             "shrink" => Ok(Size::Shrink),
             "fill" => {
                 c.take(TokenValue::BraceOpen)?;
@@ -267,49 +292,60 @@ fn parse_size<I: Iterator<Item = Token>, L: Loader>(c: &mut LoadContext<I, L>) -
                 c.take(TokenValue::BraceClose)?;
                 Ok(Size::Fill(size as u32))
             }
-            other => Err(Error::Syntax(format!("{} is not one of begin, center or end", other))),
+            _ => Err(Error::Syntax(
+                "Expected `shrink`, `fill(<number>)` or <number>".into(),
+                pos,
+            )),
         },
-        Some(Token(TokenValue::Number(num), _)) => Ok(Size::Exact(
+        Some(Token(TokenValue::Number(num), pos)) => Ok(Size::Exact(
             num.parse::<f32>()
-                .ok()
-                .ok_or(Error::Syntax("unable to parse exact size".into()))?,
+                .map_err(|err| Error::Syntax(format!("{}", err), pos))?,
         )),
-        Some(other) => Err(Error::Syntax(format!("Unexpected token {:?}", other))),
-        None => Err(Error::Syntax("Unexpected end of file while parsing font".into())),
+        Some(Token(_, pos)) => Err(Error::Syntax(
+            "Expected `shrink`, `fill(<number>)` or <number>".into(),
+            pos,
+        )),
+        None => Err(Error::Eof),
     }
 }
 
 fn parse_color<L: Loader>(token: Option<Token>) -> Result<Color, Error<L::Error>> {
-    if let Some(Token(TokenValue::Color(string), _)) = token {
-        let int = u32::from_str_radix(string.as_str(), 16).unwrap();
-        match string.len() {
-            3 => Ok(Color {
-                r: ((int & 0xf00) >> 8) as f32 / 15.0,
-                g: ((int & 0x0f0) >> 4) as f32 / 15.0,
-                b: ((int & 0x00f) >> 0) as f32 / 15.0,
-                a: 1.0,
-            }),
-            4 => Ok(Color {
-                r: ((int & 0xf000) >> 12) as f32 / 15.0,
-                g: ((int & 0x0f00) >> 8) as f32 / 15.0,
-                b: ((int & 0x00f0) >> 4) as f32 / 15.0,
-                a: ((int & 0x000f) >> 0) as f32 / 15.0,
-            }),
-            6 => Ok(Color {
-                r: ((int & 0xff0000) >> 16) as f32 / 255.0,
-                g: ((int & 0x00ff00) >> 8) as f32 / 255.0,
-                b: ((int & 0x0000ff) >> 0) as f32 / 255.0,
-                a: 1.0,
-            }),
-            8 => Ok(Color {
-                r: ((int & 0xff000000) >> 24) as f32 / 255.0,
-                g: ((int & 0x00ff0000) >> 16) as f32 / 255.0,
-                b: ((int & 0x0000ff00) >> 8) as f32 / 255.0,
-                a: ((int & 0x000000ff) >> 0) as f32 / 255.0,
-            }),
-            _ => Err(Error::ColorParse),
+    match token {
+        Some(Token(TokenValue::Color(string), pos)) => {
+            let int = u32::from_str_radix(string.as_str(), 16).map_err(|err| Error::Syntax(format!("{}", err), pos))?;
+            match string.len() {
+                3 => Ok(Color {
+                    r: ((int & 0xf00) >> 8) as f32 / 15.0,
+                    g: ((int & 0x0f0) >> 4) as f32 / 15.0,
+                    b: ((int & 0x00f) >> 0) as f32 / 15.0,
+                    a: 1.0,
+                }),
+                4 => Ok(Color {
+                    r: ((int & 0xf000) >> 12) as f32 / 15.0,
+                    g: ((int & 0x0f00) >> 8) as f32 / 15.0,
+                    b: ((int & 0x00f0) >> 4) as f32 / 15.0,
+                    a: ((int & 0x000f) >> 0) as f32 / 15.0,
+                }),
+                6 => Ok(Color {
+                    r: ((int & 0xff0000) >> 16) as f32 / 255.0,
+                    g: ((int & 0x00ff00) >> 8) as f32 / 255.0,
+                    b: ((int & 0x0000ff) >> 0) as f32 / 255.0,
+                    a: 1.0,
+                }),
+                8 => Ok(Color {
+                    r: ((int & 0xff000000) >> 24) as f32 / 255.0,
+                    g: ((int & 0x00ff0000) >> 16) as f32 / 255.0,
+                    b: ((int & 0x0000ff00) >> 8) as f32 / 255.0,
+                    a: ((int & 0x000000ff) >> 0) as f32 / 255.0,
+                }),
+                _ => Err(Error::Syntax(
+                    "Color values must match one of the following hex patterns: #rgb, #rgba, #rrggbb or #rrggbbaa"
+                        .into(),
+                    pos,
+                )),
+            }
         }
-    } else {
-        Err(Error::Syntax(format!("Expected 'color', got '{:?}'", token)))
+        Some(Token(_, pos)) => Err(Error::Syntax("Expected <color>".into(), pos)),
+        None => Err(Error::Eof),
     }
 }

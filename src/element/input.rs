@@ -1,5 +1,5 @@
 use crate::draw::*;
-use crate::element::{Node, Element, IntoNode, Stylable};
+use crate::element::{Element, IntoNode, Node, Stylable};
 use crate::event::{Event, Key, Modifiers};
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
@@ -165,7 +165,9 @@ impl<'a, T: 'a, F: 'a + Fn(String) -> T> Element<'a, T> for Input<'a, T, F> {
             }
 
             Event::Press(Key::LeftMouseButton) => {
-                if layout.point_inside(self.state.cursor.0, self.state.cursor.1) && clip.point_inside(self.state.cursor.0, self.state.cursor.1) {
+                if layout.point_inside(self.state.cursor.0, self.state.cursor.1)
+                    && clip.point_inside(self.state.cursor.0, self.state.cursor.1)
+                {
                     let relative_cursor = (
                         self.state.cursor.0 - content_rect.left + self.state.scroll_x,
                         self.state.cursor.1 - content_rect.top + self.state.scroll_y,

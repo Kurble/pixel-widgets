@@ -36,7 +36,7 @@ input {
     background: #fff
     color: #000
     text-size: 24.0
-    padding: (left: 4.0 right: 4.0 top: 4.0 bottom: 4.0)
+    padding: 4
 }
 
 window text .title {

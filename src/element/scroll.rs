@@ -169,9 +169,13 @@ impl<'a, T: 'a> Element<'a, T> for Scroll<'a, T> {
             }
             (Event::Release(Key::LeftMouseButton), InnerState::DragHorizontalBar(_))
             | (Event::Release(Key::LeftMouseButton), InnerState::DragVerticalBar(_)) => {
-                if hbar.point_inside(self.state.cursor_x, self.state.cursor_y) && clip.point_inside(self.state.cursor_x, self.state.cursor_y) {
+                if hbar.point_inside(self.state.cursor_x, self.state.cursor_y)
+                    && clip.point_inside(self.state.cursor_x, self.state.cursor_y)
+                {
                     self.state.inner = InnerState::HoverHorizontalBar;
-                } else if vbar.point_inside(self.state.cursor_x, self.state.cursor_y) && clip.point_inside(self.state.cursor_x, self.state.cursor_y) {
+                } else if vbar.point_inside(self.state.cursor_x, self.state.cursor_y)
+                    && clip.point_inside(self.state.cursor_x, self.state.cursor_y)
+                {
                     self.state.inner = InnerState::HoverVerticalBar;
                 } else {
                     self.state.inner = InnerState::Idle;

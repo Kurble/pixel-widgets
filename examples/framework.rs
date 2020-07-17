@@ -50,14 +50,21 @@ async fn run<T: 'static + Model>(
 
     let mut viewport = Rectangle::from_wh(size.width as f32, size.height as f32);
 
-    let mut ui = WgpuUi::with_stylesheet(
+    let mut ui = match WgpuUi::with_stylesheet(
         model,
         std::path::PathBuf::from("."),
         stylesheet,
         swapchain_format,
         &device,
     )
-    .await;
+    .await
+    {
+        Ok(ui) => ui,
+        Err(err) => {
+            println!("{}", err);
+            panic!();
+        }
+    };
 
     event_loop.run(move |event, _, control_flow| {
         let _ = &adapter;

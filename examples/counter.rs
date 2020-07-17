@@ -79,7 +79,7 @@ impl Model for Counter {
                     .push(Space.class("close"))
                     .class("title"),
                 Space.class("dummy"),
-            )
+            ),
         );
 
         layers.into_node()
@@ -87,10 +87,13 @@ impl Model for Counter {
 }
 
 fn main() {
-    framework::run_model(Counter {
-        value: 0,
-        name: String::new(),
-        password: String::new(),
-        state: ManagedState::default(),
-    }, "test_style.mss");
+    framework::run_model(
+        Counter {
+            value: 0,
+            name: String::new(),
+            password: String::new(),
+            state: ManagedState::default(),
+        },
+        "test_style.mss",
+    );
 }

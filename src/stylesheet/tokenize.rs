@@ -73,10 +73,7 @@ pub fn tokenize<E: std::error::Error>(text: String) -> Result<Vec<Token>, Error<
                 ';' => Some(Token(TokenValue::Semi, pos)),
                 ',' => Some(Token(TokenValue::Comma, pos)),
                 chr => {
-                    return Err(Error::Syntax(format!(
-                        "Unexpected character '{}' at line {} col {}",
-                        chr, line, col
-                    )))
+                    return Err(Error::Syntax(format!("Unexpected character '{}'", chr), pos));
                 }
             };
         }

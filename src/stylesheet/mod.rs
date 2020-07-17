@@ -9,19 +9,18 @@ use crate::text::{Font, TextWrap};
 use crate::Loader;
 use std::iter::Peekable;
 
-mod tokenize;
 mod parse;
+mod tokenize;
 
-use tokenize::*;
 use parse::*;
+use tokenize::*;
 
 #[derive(Debug)]
 pub enum Error<E: std::error::Error> {
-    Syntax(String),
+    Syntax(String, TokenPos),
+    Eof,
     Image(image::ImageError),
-    Custom(E),
-    FontMissing,
-    ColorParse,
+    Io(E),
 }
 
 pub struct Style {
@@ -161,7 +160,7 @@ impl Style {
         url: U,
         cache: &mut Cache,
     ) -> Result<Self, Error<L::Error>> {
-        let text = String::from_utf8(loader.load(url).await.map_err(Error::Custom)?).unwrap();
+        let text = String::from_utf8(loader.load(url).await.map_err(Error::Io)?).unwrap();
         parse(tokenize(text)?, loader, cache).await
     }
 }
@@ -210,7 +209,12 @@ impl<E: std::error::Error> From<image::ImageError> for Error<E> {
 
 impl<E: std::error::Error> std::fmt::Display for Error<E> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+        match self {
+            Error::Syntax(error, pos) => write!(f, "Syntax error: {} at line {}:{}", error, pos.line, pos.col_start),
+            Error::Eof => write!(f, "Unexpected end of file reached"),
+            Error::Image(error) => write!(f, "Image decode error: {}", error),
+            Error::Io(error) => write!(f, "I/O error: {}", error),
+        }
     }
 }
 

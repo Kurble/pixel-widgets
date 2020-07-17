@@ -120,7 +120,8 @@ impl<'a, Message: 'a> Stylable<'a> for Node<'a, Message> {
         }
 
         self.style.replace(engine.get(query));
-        self.element.visit_children(&mut |child| child.style(&mut *engine, &mut *query));
+        self.element
+            .visit_children(&mut |child| child.style(&mut *engine, &mut *query));
 
         query.elements.pop();
         if self.class.is_some() {

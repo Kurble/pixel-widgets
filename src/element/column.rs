@@ -39,7 +39,9 @@ impl<'a, T: 'a> Column<'a, T> {
                 .map(|child| {
                     let (w, h) = child.size();
                     let w = w.resolve(layout.width(), w.parts());
-                    let h = h.resolve(available_space, available_parts).min(layout.height() - cursor);
+                    let h = h
+                        .resolve(available_space, available_parts)
+                        .min(layout.height() - cursor);
                     let x = align.resolve_start(w, layout.width());
                     let y = cursor;
 

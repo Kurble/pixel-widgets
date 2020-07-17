@@ -55,17 +55,21 @@ impl<I: Model> Ui<I> {
         }
     }
 
-    pub async fn with_stylesheet(model: I, loader: impl Loader, url: impl AsRef<str>) -> Self {
+    pub async fn with_stylesheet<L: Loader, U: AsRef<str>>(
+        model: I,
+        loader: L,
+        url: U,
+    ) -> Result<Self, stylesheet::Error<L::Error>> {
         let mut cache = self::cache::Cache::new(512, 0);
 
-        let stylesheet = Style::load(&loader, url, &mut cache).await.unwrap();
+        let stylesheet = Style::load(&loader, url, &mut cache).await?;
 
-        Self {
+        Ok(Self {
             model,
             cache,
             events: Vec::new(),
             stylesheet,
-        }
+        })
     }
 
     pub fn update(&mut self, message: I::Message) {
