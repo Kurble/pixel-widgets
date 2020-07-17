@@ -1,20 +1,18 @@
-use serde::Deserialize;
-
-#[derive(Debug, Clone, Copy, Deserialize)]
+#[derive(Debug, Clone, Copy)]
 pub enum Size {
     Shrink,
     Exact(f32),
     Fill(u32),
 }
 
-#[derive(Clone, Copy, Deserialize)]
+#[derive(Clone, Copy)]
 pub enum Align {
     Begin,
     Center,
     End,
 }
 
-#[derive(Debug, Clone, Copy, Deserialize)]
+#[derive(Debug, Clone, Copy)]
 pub struct Rectangle {
     pub left: f32,
     pub top: f32,

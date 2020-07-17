@@ -1,9 +1,8 @@
 use crate::draw::Color;
 use crate::layout::Rectangle;
-use serde::Deserialize;
 use std::borrow::Cow;
 
-#[derive(Clone, Copy, Debug, Deserialize)]
+#[derive(Clone, Copy, Debug)]
 pub enum TextWrap {
     NoWrap,
     Wrap,

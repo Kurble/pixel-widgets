@@ -121,7 +121,6 @@ async fn run<T: 'static + Model>(
 }
 
 pub fn run_model<T: 'static + Model, S: AsRef<str>>(model: T, stylesheet: S) {
-    pretty_env_logger::init();
     let event_loop = EventLoop::new();
     let window = winit::window::Window::new(&event_loop).unwrap();
     futures::executor::block_on(run(
