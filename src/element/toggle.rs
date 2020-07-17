@@ -3,6 +3,7 @@ use crate::element::{Element, IntoNode, Node, Stylable};
 use crate::event::{Event, Key};
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
+use crate::Context;
 use std::mem::replace;
 
 pub type State = crate::element::button::State;
@@ -41,15 +42,23 @@ impl<'a, T, F: Fn(bool) -> T> Element<'a, T> for Toggle<'a, T, F> {
         }
     }
 
-    fn event(&mut self, layout: Rectangle, clip: Rectangle, _: &Stylesheet, event: Event) -> Option<T> {
-        let mut result = None;
+    fn event(&mut self, layout: Rectangle, clip: Rectangle, _: &Stylesheet, event: Event, context: &mut Context<T>) {
         match event {
             Event::Cursor(x, y) => {
                 *self.state = match replace(self.state, State::Idle) {
-                    State::Idle | State::Hover => {
+                    State::Idle => {
+                        if layout.point_inside(x, y) && clip.point_inside(x, y) {
+                            context.redraw();
+                            State::Hover
+                        } else {
+                            State::Idle
+                        }
+                    }
+                    State::Hover => {
                         if layout.point_inside(x, y) && clip.point_inside(x, y) {
                             State::Hover
                         } else {
+                            context.redraw();
                             State::Idle
                         }
                     }
@@ -57,6 +66,7 @@ impl<'a, T, F: Fn(bool) -> T> Element<'a, T> for Toggle<'a, T, F> {
                         if layout.point_inside(x, y) && clip.point_inside(x, y) {
                             State::Pressed
                         } else {
+                            context.redraw();
                             State::Idle
                         }
                     }
@@ -66,7 +76,10 @@ impl<'a, T, F: Fn(bool) -> T> Element<'a, T> for Toggle<'a, T, F> {
 
             Event::Press(Key::LeftMouseButton) => {
                 *self.state = match replace(self.state, State::Idle) {
-                    State::Hover => State::Pressed,
+                    State::Hover => {
+                        context.redraw();
+                        State::Pressed
+                    }
                     other => other,
                 };
             }
@@ -74,7 +87,8 @@ impl<'a, T, F: Fn(bool) -> T> Element<'a, T> for Toggle<'a, T, F> {
             Event::Release(Key::LeftMouseButton) => {
                 *self.state = match replace(self.state, State::Idle) {
                     State::Pressed => {
-                        result.replace((self.on_toggle)(!self.checked));
+                        context.redraw();
+                        context.push((self.on_toggle)(!self.checked));
                         State::Hover
                     }
                     other => other,
@@ -83,11 +97,9 @@ impl<'a, T, F: Fn(bool) -> T> Element<'a, T> for Toggle<'a, T, F> {
 
             _ => (),
         }
-
-        result
     }
 
-    fn render(&mut self, layout: Rectangle, _: Rectangle, stylesheet: &Stylesheet) -> Vec<Primitive<'a>> {
+    fn draw(&mut self, layout: Rectangle, _: Rectangle, stylesheet: &Stylesheet) -> Vec<Primitive<'a>> {
         let background = match self.checked {
             false => &stylesheet.background,
             true => &stylesheet.checked,

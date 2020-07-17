@@ -3,6 +3,7 @@ use crate::element::{Element, IntoNode, Node, Stylable};
 use crate::event::{Event, Key};
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
+use crate::Context;
 
 pub struct Layers<'a, T, Id> {
     state: &'a mut State<Id>,
@@ -53,7 +54,7 @@ impl<'a, T: 'a, Id: 'a> Element<'a, T> for Layers<'a, T, Id> {
         (style.width, style.height)
     }
 
-    fn event(&mut self, layout: Rectangle, clip: Rectangle, _: &Stylesheet, event: Event) -> Option<T> {
+    fn event(&mut self, layout: Rectangle, clip: Rectangle, _: &Stylesheet, event: Event, context: &mut Context<T>) {
         match event {
             Event::Cursor(x, y) => {
                 self.state.cursor_x = x;
@@ -70,21 +71,21 @@ impl<'a, T: 'a, Id: 'a> Element<'a, T> for Layers<'a, T, Id> {
                 {
                     if hit_index != 0 {
                         let rm = self.layers.remove(hit_index);
-                        self.layers[0].node.event(layout, clip, event);
+                        self.layers[0].node.event(layout, clip, event, context);
                         self.layers.insert(0, rm);
-                        self.layers[0].node.event(layout, clip, Event::Cursor(x, y));
+                        self.layers[0].node.event(layout, clip, Event::Cursor(x, y), context);
                     }
                 }
             }
             _ => (),
         }
 
-        self.layers[0].node.event(layout, clip, event)
+        self.layers[0].node.event(layout, clip, event, context);
     }
 
-    fn render(&mut self, layout: Rectangle, clip: Rectangle, _: &Stylesheet) -> Vec<Primitive<'a>> {
+    fn draw(&mut self, layout: Rectangle, clip: Rectangle, _: &Stylesheet) -> Vec<Primitive<'a>> {
         self.layers.iter_mut().rev().fold(Vec::new(), |mut result, layer| {
-            result.extend(layer.node.render(layout, clip));
+            result.extend(layer.node.draw(layout, clip));
             result
         })
     }

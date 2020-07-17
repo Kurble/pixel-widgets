@@ -3,6 +3,7 @@ use crate::element::{Element, IntoNode, Node, Stylable};
 use crate::event::{Event, Key};
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
+use crate::Context;
 use std::mem::replace;
 
 pub struct Button<'a, T> {
@@ -68,15 +69,23 @@ impl<'a, T: 'a> Element<'a, T> for Button<'a, T> {
         )
     }
 
-    fn event(&mut self, layout: Rectangle, clip: Rectangle, _: &Stylesheet, event: Event) -> Option<T> {
-        let mut result = None;
+    fn event(&mut self, layout: Rectangle, clip: Rectangle, _: &Stylesheet, event: Event, context: &mut Context<T>) {
         match event {
             Event::Cursor(x, y) => {
                 *self.state = match replace(self.state, State::Idle) {
-                    State::Idle | State::Hover => {
+                    State::Idle => {
+                        if layout.point_inside(x, y) && clip.point_inside(x, y) {
+                            context.redraw();
+                            State::Hover
+                        } else {
+                            State::Idle
+                        }
+                    }
+                    State::Hover => {
                         if layout.point_inside(x, y) && clip.point_inside(x, y) {
                             State::Hover
                         } else {
+                            context.redraw();
                             State::Idle
                         }
                     }
@@ -84,6 +93,7 @@ impl<'a, T: 'a> Element<'a, T> for Button<'a, T> {
                         if layout.point_inside(x, y) && clip.point_inside(x, y) {
                             State::Pressed
                         } else {
+                            context.redraw();
                             State::Idle
                         }
                     }
@@ -93,7 +103,10 @@ impl<'a, T: 'a> Element<'a, T> for Button<'a, T> {
 
             Event::Press(Key::LeftMouseButton) => {
                 *self.state = match replace(self.state, State::Idle) {
-                    State::Hover => State::Pressed,
+                    State::Hover => {
+                        context.redraw();
+                        State::Pressed
+                    }
                     other => other,
                 };
             }
@@ -101,7 +114,8 @@ impl<'a, T: 'a> Element<'a, T> for Button<'a, T> {
             Event::Release(Key::LeftMouseButton) => {
                 *self.state = match replace(self.state, State::Idle) {
                     State::Pressed => {
-                        result = self.on_clicked.take();
+                        context.redraw();
+                        context.extend(self.on_clicked.take());
                         State::Hover
                     }
                     other => other,
@@ -110,11 +124,9 @@ impl<'a, T: 'a> Element<'a, T> for Button<'a, T> {
 
             _ => (),
         }
-
-        result
     }
 
-    fn render(&mut self, layout: Rectangle, clip: Rectangle, stylesheet: &Stylesheet) -> Vec<Primitive<'a>> {
+    fn draw(&mut self, layout: Rectangle, clip: Rectangle, stylesheet: &Stylesheet) -> Vec<Primitive<'a>> {
         let content_rect = stylesheet
             .background
             .content_rect(layout)
@@ -130,7 +142,7 @@ impl<'a, T: 'a> Element<'a, T> for Button<'a, T> {
         background
             .render(layout)
             .into_iter()
-            .chain(self.content.render(content_rect, clip).into_iter())
+            .chain(self.content.draw(content_rect, clip).into_iter())
             .collect()
     }
 }

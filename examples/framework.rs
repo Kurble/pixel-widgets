@@ -54,6 +54,7 @@ async fn run<T: 'static + Model>(
         model,
         std::path::PathBuf::from("."),
         stylesheet,
+        viewport,
         swapchain_format,
         &device,
     )
@@ -80,6 +81,7 @@ async fn run<T: 'static + Model>(
                 sc_desc.height = size.height;
                 swap_chain = device.create_swap_chain(&surface, &sc_desc);
                 viewport = Rectangle::from_wh(size.width as f32, size.height as f32);
+                ui.resize(viewport);
             }
             Event::RedrawRequested(_) => {
                 let frame = swap_chain
@@ -98,7 +100,7 @@ async fn run<T: 'static + Model>(
                         depth_stencil_attachment: None,
                     });
 
-                    ui.render(&device, &queue, &mut pass, viewport);
+                    ui.draw(&device, &queue, &mut pass);
                 }
 
                 queue.submit(&[encoder.finish()]);

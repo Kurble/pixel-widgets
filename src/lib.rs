@@ -3,10 +3,11 @@ use std::ops::{Deref, DerefMut};
 
 use draw::DrawList;
 
-use crate::element::{Node, Stylable};
+use crate::element::Node;
 use crate::event::Event;
 use crate::layout::Rectangle;
-use crate::stylesheet::{Query, Style};
+use crate::model_view::ModelView;
+use crate::stylesheet::Style;
 
 pub mod backend;
 pub mod cache;
@@ -14,12 +15,13 @@ pub mod draw;
 pub mod element;
 pub mod event;
 pub mod layout;
+mod model_view;
 pub mod qtree;
 pub mod stylesheet;
 pub mod text;
 pub mod tracker;
 
-pub trait Model {
+pub trait Model: 'static {
     type Message;
 
     fn update(&mut self, message: Self::Message);
@@ -34,24 +36,31 @@ pub trait Loader: Send + Sync {
     fn load(&self, url: impl AsRef<str>) -> Self::Load;
 }
 
-pub struct Ui<I> {
-    model: I,
+pub struct Ui<I: Model> {
+    model_view: ModelView<I>,
+    style: Style,
     cache: self::cache::Cache,
-    events: Vec<Event>,
-    stylesheet: Style,
+    viewport: Rectangle,
+    redraw: bool,
+}
+
+pub struct Context<Message> {
+    redraw: bool,
+    messages: Vec<Message>,
 }
 
 impl<I: Model> Ui<I> {
-    pub fn new(model: I) -> Self {
+    pub fn new(model: I, viewport: Rectangle) -> Self {
         let mut cache = self::cache::Cache::new(512, 0);
 
-        let stylesheet = Style::new(&mut cache);
+        let style = Style::new(&mut cache);
 
         Self {
-            model,
+            model_view: ModelView::new(model),
+            style,
             cache,
-            events: Vec::new(),
-            stylesheet,
+            viewport,
+            redraw: true,
         }
     }
 
@@ -59,43 +68,68 @@ impl<I: Model> Ui<I> {
         model: I,
         loader: L,
         url: U,
+        viewport: Rectangle,
     ) -> Result<Self, stylesheet::Error<L::Error>> {
         let mut cache = self::cache::Cache::new(512, 0);
 
-        let stylesheet = Style::load(&loader, url, &mut cache).await?;
+        let style = Style::load(&loader, url, &mut cache).await?;
 
         Ok(Self {
-            model,
+            model_view: ModelView::new(model),
+            style,
             cache,
-            events: Vec::new(),
-            stylesheet,
+            viewport,
+            redraw: true,
         })
     }
 
+    pub fn resize(&mut self, viewport: Rectangle) {
+        self.model_view.set_dirty();
+        self.viewport = viewport;
+    }
+
     pub fn update(&mut self, message: I::Message) {
-        self.model.update(message);
+        self.model_view.model_mut().update(message);
     }
 
     pub fn event(&mut self, event: Event) {
-        self.events.push(event);
+        let mut context = Context::new(self.redraw);
+
+        {
+            let view = self.model_view.view(&mut self.style);
+            let (w, h) = view.size();
+            let layout = Rectangle::from_wh(
+                w.resolve(self.viewport.width(), w.parts()),
+                h.resolve(self.viewport.height(), h.parts()),
+            );
+            view.event(layout, self.viewport, event, &mut context);
+        }
+
+        self.redraw = context.redraw;
+
+        for message in context {
+            self.model_view.model_mut().update(message);
+        }
     }
 
-    pub fn render(&mut self, viewport: Rectangle) -> DrawList {
+    pub fn needs_redraw(&self) -> bool {
+        self.redraw || self.model_view.dirty()
+    }
+
+    pub fn draw(&mut self) -> DrawList {
         use self::draw::*;
 
-        let mut root = self.model.view();
-        root.style(&mut self.stylesheet, &mut Query::default());
-        let (w, h) = root.size();
-        let layout = Rectangle::from_wh(
-            w.resolve(viewport.width(), w.parts()),
-            h.resolve(viewport.height(), h.parts()),
-        );
-        let messages = self
-            .events
-            .drain(..)
-            .filter_map(|event| root.event(layout, viewport, event))
-            .collect::<Vec<_>>();
-        let primitives = root.render(layout, viewport);
+        let viewport = self.viewport;
+        let primitives = {
+            let view = self.model_view.view(&mut self.style);
+            let (w, h) = view.size();
+            let layout = Rectangle::from_wh(
+                w.resolve(viewport.width(), w.parts()),
+                h.resolve(viewport.height(), h.parts()),
+            );
+            view.draw(layout, viewport)
+        };
+        self.redraw = false;
 
         let mut vtx = Vec::new();
         let mut cmd = Vec::new();
@@ -386,11 +420,6 @@ impl<I: Model> Ui<I> {
         // Flush any commands that are not finalized
         current_command.flush().and_then(|c| Some(cmd.push(c)));
 
-        drop(root);
-        for message in messages {
-            self.model.update(message);
-        }
-
         DrawList {
             updates: self.cache.take_updates(),
             vertices: vtx,
@@ -399,17 +428,47 @@ impl<I: Model> Ui<I> {
     }
 }
 
-impl<I> Deref for Ui<I> {
+impl<I: Model> Deref for Ui<I> {
     type Target = I;
 
     fn deref(&self) -> &Self::Target {
-        &self.model
+        &self.model_view.model()
     }
 }
 
-impl<I> DerefMut for Ui<I> {
+impl<I: Model> DerefMut for Ui<I> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.model
+        self.model_view.model_mut()
+    }
+}
+
+impl<Message> Context<Message> {
+    pub fn new(redraw: bool) -> Self {
+        Self {
+            redraw,
+            messages: Vec::new(),
+        }
+    }
+
+    pub fn push(&mut self, message: Message) {
+        self.messages.push(message);
+    }
+
+    pub fn extend<I: IntoIterator<Item = Message>>(&mut self, iter: I) {
+        self.messages.extend(iter);
+    }
+
+    pub fn redraw(&mut self) {
+        self.redraw = true;
+    }
+}
+
+impl<Message> IntoIterator for Context<Message> {
+    type Item = Message;
+    type IntoIter = std::vec::IntoIter<Message>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.messages.into_iter()
     }
 }
 

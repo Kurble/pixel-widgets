@@ -3,6 +3,7 @@ use crate::element::{Element, IntoNode, Node, Stylable};
 use crate::event::{Event, Key};
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
+use crate::Context;
 
 pub struct Window<'a, T> {
     state: &'a mut State,
@@ -103,7 +104,14 @@ impl<'a, T: 'a> Element<'a, T> for Window<'a, T> {
         }
     }
 
-    fn event(&mut self, viewport: Rectangle, clip: Rectangle, style: &Stylesheet, event: Event) -> Option<T> {
+    fn event(
+        &mut self,
+        viewport: Rectangle,
+        clip: Rectangle,
+        style: &Stylesheet,
+        event: Event,
+        context: &mut Context<T>,
+    ) {
         let (layout, title, content) = self.layout(viewport, style);
 
         match (event, self.state.inner) {
@@ -116,12 +124,14 @@ impl<'a, T: 'a> Element<'a, T> for Window<'a, T> {
                 if clip.point_inside(self.state.cursor_x, self.state.cursor_y)
                     && title.point_inside(self.state.cursor_x, self.state.cursor_y)
                 {
+                    context.redraw();
                     self.state.inner =
                         InnerState::Dragging(self.state.cursor_x - layout.left, self.state.cursor_y - layout.top);
                 }
             }
 
             (Event::Cursor(x, y), InnerState::Dragging(anchor_x, anchor_y)) => {
+                context.redraw();
                 self.state.cursor_x = x;
                 self.state.cursor_y = y;
                 self.state.x = (x - anchor_x).max(0.0).min(viewport.width() - layout.width());
@@ -135,18 +145,17 @@ impl<'a, T: 'a> Element<'a, T> for Window<'a, T> {
             _ => (),
         }
 
-        self.title
-            .event(title, clip, event)
-            .or(self.content.event(content, clip, event))
+        self.title.event(title, clip, event, context);
+        self.content.event(content, clip, event, context);
     }
 
-    fn render(&mut self, viewport: Rectangle, clip: Rectangle, style: &Stylesheet) -> Vec<Primitive<'a>> {
+    fn draw(&mut self, viewport: Rectangle, clip: Rectangle, style: &Stylesheet) -> Vec<Primitive<'a>> {
         let (layout, title, content) = self.layout(viewport, style);
 
         let mut result = Vec::new();
         result.extend(style.background.render(layout));
-        result.extend(self.title.render(title, clip));
-        result.extend(self.content.render(content, clip));
+        result.extend(self.title.draw(title, clip));
+        result.extend(self.content.draw(content, clip));
         result
     }
 }

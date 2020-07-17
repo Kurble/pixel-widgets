@@ -4,6 +4,7 @@ use crate::event::{Event, Key, Modifiers};
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
 use crate::text::{Text, TextWrap};
+use crate::Context;
 use clipboard::{ClipboardContext, ClipboardProvider};
 use rusttype::Scale;
 use std::borrow::Cow;
@@ -114,9 +115,15 @@ impl<'a, T: 'a, F: 'a + Fn(String) -> T> Element<'a, T> for Input<'a, T, F> {
         }
     }
 
-    fn event(&mut self, layout: Rectangle, clip: Rectangle, stylesheet: &Stylesheet, event: Event) -> Option<T> {
+    fn event(
+        &mut self,
+        layout: Rectangle,
+        clip: Rectangle,
+        stylesheet: &Stylesheet,
+        event: Event,
+        context: &mut Context<T>,
+    ) {
         let content_rect = self.content_rect(layout, stylesheet);
-        let mut result = None;
 
         // sanity check on the state
         self.state.inner = match self.state.inner {
@@ -157,6 +164,7 @@ impl<'a, T: 'a, F: 'a + Fn(String) -> T> Element<'a, T> for Input<'a, T, F> {
                     let hit =
                         text_display(self.text(stylesheet), self.password).hitdetect(relative_cursor, content_rect);
                     self.state.inner = InnerState::Dragging(from, hit, Instant::now());
+                    context.redraw();
                 }
             }
 
@@ -165,6 +173,7 @@ impl<'a, T: 'a, F: 'a + Fn(String) -> T> Element<'a, T> for Input<'a, T, F> {
             }
 
             Event::Press(Key::LeftMouseButton) => {
+                context.redraw();
                 if layout.point_inside(self.state.cursor.0, self.state.cursor.1)
                     && clip.point_inside(self.state.cursor.0, self.state.cursor.1)
                 {
@@ -182,7 +191,10 @@ impl<'a, T: 'a, F: 'a + Fn(String) -> T> Element<'a, T> for Input<'a, T, F> {
 
             Event::Release(Key::LeftMouseButton) => {
                 self.state.inner = match self.state.inner {
-                    InnerState::Dragging(from, to, since) => InnerState::Focused(from, to, since),
+                    InnerState::Dragging(from, to, since) => {
+                        context.redraw();
+                        InnerState::Focused(from, to, since)
+                    }
                     other => other,
                 }
             }
@@ -192,6 +204,7 @@ impl<'a, T: 'a, F: 'a + Fn(String) -> T> Element<'a, T> for Input<'a, T, F> {
                     match event {
                         Event::Text(c) => match c {
                             '\x08' => {
+                                context.redraw();
                                 let (from, to) = (from.min(to), from.max(to));
 
                                 if to > from {
@@ -199,16 +212,17 @@ impl<'a, T: 'a, F: 'a + Fn(String) -> T> Element<'a, T> for Input<'a, T, F> {
                                     let tail = self.state.buffer.split_off(pt);
                                     self.state.buffer.push_str(tail.split_at(codepoint(&tail, to - from)).1);
                                     self.state.inner = InnerState::Focused(from, from, Instant::now());
-                                    result.replace((self.on_change)(self.state.buffer.clone()));
+                                    context.push((self.on_change)(self.state.buffer.clone()));
                                 } else if from > 0 {
                                     let pt = codepoint(&self.state.buffer, from - 1);
                                     let tail = self.state.buffer.split_off(pt);
                                     self.state.buffer.push_str(tail.split_at(codepoint(&tail, 1)).1);
                                     self.state.inner = InnerState::Focused(from - 1, from - 1, Instant::now());
-                                    result.replace((self.on_change)(self.state.buffer.clone()));
+                                    context.push((self.on_change)(self.state.buffer.clone()));
                                 }
                             }
                             '\x7f' => {
+                                context.redraw();
                                 let (from, to) = (from.min(to), from.max(to));
 
                                 let pt = codepoint(&self.state.buffer, from);
@@ -220,10 +234,11 @@ impl<'a, T: 'a, F: 'a + Fn(String) -> T> Element<'a, T> for Input<'a, T, F> {
                                     self.state.buffer.push_str(tail.split_at(codepoint(&tail, 1)).1);
                                 }
                                 self.state.inner = InnerState::Focused(from, from, Instant::now());
-                                result.replace((self.on_change)(self.state.buffer.clone()));
+                                context.push((self.on_change)(self.state.buffer.clone()));
                             }
                             c => {
                                 if !c.is_control() {
+                                    context.redraw();
                                     let (from, to) = (from.min(to), from.max(to));
 
                                     let pt = codepoint(&self.state.buffer, from);
@@ -237,14 +252,15 @@ impl<'a, T: 'a, F: 'a + Fn(String) -> T> Element<'a, T> for Input<'a, T, F> {
                                         self.state.buffer.push_str(&tail);
                                     }
                                     self.state.inner = InnerState::Focused(from + 1, from + 1, Instant::now());
-                                    result.replace((self.on_change)(self.state.buffer.clone()));
+                                    context.push((self.on_change)(self.state.buffer.clone()));
                                 }
                             }
                         },
 
                         Event::Press(Key::Enter) => {
                             if self.state.modifiers.shift == false {
-                                result = self.on_submit.take();
+                                context.redraw();
+                                context.extend(self.on_submit.take());
                             }
                         }
 
@@ -261,6 +277,7 @@ impl<'a, T: 'a, F: 'a + Fn(String) -> T> Element<'a, T> for Input<'a, T, F> {
 
                         Event::Press(Key::X) => {
                             if self.state.modifiers.ctrl {
+                                context.redraw();
                                 let (from, to) = (from.min(to), from.max(to));
                                 let (a, b) = (codepoint(&self.state.buffer, from), codepoint(&self.state.buffer, to));
                                 let cut_text = self.state.buffer[a..b].to_string();
@@ -277,12 +294,13 @@ impl<'a, T: 'a, F: 'a + Fn(String) -> T> Element<'a, T> for Input<'a, T, F> {
                                     self.state.buffer.push_str(tail.split_at(codepoint(&tail, 1)).1);
                                 }
                                 self.state.inner = InnerState::Focused(from, from, since);
-                                result.replace((self.on_change)(self.state.buffer.clone()));
+                                context.push((self.on_change)(self.state.buffer.clone()));
                             }
                         }
 
                         Event::Press(Key::V) => {
                             if self.state.modifiers.ctrl {
+                                context.redraw();
                                 let (from, to) = (from.min(to), from.max(to));
                                 let paste_text = ClipboardContext::new().and_then(|mut cc| cc.get_contents()).ok();
 
@@ -302,12 +320,13 @@ impl<'a, T: 'a, F: 'a + Fn(String) -> T> Element<'a, T> for Input<'a, T, F> {
                                         from + paste_text.len(),
                                         Instant::now(),
                                     );
-                                    result.replace((self.on_change)(self.state.buffer.clone()));
+                                    context.push((self.on_change)(self.state.buffer.clone()));
                                 }
                             }
                         }
 
                         Event::Press(Key::Left) => {
+                            context.redraw();
                             if self.state.modifiers.shift {
                                 self.state.inner =
                                     InnerState::Focused(from, if to > 0 { to - 1 } else { 0 }, Instant::now());
@@ -322,6 +341,7 @@ impl<'a, T: 'a, F: 'a + Fn(String) -> T> Element<'a, T> for Input<'a, T, F> {
                         }
 
                         Event::Press(Key::Right) => {
+                            context.redraw();
                             if self.state.modifiers.shift {
                                 let count = self.state.buffer.chars().count();
                                 self.state.inner = InnerState::Focused(from, (to + 1).min(count), Instant::now());
@@ -336,6 +356,7 @@ impl<'a, T: 'a, F: 'a + Fn(String) -> T> Element<'a, T> for Input<'a, T, F> {
                         }
 
                         Event::Press(Key::Home) => {
+                            context.redraw();
                             if self.state.modifiers.shift {
                                 self.state.inner = InnerState::Focused(from, 0, Instant::now());
                             } else {
@@ -344,6 +365,7 @@ impl<'a, T: 'a, F: 'a + Fn(String) -> T> Element<'a, T> for Input<'a, T, F> {
                         }
 
                         Event::Press(Key::End) => {
+                            context.redraw();
                             if self.state.modifiers.shift {
                                 let count = self.state.buffer.chars().count();
                                 self.state.inner = InnerState::Focused(from, count, Instant::now());
@@ -367,28 +389,31 @@ impl<'a, T: 'a, F: 'a + Fn(String) -> T> Element<'a, T> for Input<'a, T, F> {
                         .measure_range(pos, self.state.buffer.chars().count(), content_rect);
 
                 if self.state.scroll_x + content_rect.width() > range.0 + 2.0 {
+                    context.redraw();
                     self.state.scroll_x = (range.0 - content_rect.width() + 2.0).max(0.0);
                 }
                 if caret.0 - self.state.scroll_x > content_rect.width() - 2.0 {
+                    context.redraw();
                     self.state.scroll_x = caret.0 - content_rect.width() + 2.0;
                 }
                 if caret.0 - self.state.scroll_x < 0.0 {
+                    context.redraw();
                     self.state.scroll_x = caret.0;
                 }
                 if caret.1 - self.state.scroll_y > content_rect.height() - 2.0 {
+                    context.redraw();
                     self.state.scroll_y = caret.1 - content_rect.height() + 2.0;
                 }
                 if caret.1 - self.state.scroll_y < 0.0 {
+                    context.redraw();
                     self.state.scroll_y = caret.1;
                 }
             }
             _ => (),
         };
-
-        result
     }
 
-    fn render(&mut self, layout: Rectangle, clip: Rectangle, stylesheet: &Stylesheet) -> Vec<Primitive<'a>> {
+    fn draw(&mut self, layout: Rectangle, clip: Rectangle, stylesheet: &Stylesheet) -> Vec<Primitive<'a>> {
         let mut result = Vec::new();
 
         let content_rect = self.content_rect(layout, stylesheet);

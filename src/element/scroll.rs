@@ -3,6 +3,7 @@ use crate::element::{Element, IntoNode, Node, Stylable};
 use crate::event::{Event, Key};
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
+use crate::Context;
 
 pub struct Scroll<'a, T> {
     state: &'a mut State,
@@ -106,14 +107,21 @@ impl<'a, T: 'a> Element<'a, T> for Scroll<'a, T> {
         (style.width, style.height)
     }
 
-    fn event(&mut self, layout: Rectangle, clip: Rectangle, style: &Stylesheet, event: Event) -> Option<T> {
-        let mut result = None;
+    fn event(
+        &mut self,
+        layout: Rectangle,
+        clip: Rectangle,
+        style: &Stylesheet,
+        event: Event,
+        context: &mut Context<T>,
+    ) {
         let content_rect = style.background.content_rect(layout).after_padding(style.padding);
         let content_layout = self.content_layout(&content_rect);
         let (vbar, hbar) = self.scrollbars(layout, content_layout, style);
 
         match (event, self.state.inner) {
             (Event::Cursor(cx, cy), InnerState::DragHorizontalBar(x)) => {
+                context.redraw();
                 self.state.cursor_x = cx;
                 self.state.cursor_y = cy;
 
@@ -131,6 +139,7 @@ impl<'a, T: 'a> Element<'a, T> for Scroll<'a, T> {
                 );
             }
             (Event::Cursor(cx, cy), InnerState::DragVerticalBar(y)) => {
+                context.redraw();
                 self.state.cursor_x = cx;
                 self.state.cursor_y = cy;
 
@@ -149,7 +158,7 @@ impl<'a, T: 'a> Element<'a, T> for Scroll<'a, T> {
             }
             (Event::Cursor(x, y), _) => {
                 if let Some(clip) = clip.intersect(&content_rect) {
-                    result = result.or(self.content.event(content_layout, clip, event));
+                    self.content.event(content_layout, clip, event, context);
                 }
                 self.state.cursor_x = x;
                 self.state.cursor_y = y;
@@ -183,16 +192,14 @@ impl<'a, T: 'a> Element<'a, T> for Scroll<'a, T> {
             }
             (event, InnerState::Idle) => {
                 if let Some(clip) = clip.intersect(&content_rect) {
-                    result = result.or(self.content.event(content_layout, clip, event));
+                    self.content.event(content_layout, clip, event, context);
                 }
             }
             _ => (),
         }
-
-        result
     }
 
-    fn render(&mut self, layout: Rectangle, clip: Rectangle, style: &Stylesheet) -> Vec<Primitive<'a>> {
+    fn draw(&mut self, layout: Rectangle, clip: Rectangle, style: &Stylesheet) -> Vec<Primitive<'a>> {
         let content_rect = style.background.content_rect(layout).after_padding(style.padding);
         let content_layout = self.content_layout(&content_rect);
         let (vbar, hbar) = self.scrollbars(layout, content_layout, style);
@@ -201,7 +208,7 @@ impl<'a, T: 'a> Element<'a, T> for Scroll<'a, T> {
         result.extend(style.background.render(layout));
         if let Some(clip) = clip.intersect(&content_rect) {
             result.push(Primitive::PushClip(clip));
-            result.extend(self.content.render(content_layout, content_rect));
+            result.extend(self.content.draw(content_layout, content_rect));
             result.push(Primitive::PopClip);
         }
         if content_layout.width() > layout.width() {

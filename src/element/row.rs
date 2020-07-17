@@ -4,6 +4,7 @@ use crate::element::{IntoNode, Stylable};
 use crate::event::Event;
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
+use crate::Context;
 
 pub struct Row<'a, T> {
     children: Vec<Node<'a, T>>,
@@ -44,11 +45,15 @@ impl<'a, T: 'a> Row<'a, T> {
                     let y = align.resolve_start(h, layout.height());
 
                     cursor += w;
-                    Rectangle::from_xywh(x, y, w, h).translate(layout.left, layout.top)
+                    Rectangle::from_xywh(x, y, w, h)
                 })
                 .collect();
         }
-        self.children.iter_mut().zip(self.layout.iter().cloned())
+        self.children.iter_mut().zip(
+            self.layout
+                .iter()
+                .map(move |relative| relative.translate(layout.left, layout.top)),
+        )
     }
 }
 
@@ -79,23 +84,28 @@ impl<'a, T: 'a> Element<'a, T> for Row<'a, T> {
         (width, height)
     }
 
-    fn event(&mut self, layout: Rectangle, clip: Rectangle, stylesheet: &Stylesheet, event: Event) -> Option<T> {
-        let mut result = None;
+    fn event(
+        &mut self,
+        layout: Rectangle,
+        clip: Rectangle,
+        stylesheet: &Stylesheet,
+        event: Event,
+        context: &mut Context<T>,
+    ) {
         for (child, layout) in self.layout(layout, stylesheet) {
             if let Some(clip) = clip.intersect(&layout) {
-                result = result.or(child.event(layout, clip, event));
+                child.event(layout, clip, event, context);
             }
         }
-        result
     }
 
-    fn render(&mut self, layout: Rectangle, clip: Rectangle, stylesheet: &Stylesheet) -> Vec<Primitive<'a>> {
+    fn draw(&mut self, layout: Rectangle, clip: Rectangle, stylesheet: &Stylesheet) -> Vec<Primitive<'a>> {
         let mut result = Vec::new();
 
         result = self
             .layout(layout, stylesheet)
             .fold(result, |mut result, (child, layout)| {
-                result.extend(child.render(layout, clip));
+                result.extend(child.draw(layout, clip));
                 result
             });
 

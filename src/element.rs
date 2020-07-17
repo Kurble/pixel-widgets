@@ -8,7 +8,7 @@ use crate::stylesheet::*;
 
 pub use self::button::Button;
 pub use self::column::Column;
-pub use self::container::Container;
+//pub use self::container::Container;
 pub use self::input::Input;
 pub use self::layers::Layers;
 pub use self::row::Row;
@@ -17,12 +17,13 @@ pub use self::space::Space;
 pub use self::text::Text;
 pub use self::toggle::Toggle;
 pub use self::window::Window;
+use crate::Context;
 use std::borrow::Cow;
 use std::ops::Deref;
 
 pub mod button;
 pub mod column;
-pub mod container;
+//pub mod container;
 pub mod input;
 pub mod layers;
 pub mod row;
@@ -43,9 +44,17 @@ pub trait Element<'a, Message> {
         layout.point_inside(x, y) && clip.point_inside(x, y)
     }
 
-    fn event(&mut self, layout: Rectangle, clip: Rectangle, style: &Stylesheet, event: Event) -> Option<Message>;
+    fn event(
+        &mut self,
+        _layout: Rectangle,
+        _clip: Rectangle,
+        _style: &Stylesheet,
+        _event: Event,
+        _context: &mut Context<Message>,
+    ) {
+    }
 
-    fn render(&mut self, layout: Rectangle, clip: Rectangle, style: &Stylesheet) -> Vec<Primitive<'a>>;
+    fn draw(&mut self, layout: Rectangle, clip: Rectangle, style: &Stylesheet) -> Vec<Primitive<'a>>;
 }
 
 pub trait IntoNode<'a, Message: 'a>: 'a + Sized {
@@ -95,14 +104,14 @@ impl<'a, Message> Node<'a, Message> {
         self.element.hit(layout, clip, stylesheet, x, y)
     }
 
-    pub fn event(&mut self, layout: Rectangle, clip: Rectangle, event: Event) -> Option<Message> {
+    pub fn event(&mut self, layout: Rectangle, clip: Rectangle, event: Event, context: &mut Context<Message>) {
         let stylesheet = self.style.as_ref().unwrap().deref();
-        self.element.event(layout, clip, stylesheet, event)
+        self.element.event(layout, clip, stylesheet, event, context);
     }
 
-    pub fn render(&mut self, layout: Rectangle, clip: Rectangle) -> Vec<Primitive<'a>> {
+    pub fn draw(&mut self, layout: Rectangle, clip: Rectangle) -> Vec<Primitive<'a>> {
         let stylesheet = self.style.as_ref().unwrap().deref();
-        self.element.render(layout, clip, stylesheet)
+        self.element.draw(layout, clip, stylesheet)
     }
 }
 

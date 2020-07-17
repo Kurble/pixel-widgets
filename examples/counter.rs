@@ -49,16 +49,16 @@ impl Model for Counter {
             Window::new(
                 state.get("window"),
                 Row::new()
-                    .push(Text::borrowed("Counter window").class("title"))
+                    .push(Text::new("Counter window").class("title"))
                     .push(Space)
                     .push(Space.class("close"))
                     .class("title"),
                 Scroll::new(
                     state.get("scroll"),
                     Column::new()
-                        .push(Button::new(state.get("up"), Text::borrowed("Up")).on_clicked(Message::UpPressed))
-                        .push(Text::owned(format!("Hello {}! Count: {}", self.name, self.value)))
-                        .push(Button::new(state.get("down"), Text::borrowed("Down")).on_clicked(Message::DownPressed))
+                        .push(Button::new(state.get("up"), Text::new("Up")).on_clicked(Message::UpPressed))
+                        .push(Text::new(format!("Hello {}! Count: {}", self.name, self.value)))
+                        .push(Button::new(state.get("down"), Text::new("Down")).on_clicked(Message::DownPressed))
                         .push(Input::new(state.get("name"), "username", Message::NameChanged))
                         .push(Input::password(
                             state.get("password"),
@@ -74,7 +74,7 @@ impl Model for Counter {
             Window::new(
                 state.get("w2"),
                 Row::new()
-                    .push(Text::borrowed("Dummy window").class("title"))
+                    .push(Text::new("Dummy window").class("title"))
                     .push(Space)
                     .push(Space.class("close"))
                     .class("title"),

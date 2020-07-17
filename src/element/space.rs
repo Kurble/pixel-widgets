@@ -1,6 +1,5 @@
 use crate::draw::*;
 use crate::element::*;
-use crate::event::Event;
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
 
@@ -17,11 +16,7 @@ impl<'a, T> Element<'a, T> for Space {
         (stylesheet.width, stylesheet.height)
     }
 
-    fn event(&mut self, _: Rectangle, _: Rectangle, _: &Stylesheet, _: Event) -> Option<T> {
-        None
-    }
-
-    fn render(&mut self, layout: Rectangle, _clip: Rectangle, stylesheet: &Stylesheet) -> Vec<Primitive<'a>> {
+    fn draw(&mut self, layout: Rectangle, _clip: Rectangle, stylesheet: &Stylesheet) -> Vec<Primitive<'a>> {
         stylesheet.background.render(layout).into_iter().collect()
     }
 }
