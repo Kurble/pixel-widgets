@@ -54,6 +54,10 @@ pub trait Loader: Send + Sync {
     fn load(&self, url: impl AsRef<str>) -> Self::Load;
 }
 
+/// Entry point for maple. Manages a [`Model`] and processes it to a [`DrawList`] that can be rendered using your
+///  own renderer implementation. Alternatively, you can use one of the following included wrappers:
+/// - [`WgpuUi`] Renders using [wgpu-rs].
+/// - [`GlowUi`] Renders using [glow].
 pub struct Ui<I: Model> {
     model_view: ModelView<I>,
     style: Style,
@@ -62,12 +66,15 @@ pub struct Ui<I: Model> {
     redraw: bool,
 }
 
+/// Context for posting messages and requesting redraws of the ui.
 pub struct Context<Message> {
     redraw: bool,
     messages: Vec<Message>,
 }
 
 impl<I: Model> Ui<I> {
+    /// Constructs a new `Ui` using the default style.
+    /// This is not recommended as the default style is very empty and only renders white text.
     pub fn new(model: I, viewport: Rectangle) -> Self {
         let mut cache = self::cache::Cache::new(512, 0);
 
@@ -82,6 +89,7 @@ impl<I: Model> Ui<I> {
         }
     }
 
+    /// Constructs a new `Ui` asynchronously by first fetching a stylesheet for a [.mss] data source.
     pub async fn with_stylesheet<L: Loader, U: AsRef<str>>(
         model: I,
         loader: L,
@@ -101,15 +109,20 @@ impl<I: Model> Ui<I> {
         })
     }
 
+    /// Resizes the viewport.
+    /// This forces the view to be rerendered.
     pub fn resize(&mut self, viewport: Rectangle) {
         self.model_view.set_dirty();
         self.viewport = viewport;
     }
 
+    /// Updates the model with a message.
+    /// This forces the view to be rerendered.
     pub fn update(&mut self, message: I::Message) {
         self.model_view.model_mut().update(message);
     }
 
+    /// Handles an [`Event`].
     pub fn event(&mut self, event: Event) {
         let mut context = Context::new(self.redraw);
 
@@ -130,10 +143,13 @@ impl<I: Model> Ui<I> {
         }
     }
 
+    /// Returns true if the ui needs to be redrawn. If the ui doesn't need to be redrawn the [`Command`s] from the last
+    /// [`draw`] may be used again.
     pub fn needs_redraw(&self) -> bool {
         self.redraw || self.model_view.dirty()
     }
 
+    /// Generate a `DrawList` for the view.
     pub fn draw(&mut self) -> DrawList {
         use self::draw::*;
 
@@ -461,21 +477,24 @@ impl<I: Model> DerefMut for Ui<I> {
 }
 
 impl<Message> Context<Message> {
-    pub fn new(redraw: bool) -> Self {
+    pub(crate) fn new(redraw: bool) -> Self {
         Self {
             redraw,
             messages: Vec::new(),
         }
     }
 
+    /// Push a message to the current [`Model`].
     pub fn push(&mut self, message: Message) {
         self.messages.push(message);
     }
 
+    /// Push multiple messages to the current [`Model`] using an iterator.
     pub fn extend<I: IntoIterator<Item = Message>>(&mut self, iter: I) {
         self.messages.extend(iter);
     }
 
+    /// Request a redraw of the ui.
     pub fn redraw(&mut self) {
         self.redraw = true;
     }
