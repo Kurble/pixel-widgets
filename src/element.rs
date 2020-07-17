@@ -1,6 +1,9 @@
+use std::borrow::Cow;
 use std::cell::Cell;
+use std::ops::Deref;
 use std::rc::Rc;
 
+use crate::Context;
 use crate::draw::Primitive;
 use crate::event::Event;
 use crate::layout::*;
@@ -8,7 +11,6 @@ use crate::stylesheet::*;
 
 pub use self::button::Button;
 pub use self::column::Column;
-//pub use self::container::Container;
 pub use self::input::Input;
 pub use self::layers::Layers;
 pub use self::row::Row;
@@ -17,13 +19,9 @@ pub use self::space::Space;
 pub use self::text::Text;
 pub use self::toggle::Toggle;
 pub use self::window::Window;
-use crate::Context;
-use std::borrow::Cow;
-use std::ops::Deref;
 
 pub mod button;
 pub mod column;
-//pub mod container;
 pub mod input;
 pub mod layers;
 pub mod row;

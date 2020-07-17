@@ -4,11 +4,7 @@ use winit::{
     window::Window,
 };
 
-use maple::backend::wgpu::*;
-use maple::backend::winit::convert_event;
-use maple::element::{IntoNode, Node, Space};
-use maple::layout::Rectangle;
-use maple::Model;
+use maple::prelude::*;
 
 async fn run<T: 'static + Model>(
     model: T,
@@ -52,7 +48,7 @@ async fn run<T: 'static + Model>(
 
     let mut ui = match WgpuUi::with_stylesheet(
         model,
-        std::path::PathBuf::from("."),
+        std::path::PathBuf::from("./examples/"),
         stylesheet,
         viewport,
         swapchain_format,
@@ -144,5 +140,5 @@ fn main() {
             Space.into_node()
         }
     }
-    run_model(Dummy, "test_style.mss");
+    run_model(Dummy, "tour.mss");
 }

@@ -10,29 +10,47 @@ use crate::model_view::ModelView;
 use crate::stylesheet::Style;
 
 pub mod backend;
-pub mod cache;
+mod cache;
 pub mod draw;
 pub mod element;
 pub mod event;
 pub mod layout;
 mod model_view;
-pub mod qtree;
+mod qtree;
 pub mod stylesheet;
 pub mod text;
 pub mod tracker;
 
+/// A model that keeps track of the state of your GUI. Serves to control the behaviour and DOM of your GUI.
+/// Styling is handled separately. Once you implemented a model, you can run your GUI using a [`Ui`].
+///
+/// # Examples
+/// The examples in this repository all implement some kind of [`Model`], check them out if you just want to read
+/// some code.
 pub trait Model: 'static {
+    /// The type of message your GUI will produce.
     type Message;
 
+    /// Called when a message is fired from the view or some other source.
+    /// This is where you should update your gui state.
     fn update(&mut self, message: Self::Message);
 
+    /// Called after [`update`](#method.update) or after the model has been accessed mutably from the [`Ui`].
+    /// This is where you should build all of your ui elements based on the current gui state.
+    /// The returned ui elements produce messages of the type `Self::Message`.
     fn view(&mut self) -> Node<Self::Message>;
 }
 
+/// A way to load URLs from a data source. Two implementations exist:
+/// - `PathBuf`, loads data from disk using the `PathBuf` as working directory.
+/// - `Url`, loads data over HTTP using reqwest using the `Url` as base.
 pub trait Loader: Send + Sync {
+    /// A future returned when calling `load`.
     type Load: Future<Output = Result<Vec<u8>, Self::Error>> + Send + Sync;
+    /// Error returned by the loader when the request failed.
     type Error: std::error::Error;
 
+    /// Asynchronously load a resource located at the given url
     fn load(&self, url: impl AsRef<str>) -> Self::Load;
 }
 
@@ -480,4 +498,15 @@ impl Loader for std::path::PathBuf {
         let path = self.join(std::path::Path::new(url.as_ref()));
         futures::future::ready(std::fs::read(path))
     }
+}
+
+pub mod prelude {
+    pub use crate::{
+        backend::{wgpu::WgpuUi, winit::convert_event},
+        element::*,
+        layout::Rectangle,
+        stylesheet::Style,
+        tracker::ManagedState,
+        Model, Ui,
+    };
 }
