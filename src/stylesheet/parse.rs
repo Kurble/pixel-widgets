@@ -59,15 +59,15 @@ async fn parse_selector<I: Iterator<Item = Token>, L: Loader>(
             Some(Token(TokenValue::Class(class), _)) => {
                 selector.classes.push(class);
             }
-            Some(Token(TokenValue::CurlyOpen, _)) => {
+            Some(Token(TokenValue::BraceOpen, _)) => {
                 loop {
-                    if let Some(&Token(TokenValue::CurlyClose, _)) = c.tokens.peek() {
+                    if let Some(&Token(TokenValue::BraceClose, _)) = c.tokens.peek() {
                         break;
                     } else {
                         selector.rules.push(parse_rule(c).await?);
                     }
                 }
-                c.take(TokenValue::CurlyClose)?;
+                c.take(TokenValue::BraceClose)?;
                 return Ok(selector);
             }
             Some(Token(_, pos)) => return Err(Error::Syntax("Expected <identifier>, <class> or `{`".into(), pos)),
@@ -117,7 +117,7 @@ async fn parse_background<I: Iterator<Item = Token>, L: Loader>(
         Some(Token(TokenValue::Identifier(ty), pos)) => match ty.to_lowercase().as_str() {
             "none" => Ok(Background::None),
             "image" => {
-                c.take(TokenValue::BraceOpen)?;
+                c.take(TokenValue::ParenOpen)?;
                 let image = match c.tokens.next() {
                     Some(Token(TokenValue::Path(url), _)) => {
                         if c.images.get(&url).is_none() {
@@ -132,11 +132,11 @@ async fn parse_background<I: Iterator<Item = Token>, L: Loader>(
                 }?;
                 c.take(TokenValue::Comma)?;
                 let color = parse_color::<L>(c.tokens.next())?;
-                c.take(TokenValue::BraceClose)?;
+                c.take(TokenValue::ParenClose)?;
                 Ok(Background::Image(image, color))
             }
             "patch" => {
-                c.take(TokenValue::BraceOpen)?;
+                c.take(TokenValue::ParenOpen)?;
                 let image = match c.tokens.next() {
                     Some(Token(TokenValue::Path(url), _)) => {
                         if c.patches.get(&url).is_none() {
@@ -151,7 +151,7 @@ async fn parse_background<I: Iterator<Item = Token>, L: Loader>(
                 }?;
                 c.take(TokenValue::Comma)?;
                 let color = parse_color::<L>(c.tokens.next())?;
-                c.take(TokenValue::BraceClose)?;
+                c.take(TokenValue::ParenClose)?;
                 Ok(Background::Patch(image, color))
             }
             _ => Err(Error::Syntax("Expected `image`, `patch` or `none`".into(), pos)),
@@ -214,7 +214,7 @@ fn parse_rectangle<I: Iterator<Item = Token>, L: Loader>(
 ) -> Result<Rectangle, Error<L::Error>> {
     let mut result = Rectangle::zero();
     match c.tokens.next() {
-        Some(Token(TokenValue::BraceOpen, _)) => loop {
+        Some(Token(TokenValue::ParenOpen, _)) => loop {
             match c.tokens.next() {
                 Some(Token(TokenValue::Identifier(field), pos)) => {
                     c.take(TokenValue::Colon)?;
@@ -226,7 +226,7 @@ fn parse_rectangle<I: Iterator<Item = Token>, L: Loader>(
                         _ => Err(Error::Syntax("Expected `left`, `top`, `right` or `bottom`".into(), pos))?,
                     }
                 }
-                Some(Token(TokenValue::BraceClose, _)) => {
+                Some(Token(TokenValue::ParenClose, _)) => {
                     return Ok(result);
                 }
                 Some(Token(_, pos)) => {
@@ -287,9 +287,9 @@ fn parse_size<I: Iterator<Item = Token>, L: Loader>(c: &mut LoadContext<I, L>) -
         Some(Token(TokenValue::Identifier(ty), pos)) => match ty.to_lowercase().as_str() {
             "shrink" => Ok(Size::Shrink),
             "fill" => {
-                c.take(TokenValue::BraceOpen)?;
+                c.take(TokenValue::ParenOpen)?;
                 let size = parse_float(c)?;
-                c.take(TokenValue::BraceClose)?;
+                c.take(TokenValue::ParenClose)?;
                 Ok(Size::Fill(size as u32))
             }
             _ => Err(Error::Syntax(
