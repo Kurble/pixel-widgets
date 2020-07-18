@@ -1,15 +1,15 @@
 use crate::draw::*;
-use crate::element::{Element, IntoNode, Node, Stylable};
+use crate::element::{Context, Element, IntoNode, Node, Stylable};
 use crate::event::{Event, Key, Modifiers};
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
 use crate::text::{Text, TextWrap};
-use crate::Context;
 use clipboard::{ClipboardContext, ClipboardProvider};
 use rusttype::Scale;
 use std::borrow::Cow;
 use std::time::Instant;
 
+/// State for [`Input`](struct.Input.html)
 pub struct State {
     scroll_x: f32,
     scroll_y: f32,
@@ -26,6 +26,7 @@ enum InnerState {
     Idle,
 }
 
+/// Editable text input
 pub struct Input<'a, T, F> {
     placeholder: &'a str,
     state: &'a mut State,
@@ -35,6 +36,7 @@ pub struct Input<'a, T, F> {
 }
 
 impl<'a, T, F: Fn(String) -> T> Input<'a, T, F> {
+    /// Construct a new `Input`
     pub fn new(state: &'a mut State, placeholder: &'a str, on_change: F) -> Self {
         Input {
             placeholder,
@@ -45,6 +47,7 @@ impl<'a, T, F: Fn(String) -> T> Input<'a, T, F> {
         }
     }
 
+    /// Construct a new `Input` that renders the text as dots, for passwords.
     pub fn password(state: &'a mut State, placeholder: &'a str, on_change: F) -> Self {
         Input {
             placeholder,

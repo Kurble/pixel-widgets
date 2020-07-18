@@ -3,14 +3,16 @@ use crate::element::*;
 use crate::event::Event;
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
-use crate::{text, Context};
+use crate::text;
 use std::borrow::Cow;
 
+/// Element that renders a paragraph of text.
 pub struct Text {
     text: String,
 }
 
 impl Text {
+    /// Constructs a new `Text`
     pub fn new<S: Into<String>>(text: S) -> Self {
         Self { text: text.into() }
     }

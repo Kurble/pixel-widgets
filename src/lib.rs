@@ -1,31 +1,43 @@
+//! Documentation here
+#![deny(missing_docs)]
+
 use std::future::Future;
 use std::ops::{Deref, DerefMut};
 
 use draw::DrawList;
 
-use crate::element::Node;
+use crate::element::{Context, Node};
 use crate::event::Event;
 use crate::layout::Rectangle;
 use crate::model_view::ModelView;
 use crate::stylesheet::Style;
 
+/// Backend specific code
 pub mod backend;
 mod cache;
+/// Primitives used for drawing
 pub mod draw;
+/// User interface elements
 pub mod element;
+/// User input events
 pub mod event;
+/// Primitives used for layouts
 pub mod layout;
 mod model_view;
 mod qtree;
+/// Styling system
+#[allow(missing_docs)]
 pub mod stylesheet;
+/// Primitives for rendering text
 pub mod text;
+/// Utility for tracking state conveniently.
 pub mod tracker;
 
 /// A model that keeps track of the state of your GUI. Serves to control the behaviour and DOM of your GUI.
-/// Styling is handled separately. Once you implemented a model, you can run your GUI using a [`Ui`].
+/// Styling is handled separately. Once you implemented a model, you can run your GUI using a [`Ui`](struct.Ui.html).
 ///
 /// # Examples
-/// The examples in this repository all implement some kind of [`Model`], check them out if you just want to read
+/// The examples in this repository all implement some kind of [`Model`](trait.Model.html), check them out if you just want to read
 /// some code.
 pub trait Model: 'static {
     /// The type of message your GUI will produce.
@@ -35,13 +47,15 @@ pub trait Model: 'static {
     /// This is where you should update your gui state.
     fn update(&mut self, message: Self::Message);
 
-    /// Called after [`update`](#method.update) or after the model has been accessed mutably from the [`Ui`].
+    /// Called after [`update`](#tymethod.update) or after the model has been accessed mutably from the [`Ui`](struct.Ui.html).
     /// This is where you should build all of your ui elements based on the current gui state.
     /// The returned ui elements produce messages of the type `Self::Message`.
     fn view(&mut self) -> Node<Self::Message>;
 }
 
-/// A way to load URLs from a data source. Two implementations exist:
+/// A way to load URLs from a data source.
+///
+/// Two implementations are included:
 /// - `PathBuf`, loads data from disk using the `PathBuf` as working directory.
 /// - `Url`, loads data over HTTP using reqwest using the `Url` as base.
 pub trait Loader: Send + Sync {
@@ -54,22 +68,16 @@ pub trait Loader: Send + Sync {
     fn load(&self, url: impl AsRef<str>) -> Self::Load;
 }
 
-/// Entry point for maple. Manages a [`Model`] and processes it to a [`DrawList`] that can be rendered using your
+/// Entry point for maple. Manages a [`Model`](trait.Model.html) and processes it to a [`DrawList`](draw/struct.DrawList.html) that can be rendered using your
 ///  own renderer implementation. Alternatively, you can use one of the following included wrappers:
-/// - [`WgpuUi`] Renders using [wgpu-rs].
-/// - [`GlowUi`] Renders using [glow].
+/// - [`WgpuUi`](backend/wgpu/struct.WgpuUi.html) Renders using [wgpu-rs](https://github.com/gfx-rs/wgpu-rs).
+/// - [`GlowUi`](backend/glow/struct.GlowUi.html) Renders using [glow](https://github.com/grovesNL/glow).
 pub struct Ui<I: Model> {
     model_view: ModelView<I>,
     style: Style,
     cache: self::cache::Cache,
     viewport: Rectangle,
     redraw: bool,
-}
-
-/// Context for posting messages and requesting redraws of the ui.
-pub struct Context<Message> {
-    redraw: bool,
-    messages: Vec<Message>,
 }
 
 impl<I: Model> Ui<I> {
@@ -122,7 +130,7 @@ impl<I: Model> Ui<I> {
         self.model_view.model_mut().update(message);
     }
 
-    /// Handles an [`Event`].
+    /// Handles an [`Event`](event/struct.Event.html).
     pub fn event(&mut self, event: Event) {
         let mut context = Context::new(self.redraw);
 
@@ -136,20 +144,20 @@ impl<I: Model> Ui<I> {
             view.event(layout, self.viewport, event, &mut context);
         }
 
-        self.redraw = context.redraw;
+        self.redraw = context.redraw_requested();
 
         for message in context {
             self.model_view.model_mut().update(message);
         }
     }
 
-    /// Returns true if the ui needs to be redrawn. If the ui doesn't need to be redrawn the [`Command`s] from the last
-    /// [`draw`] may be used again.
+    /// Returns true if the ui needs to be redrawn. If the ui doesn't need to be redrawn the
+    /// [`Command`s](draw/struct.Command.html) from the last [`draw`](#method.draw) may be used again.
     pub fn needs_redraw(&self) -> bool {
         self.redraw || self.model_view.dirty()
     }
 
-    /// Generate a `DrawList` for the view.
+    /// Generate a [`DrawList`](draw/struct.DrawList.html) for the view.
     pub fn draw(&mut self) -> DrawList {
         use self::draw::*;
 
@@ -476,39 +484,6 @@ impl<I: Model> DerefMut for Ui<I> {
     }
 }
 
-impl<Message> Context<Message> {
-    pub(crate) fn new(redraw: bool) -> Self {
-        Self {
-            redraw,
-            messages: Vec::new(),
-        }
-    }
-
-    /// Push a message to the current [`Model`].
-    pub fn push(&mut self, message: Message) {
-        self.messages.push(message);
-    }
-
-    /// Push multiple messages to the current [`Model`] using an iterator.
-    pub fn extend<I: IntoIterator<Item = Message>>(&mut self, iter: I) {
-        self.messages.extend(iter);
-    }
-
-    /// Request a redraw of the ui.
-    pub fn redraw(&mut self) {
-        self.redraw = true;
-    }
-}
-
-impl<Message> IntoIterator for Context<Message> {
-    type Item = Message;
-    type IntoIter = std::vec::IntoIter<Message>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.messages.into_iter()
-    }
-}
-
 impl Loader for std::path::PathBuf {
     type Load = futures::future::Ready<Result<Vec<u8>, Self::Error>>;
     type Error = std::io::Error;
@@ -519,6 +494,7 @@ impl Loader for std::path::PathBuf {
     }
 }
 
+/// prelude module for convenience
 pub mod prelude {
     pub use crate::{
         backend::{wgpu::WgpuUi, winit::convert_event},

@@ -1,17 +1,20 @@
+use std::mem::replace;
+
 use crate::draw::*;
-use crate::element::{Element, IntoNode, Node, Stylable};
+use crate::element::{Context, Element, IntoNode, Node, Stylable};
 use crate::event::{Event, Key};
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
-use crate::Context;
-use std::mem::replace;
 
+/// A clickable button
 pub struct Button<'a, T> {
     state: &'a mut State,
     content: Node<'a, T>,
     on_clicked: Option<T>,
 }
 
+/// State for [`Button`](struct.Button.html)
+#[allow(missing_docs)]
 pub enum State {
     Idle,
     Hover,
@@ -20,6 +23,7 @@ pub enum State {
 }
 
 impl<'a, T: 'a> Button<'a, T> {
+    /// Construct a new button
     pub fn new<C: IntoNode<'a, T> + 'a>(state: &'a mut State, content: C) -> Self {
         Self {
             state,
@@ -28,6 +32,7 @@ impl<'a, T: 'a> Button<'a, T> {
         }
     }
 
+    /// Sets the message to be posted when this button is clicked.
     pub fn on_clicked(mut self, message: T) -> Self {
         self.on_clicked = Some(message);
         self

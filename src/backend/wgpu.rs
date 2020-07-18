@@ -11,6 +11,7 @@ use crate::layout::Rectangle;
 use crate::stylesheet;
 use crate::{Loader, Model, Ui};
 
+/// Wrapper for [`Ui`](../../struct.Ui.html) that adds wgpu rendering.
 pub struct WgpuUi<I: Model> {
     inner: Ui<I>,
     pipeline: RenderPipeline,
@@ -27,10 +28,13 @@ struct TextureEntry {
 }
 
 impl<I: Model> WgpuUi<I> {
+    /// Constructs a new `WgpuUi` using the default style.
+    /// This is not recommended as the default style is very empty and only renders white text.
     pub fn new(model: I, viewport: Rectangle, format: wgpu::TextureFormat, device: &Device) -> Self {
         Self::new_inner(Ui::new(model, viewport), format, device)
     }
 
+    /// Constructs a new `WgpuUi` asynchronously by first fetching a stylesheet for a [.mss] data source.
     pub async fn with_stylesheet<L: Loader, U: AsRef<str>>(
         model: I,
         loader: L,
@@ -164,22 +168,30 @@ impl<I: Model> WgpuUi<I> {
         }
     }
 
-    pub fn update(&mut self, message: I::Message) {
-        self.inner.update(message);
-    }
-
-    pub fn event(&mut self, event: Event) {
-        self.inner.event(event);
-    }
-
+    /// Resizes the viewport.
+    /// This forces the view to be rerendered.
     pub fn resize(&mut self, viewport: Rectangle) {
         self.inner.resize(viewport);
     }
 
+    /// Updates the model with a message.
+    /// This forces the view to be rerendered.
+    pub fn update(&mut self, message: I::Message) {
+        self.inner.update(message);
+    }
+
+    /// Handles an [`Event`](../../event/struct.Event.html).
+    pub fn event(&mut self, event: Event) {
+        self.inner.event(event);
+    }
+
+    /// Returns true if the ui needs to be redrawn. If the ui doesn't need to be redrawn the
+    /// [`Command`s](../../draw/struct.Command.html) from the last [`draw`](#method.draw) may be used again.
     pub fn needs_redraw(&self) -> bool {
         self.inner.needs_redraw()
     }
 
+    /// Generate a [`DrawList`](draw/struct.DrawList.html) for the view.
     pub fn draw<'a>(&'a mut self, device: &Device, queue: &Queue, render_pass: &mut RenderPass<'a>) {
         if self.inner.needs_redraw() {
             let DrawList {

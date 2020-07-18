@@ -1,10 +1,17 @@
+/// A sizing request
 #[derive(Debug, Clone, Copy)]
 pub enum Size {
+    /// Try to fit all children exactly
     Shrink,
+    /// An exact size in units
     Exact(f32),
+    /// Fill the available space using a weight in units.
+    /// The available space is divided between `Fill` sizes according to their weight.
     Fill(u32),
 }
 
+/// Alignment
+#[allow(missing_docs)]
 #[derive(Clone, Copy)]
 pub enum Align {
     Begin,
@@ -12,6 +19,8 @@ pub enum Align {
     End,
 }
 
+/// A rectangle
+#[allow(missing_docs)]
 #[derive(Debug, Clone, Copy)]
 pub struct Rectangle {
     pub left: f32,
@@ -21,6 +30,7 @@ pub struct Rectangle {
 }
 
 impl Size {
+    /// Resolve the `Size` to an actual size
     pub fn resolve(self, available_space: f32, available_parts: u32) -> f32 {
         match self {
             Size::Shrink => 0.0,
@@ -29,6 +39,7 @@ impl Size {
         }
     }
 
+    /// Get the weight of this `Size`, which is 0 for non fill sizes.
     pub fn parts(&self) -> u32 {
         match self {
             Size::Fill(parts) => *parts,
@@ -36,6 +47,7 @@ impl Size {
         }
     }
 
+    /// Get the minimum size of this `Size`, which is 0 for non exact sizes.
     pub fn min_size(&self) -> f32 {
         match self {
             Size::Exact(wanted) => *wanted,
@@ -45,6 +57,7 @@ impl Size {
 }
 
 impl Align {
+    /// Align `space` units within `available_space`.
     pub fn resolve_start(self, space: f32, available_space: f32) -> f32 {
         match self {
             Align::Begin => 0.0,
@@ -55,6 +68,9 @@ impl Align {
 }
 
 impl Rectangle {
+    /// Convert a rectangle to device coordinates (`[-1.0, 1.0]`) using a `Viewport`.
+    /// (-1, -1) is the top left corner (0, 0), where (1, 1) is the bottom right
+    /// corner (viewport.width(), viewport.height()).
     pub fn to_device_coordinates(self, viewport: Rectangle) -> Rectangle {
         let center = (
             (viewport.left + viewport.right) * 0.5,
@@ -72,6 +88,7 @@ impl Rectangle {
         }
     }
 
+    /// Return a zero size rectangle
     pub fn zero() -> Rectangle {
         Rectangle {
             left: 0.0,
@@ -81,6 +98,7 @@ impl Rectangle {
         }
     }
 
+    /// Construct a new rectangle with (0, 0) as (left, top), and w, h as (right, bottom)
     pub fn from_wh(w: f32, h: f32) -> Rectangle {
         Rectangle {
             left: 0.0,
@@ -90,6 +108,7 @@ impl Rectangle {
         }
     }
 
+    /// Construct a new rectangle from a position and a size
     pub fn from_xywh(x: f32, y: f32, w: f32, h: f32) -> Rectangle {
         Rectangle {
             left: x,
@@ -99,10 +118,13 @@ impl Rectangle {
         }
     }
 
+    /// Returns `true` when the queried point is inside the rectangle
     pub fn point_inside(&self, x: f32, y: f32) -> bool {
         x >= self.left && x < self.right && y >= self.top && y < self.bottom
     }
 
+    /// Returns the rectangle that is covered both by `self` and `other`.
+    /// `None` is returned if the rectangles do not overlap.
     pub fn intersect(&self, other: &Rectangle) -> Option<Rectangle> {
         let result = Rectangle {
             left: self.left.max(other.left),
@@ -117,6 +139,7 @@ impl Rectangle {
         }
     }
 
+    /// Return a point within this rectangle. The point should be in [0, 1] range.
     pub fn pt(&self, x: f32, y: f32) -> [f32; 2] {
         [
             self.left + (self.right - self.left) * x,
@@ -124,6 +147,7 @@ impl Rectangle {
         ]
     }
 
+    /// Return a rectangle with all fields rounded
     pub fn round(self) -> Rectangle {
         Rectangle {
             left: self.left.round(),
@@ -133,7 +157,7 @@ impl Rectangle {
         }
     }
 
-    pub fn sub(&self, lerps: Rectangle) -> Rectangle {
+    pub(crate) fn sub(&self, lerps: Rectangle) -> Rectangle {
         Rectangle {
             left: self.left + (self.right - self.left) * lerps.left,
             right: self.left + (self.right - self.left) * lerps.right,
@@ -142,6 +166,7 @@ impl Rectangle {
         }
     }
 
+    /// Apply a translation the the rectangle
     pub fn translate(&self, x: f32, y: f32) -> Rectangle {
         Rectangle {
             left: self.left + x,
@@ -151,6 +176,7 @@ impl Rectangle {
         }
     }
 
+    /// Increase the size of the rectangle on the right and bottom side.
     pub fn grow(&self, w: f32, h: f32) -> Rectangle {
         Rectangle {
             left: self.left,
@@ -160,6 +186,7 @@ impl Rectangle {
         }
     }
 
+    /// Decrease the size of the rectangle on all sides
     pub fn inset(&self, x: f32, y: f32) -> Option<Rectangle> {
         if self.width() > y * 2.0 && self.height() > x * 2.0 {
             Some(Rectangle {
@@ -173,6 +200,7 @@ impl Rectangle {
         }
     }
 
+    /// Grow the rectangle on all sides
     pub fn outset(&self, x: f32, y: f32) -> Rectangle {
         Rectangle {
             left: self.left - x,
@@ -182,6 +210,7 @@ impl Rectangle {
         }
     }
 
+    /// Return a rectangle with the same size, but positioned at the origin
     pub fn size(&self) -> Rectangle {
         Rectangle {
             left: 0.0,
@@ -191,14 +220,17 @@ impl Rectangle {
         }
     }
 
+    /// The width of the rectangle
     pub fn width(&self) -> f32 {
         self.right - self.left
     }
 
+    /// The height of the rectangle
     pub fn height(&self) -> f32 {
         self.bottom - self.top
     }
 
+    /// Apply a margin to the rectangle
     pub fn after_margin(self, margin: Rectangle) -> Rectangle {
         Rectangle {
             left: self.left - margin.left,
@@ -208,6 +240,7 @@ impl Rectangle {
         }
     }
 
+    /// Apply padding to the rectangle
     pub fn after_padding(self, padding: Rectangle) -> Rectangle {
         Rectangle {
             left: self.left + padding.left,
@@ -217,6 +250,7 @@ impl Rectangle {
         }
     }
 
+    /// Return the smallest rectangle that covers both `self` and `other`
     pub fn union(self, other: Rectangle) -> Rectangle {
         Rectangle {
             left: self.left.min(other.left),

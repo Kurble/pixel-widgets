@@ -3,25 +3,41 @@ use crate::text::Text;
 use smallvec::SmallVec;
 use zerocopy::AsBytes;
 
+/// A high level primitive that can be drawn without any further data.
 #[derive(Clone)]
 pub enum Primitive<'a> {
+    /// Pushes a clipping rectangle on a clipping rectangle stack.
+    /// The topmost clipping rectangle is used by the renderer. When a clipping rectangle is active, only pixels
+    /// inside of the rectangle are actually drawn to the screen. This is useful for scrolling like behaviour.
     PushClip(Rectangle),
+    /// Pops a clipping rectangle from a clipping rectangle stack. All [`PushClip`s](#variant.PushClip) should have
+    /// a matching `PopClip`.
     PopClip,
+    /// Draw a rectangle filled with a color.
     DrawRect(Rectangle, Color),
+    /// Draw some text within the bounds of a rectangle.
+    /// See [`Text`](../text/struct.Text.html) for more information.
     DrawText(Text<'a>, Rectangle),
+    /// Draw a 9 patch spanning the bounds of a rectangle, multiplied by a color.
     Draw9(Patch, Rectangle, Color),
+    /// Draw an image stretched to the bounds of a rectangle, multiplied by a color.
     DrawImage(Image, Rectangle, Color),
 }
 
+/// A color with red, green, blue and alpha components.
 #[derive(Clone, Copy, Debug)]
 pub struct Color {
+    /// The red component in `[0.0-1.0]` range.
     pub r: f32,
+    /// The green component in `[0.0-1.0]` range.
     pub g: f32,
+    /// The blue component in `[0.0-1.0]` range.
     pub b: f32,
+    /// The alpha component in `[0.0-1.0]` range.
     pub a: f32,
 }
 
-/// An image in an im9 atlas texture.
+/// Reference to an image loaded by the [`Ui`](../struct.Ui.html).
 #[derive(Clone, Debug)]
 pub struct Image {
     /// The texture atlas identifier that this image resides in.
@@ -32,7 +48,7 @@ pub struct Image {
     pub size: Rectangle,
 }
 
-/// 9 patch data on top of an `Image`, which is used to create dynamically stretchable images.
+/// 9 patch data on top of an [`Image`](struct.Image.html), which is used to create dynamically stretchable images.
 #[derive(Clone, Debug)]
 pub struct Patch {
     /// The `Image` this `Patch` operates on.
@@ -59,15 +75,20 @@ pub struct Patch {
     pub v_content: (f32, f32),
 }
 
+/// Generic background definition
 #[derive(Clone)]
 pub enum Background {
+    /// Draw no background
     None,
+    /// Draw a solid color
     Color(Color),
+    /// Draw a stretched image multiplied by a color
     Image(Image, Color),
+    /// Draw a 9 patch image multiplied by a color
     Patch(Patch, Color),
 }
 
-/// A collection of data needed to render the `Ui` once.
+/// A collection of data needed to render the ui.
 pub struct DrawList {
     /// A list of texture updates that need to be uploaded before rendering.
     pub updates: Vec<Update>,
@@ -80,8 +101,7 @@ pub struct DrawList {
 /// An update of the available texture data. The backend is responsible for uploading the provided
 /// data to the GPU.
 pub enum Update {
-    /// A subresource of an existing texture is updated. This happens f.e. when new glyphs are
-    /// loaded or when a new 9 patch is used.
+    /// An existing texture is updated.
     TextureSubresource {
         /// The id of the texture that needs to be updated
         id: usize,
@@ -92,8 +112,7 @@ pub enum Update {
         /// The texel data of the updated rect. 4 elements per pixel.
         data: Vec<u8>,
     },
-    /// A new texture is introduced. This happens when f.e. a background image was loaded, or when
-    /// the `Ui` is used for the first time.
+    /// A new texture is introduced.
     Texture {
         /// The id for the new texture. This is the id that will later be used to identify which
         /// texture the backend has to use whenever applicable.
@@ -103,7 +122,8 @@ pub enum Update {
         /// The texel data of the texture. 4 elements per pixel
         data: Vec<u8>,
         /// Whether the texture will be used as atlas. `true` means the texture might be updated
-        /// later with `Update::TextureSubresource`, while `false` means the texture is immutable.
+        /// later with [`TextureSubresource`](#variant.TextureSubresource), while `false` means the texture is
+        /// immutable.
         atlas: bool,
     },
 }
@@ -138,18 +158,30 @@ pub enum Command {
     /// Do nothing. Appending a `Nop` to another command will flush the other command.
     Nop,
     /// Sets a new scissor rect, which is used to confine geometry to a certain area on screen.
-    Clip { scissor: Rectangle },
+    Clip {
+        /// The scissor rectangle
+        scissor: Rectangle
+    },
     /// Draw a list of vertices without an active texture
-    Colored { offset: usize, count: usize },
+    Colored {
+        /// Offset in vertices from the start of the [vertex buffer](struct.DrawList.html#field.vertices)
+        offset: usize,
+        /// The number of vertices to draw
+        count: usize
+    },
     /// Draw a list of vertices with the active texture denoted by it's index
     Textured {
+        /// Texture id to be used
         texture: usize,
+        /// Offset in vertices from the start of the [vertex buffer](struct.DrawList.html#field.vertices)
         offset: usize,
+        /// The number of vertices to draw
         count: usize,
     },
 }
 
 impl Color {
+    /// Returns the color white
     pub fn white() -> Color {
         Color {
             r: 1.0,
@@ -158,6 +190,8 @@ impl Color {
             a: 1.0,
         }
     }
+
+    /// Returns the color black
     pub fn black() -> Color {
         Color {
             r: 0.0,
@@ -166,6 +200,8 @@ impl Color {
             a: 1.0,
         }
     }
+
+    /// Returns the color red
     pub fn red() -> Color {
         Color {
             r: 1.0,
@@ -174,6 +210,8 @@ impl Color {
             a: 1.0,
         }
     }
+
+    /// Returns the color green
     pub fn green() -> Color {
         Color {
             r: 0.0,
@@ -182,6 +220,8 @@ impl Color {
             a: 1.0,
         }
     }
+
+    /// Returns the color blue
     pub fn blue() -> Color {
         Color {
             r: 0.0,
@@ -190,6 +230,8 @@ impl Color {
             a: 1.0,
         }
     }
+
+    /// Modifies a color with a new alpha component
     pub fn with_alpha(mut self, a: f32) -> Self {
         self.a = a;
         self
@@ -197,6 +239,7 @@ impl Color {
 }
 
 impl Patch {
+    /// Extend `measured_content` so it exactly fills the content rect of this patch.
     pub fn measure_with_content(&self, measured_content: Rectangle) -> Rectangle {
         let patch_content = self.image.size.sub(Rectangle {
             left: self.h_content.0,
@@ -217,6 +260,8 @@ impl Patch {
 
         result
     }
+
+    /// Returns the padding of the 9 patch
     pub fn margin(&self) -> Rectangle {
         let patch_content = self.image.size.sub(Rectangle {
             left: self.h_content.0,
@@ -232,6 +277,8 @@ impl Patch {
             bottom: self.image.size.bottom - patch_content.bottom,
         }
     }
+
+    /// The size of the patch when the content rect is zero sized.
     pub fn minimum_size(&self) -> (f32, f32) {
         let margin = self.margin();
         (
@@ -239,6 +286,8 @@ impl Patch {
             self.image.size.height() - margin.top - margin.bottom,
         )
     }
+
+    /// The content rect for a give size
     pub fn content_rect(&self, span: Rectangle) -> Rectangle {
         let mut result = span;
 
@@ -265,7 +314,7 @@ impl Patch {
         result
     }
 
-    pub fn iterate_sections<F: FnMut((f32, f32), (f32, f32))>(&self, vertical: bool, length: f32, mut callback: F) {
+    pub(crate) fn iterate_sections<F: FnMut((f32, f32), (f32, f32))>(&self, vertical: bool, length: f32, mut callback: F) {
         let stretches = if vertical { &self.v_stretch } else { &self.h_stretch };
 
         let total = stretches.iter().fold(0.0, |t, &(a, b)| t + (b - a));
@@ -301,6 +350,7 @@ impl Patch {
 }
 
 impl Background {
+    /// Content rect for a given size
     pub fn content_rect(&self, span: Rectangle) -> Rectangle {
         match self {
             &Background::Patch(ref patch, _) => patch.content_rect(span),
@@ -308,6 +358,7 @@ impl Background {
         }
     }
 
+    /// Size of the background if the content rect is zero sized
     pub fn minimum_size(&self) -> (f32, f32) {
         match self {
             &Background::Patch(ref patch, _) => patch.minimum_size(),
@@ -316,6 +367,7 @@ impl Background {
         }
     }
 
+    /// Padding of the background. Only defined for 9 patch backgrounds, other backgrounds have no padding.
     pub fn padding(&self) -> Rectangle {
         match self {
             &Background::Patch(ref patch, _) => patch.margin(),
@@ -323,6 +375,7 @@ impl Background {
         }
     }
 
+    /// Returns whether the background is visible
     pub fn is_solid(&self) -> bool {
         match self {
             &Background::None => false,
@@ -330,6 +383,8 @@ impl Background {
         }
     }
 
+    /// Convert background to [`Some(Primitive)`](enum.Primitive.html),
+    /// or `None` if this background is [`None`](#variant.None)
     pub fn render(&self, rectangle: Rectangle) -> Option<Primitive<'static>> {
         match self {
             &Background::Color(color) => Some(Primitive::DrawRect(rectangle, color)),

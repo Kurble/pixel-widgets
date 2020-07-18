@@ -1,19 +1,20 @@
 use crate::draw::*;
-use crate::element::{Element, IntoNode, Node, Stylable};
+use crate::element::{Context, Element, IntoNode, Node, Stylable};
 use crate::event::{Event, Key};
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
-use crate::Context;
 
+/// A window with a title and a content element that can be moved by dragging the title.
 pub struct Window<'a, T> {
     state: &'a mut State,
     title: Node<'a, T>,
     content: Node<'a, T>,
 }
 
+/// State for [`Window`](struct.Window.html)
 pub struct State {
-    pub x: f32,
-    pub y: f32,
+    x: f32,
+    y: f32,
     cursor_x: f32,
     cursor_y: f32,
     inner: InnerState,
@@ -26,6 +27,7 @@ enum InnerState {
 }
 
 impl<'a, T: 'a> Window<'a, T> {
+    /// Constructs a new `Window`
     pub fn new(state: &'a mut State, title: impl IntoNode<'a, T>, content: impl IntoNode<'a, T>) -> Self {
         Self {
             state,

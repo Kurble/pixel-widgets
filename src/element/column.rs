@@ -1,17 +1,18 @@
 use super::{Element, Node};
 use crate::draw::Primitive;
-use crate::element::{IntoNode, Stylable};
+use crate::element::{Context, IntoNode, Stylable};
 use crate::event::Event;
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
-use crate::Context;
 
+/// Layout child elements vertically
 pub struct Column<'a, T> {
     children: Vec<Node<'a, T>>,
     layout: Vec<Rectangle>,
 }
 
 impl<'a, T: 'a> Column<'a, T> {
+    /// Construct a new Column
     pub fn new() -> Self {
         Self {
             children: Vec::new(),
@@ -19,8 +20,15 @@ impl<'a, T: 'a> Column<'a, T> {
         }
     }
 
+    /// Adds a child element to the column
     pub fn push<I: IntoNode<'a, T> + 'a>(mut self, item: I) -> Self {
         self.children.push(item.into_node());
+        self
+    }
+
+    /// Adds child elements using an iterator
+    pub fn extend<I: IntoIterator<Item = N>, N: IntoNode<'a, T> + 'a>(mut self, iter: I) -> Self {
+        self.children.extend(iter.into_iter().map(IntoNode::into_node));
         self
     }
 

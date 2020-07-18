@@ -3,6 +3,7 @@ use crate::element::*;
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
 
+/// Empty element
 pub struct Space;
 
 impl<'a, T> Element<'a, T> for Space {

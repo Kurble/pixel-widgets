@@ -1,13 +1,20 @@
 use crate::draw::*;
-use crate::element::{Element, IntoNode, Node, Stylable};
+use crate::element::{Context, Element, IntoNode, Node, Stylable};
 use crate::event::{Event, Key};
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
-use crate::Context;
 use std::mem::replace;
 
-pub type State = crate::element::button::State;
+/// State for [`Toggle`](struct.Toggle.html)
+#[allow(missing_docs)]
+pub enum State {
+    Idle,
+    Hover,
+    Pressed,
+    Disabled,
+}
 
+/// A clickable button that toggles some `bool`.
 pub struct Toggle<'a, T, F: Fn(bool) -> T> {
     checked: bool,
     state: &'a mut State,
@@ -15,6 +22,7 @@ pub struct Toggle<'a, T, F: Fn(bool) -> T> {
 }
 
 impl<'a, T: 'a, F: 'a + Fn(bool) -> T> Toggle<'a, T, F> {
+    /// Constructs a new `Toggle`
     pub fn new<C: IntoNode<'a, T> + 'a>(checked: bool, state: &'a mut State, on_toggle: F) -> Self {
         Self {
             checked,

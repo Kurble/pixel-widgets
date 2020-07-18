@@ -1,3 +1,5 @@
+/// A key
+#[allow(missing_docs)]
 #[derive(Clone, Copy, Debug)]
 pub enum Key {
     LeftMouseButton,
@@ -59,14 +61,20 @@ pub enum Key {
     Down,
 }
 
+/// A set of modifiers
 #[derive(Clone, Copy, Debug)]
 pub struct Modifiers {
+    /// `true` if the control key is pressed, `false otherwise.
     pub ctrl: bool,
+    /// `true` if the alt key is pressed, `false otherwise.
     pub alt: bool,
+    /// `true` if the shift key is pressed, `false otherwise.
     pub shift: bool,
+    /// `true` if the windows/super/command key is pressed, `false otherwise.
     pub logo: bool,
 }
 
+#[allow(missing_docs)]
 impl Modifiers {
     pub fn none() -> Modifiers {
         Modifiers {
@@ -76,6 +84,7 @@ impl Modifiers {
             logo: false,
         }
     }
+
     pub fn ctrl() -> Modifiers {
         Modifiers {
             ctrl: true,
@@ -84,6 +93,7 @@ impl Modifiers {
             logo: false,
         }
     }
+
     pub fn alt() -> Modifiers {
         Modifiers {
             ctrl: false,
@@ -92,6 +102,7 @@ impl Modifiers {
             logo: false,
         }
     }
+
     pub fn shift() -> Modifiers {
         Modifiers {
             ctrl: false,
@@ -100,6 +111,7 @@ impl Modifiers {
             logo: false,
         }
     }
+
     pub fn logo() -> Modifiers {
         Modifiers {
             ctrl: false,
@@ -110,6 +122,7 @@ impl Modifiers {
     }
 }
 
+/// A user input event.
 #[derive(Clone, Copy, Debug)]
 pub enum Event {
     /// A button on some input device was pressed.

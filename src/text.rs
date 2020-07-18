@@ -2,29 +2,41 @@ use crate::draw::Color;
 use crate::layout::Rectangle;
 use std::borrow::Cow;
 
+/// How to wrap text
 #[derive(Clone, Copy, Debug)]
 pub enum TextWrap {
+    /// Don't wrap text at all (fastest)
     NoWrap,
+    /// Wrap text per character
     Wrap,
+    /// Try to keep words on the same line (slowest)
     WordWrap,
 }
 
+/// A font loaded by the [`Ui`](../struct.Ui.html)
 #[derive(Clone)]
 pub struct Font {
-    pub inner: super::cache::Font,
-    pub id: super::cache::FontId,
-    pub tex_slot: usize,
+    pub(crate) inner: super::cache::Font,
+    pub(crate) id: super::cache::FontId,
+    pub(crate) tex_slot: usize,
 }
 
+/// A styled paragraph of text
 #[derive(Clone)]
 pub struct Text<'a> {
+    /// The text
     pub text: Cow<'a, str>,
+    /// Font to render the text with
     pub font: Font,
+    /// Font size to render the text with
     pub size: f32,
+    /// Wrapping style to use
     pub wrap: TextWrap,
+    /// Color to render the text with
     pub color: Color,
 }
 
+/// Iterator over characters that have been layout by the rusttype engine.
 pub struct CharPositionIter<'a, 'b: 'a> {
     font: &'b rusttype::Font<'static>,
     scale: rusttype::Scale,
@@ -111,7 +123,7 @@ impl<'a, 'b: 'a> WordWrapper<'a, 'b> {
 }
 
 impl<'t> Text<'t> {
-    pub fn char_positions<'a, 'b>(&'b self) -> CharPositionIter<'a, 'b> {
+    pub(crate) fn char_positions<'a, 'b>(&'b self) -> CharPositionIter<'a, 'b> {
         let scale = rusttype::Scale {
             x: self.size,
             y: self.size,
@@ -125,7 +137,7 @@ impl<'t> Text<'t> {
         }
     }
 
-    pub fn layout<F: FnMut(rusttype::ScaledGlyph<'static>, f32, f32, f32)>(&self, rect: Rectangle, mut f: F) {
+    pub(crate) fn layout<F: FnMut(rusttype::ScaledGlyph<'static>, f32, f32, f32)>(&self, rect: Rectangle, mut f: F) {
         let line = self.font.inner.v_metrics(rusttype::Scale {
             x: self.size,
             y: self.size,
@@ -174,6 +186,8 @@ impl<'t> Text<'t> {
         }
     }
 
+    /// Measure the size of the text. If a rectangle is supplied and the text wraps,
+    /// the layout will stay within the width of the given rectangle.
     pub fn measure(&self, rect: Option<Rectangle>) -> Rectangle {
         let line = self.font.inner.v_metrics(rusttype::Scale {
             x: self.size,
@@ -203,6 +217,7 @@ impl<'t> Text<'t> {
         }
     }
 
+    /// Measure the start and end coordinates of some selected glyphs
     pub fn measure_range(&self, from: usize, to: usize, rect: Rectangle) -> ((f32, f32), (f32, f32)) {
         let mut from_result = (0.0, 0.0);
         let mut to_result = (0.0, 0.0);
@@ -227,6 +242,7 @@ impl<'t> Text<'t> {
         (from_result, to_result)
     }
 
+    /// Find out the index of a character where the mouse is.
     pub fn hitdetect(&self, cursor: (f32, f32), rect: Rectangle) -> usize {
         let dist = |(x, y)| x * x + y * y;
 
@@ -251,6 +267,7 @@ impl<'t> Text<'t> {
 }
 
 impl<'a> Text<'a> {
+    /// Convert a borrowed to text to owned text.
     pub fn to_owned(&self) -> Text<'static> {
         Text {
             text: Cow::Owned(self.text.clone().into_owned()),

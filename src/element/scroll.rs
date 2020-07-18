@@ -1,15 +1,16 @@
 use crate::draw::*;
-use crate::element::{Element, IntoNode, Node, Stylable};
+use crate::element::{Context, Element, IntoNode, Node, Stylable};
 use crate::event::{Event, Key};
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
-use crate::Context;
 
+/// View a small section of larger element, with scrollbars.
 pub struct Scroll<'a, T> {
     state: &'a mut State,
     content: Node<'a, T>,
 }
 
+/// State for [`Scroll`](struct.Scroll.html)
 pub struct State {
     inner: InnerState,
     scroll_x: f32,
@@ -28,6 +29,7 @@ enum InnerState {
 }
 
 impl<'a, T: 'a> Scroll<'a, T> {
+    /// Construct a new `Scroll`
     pub fn new(state: &'a mut State, content: impl IntoNode<'a, T>) -> Scroll<'a, T> {
         Self {
             state,
