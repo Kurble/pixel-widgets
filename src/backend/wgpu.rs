@@ -34,7 +34,8 @@ impl<I: Model> WgpuUi<I> {
         Self::new_inner(Ui::new(model, viewport), format, device)
     }
 
-    /// Constructs a new `WgpuUi` asynchronously by first fetching a stylesheet for a [.mss] data source.
+    /// Constructs a new `WgpuUi` asynchronously by first fetching a stylesheet from a
+    /// [.mss](../../stylesheet/index.html) data source.
     pub async fn with_stylesheet<L: Loader, U: AsRef<str>>(
         model: I,
         loader: L,
