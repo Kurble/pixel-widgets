@@ -1,5 +1,5 @@
 use crate::draw::*;
-use crate::element::{Context, Element, IntoNode, Node, Stylable};
+use crate::element::{Context, Element, IntoNode, Node};
 use crate::event::{Event, Key, Modifiers};
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
@@ -88,7 +88,7 @@ impl<'a, T: 'a, F: 'a + Fn(String) -> T> Element<'a, T> for Input<'a, T, F> {
         "input"
     }
 
-    fn visit_children(&mut self, _: &mut dyn FnMut(&mut dyn Stylable<'a>)) {}
+    fn visit_children(&mut self, _: &mut dyn FnMut(&mut Node<'a, T>)) {}
 
     fn size(&self, stylesheet: &Stylesheet) -> (Size, Size) {
         match (stylesheet.width, stylesheet.height) {

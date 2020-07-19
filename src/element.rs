@@ -1,3 +1,4 @@
+//!
 //! Elements in maple are defined using the [`Element`](trait.Element.html) trait.
 //! You can choose to implement elements yourself, or you can use the built in elements that come with maple:
 //! - [`Button`](button/struct.Button.html)
@@ -66,12 +67,11 @@ pub trait Element<'a, Message> {
     /// The name of this element, used to identify elements of this type in stylesheets.
     fn element(&self) -> &'static str;
 
-    /// Callback function for [`Stylable`](trait.Stylable.html). Visitor should be called for each child
-    /// [`Node`](struct.Node.html), if applicable. If an element fails to visit it's children, the children won't be
-    /// able to resolve their stylesheet, resulting in a panic when calling [`size`](struct.Node.html#method.size),
+    /// Applies a visitor to all childs of the element. If an element fails to visit it's children, the children won't
+    /// be able to resolve their stylesheet, resulting in a panic when calling [`size`](struct.Node.html#method.size),
     /// [`hit`](struct.Node.html#method.hit), [`event`](struct.Node.html#method.event) or
     /// [`draw`](struct.Node.html#method.draw).
-    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn Stylable<'a>));
+    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut Node<'a, Message>));
 
     /// Returns the `(width, height)` of this element.
     /// The extents are defined as a [`Size`](../layout/struct.Size.html),
@@ -134,12 +134,6 @@ pub trait IntoNode<'a, Message: 'a>: 'a + Sized {
     }
 }
 
-/// Resolve stylesheets on [`Node`s](struct.Node.html) of any `Message` type.
-pub trait Stylable<'a> {
-    /// Resolves the style
-    fn style(&mut self, engine: &mut Style, query: &mut Query<'a>);
-}
-
 /// Generic ui element.
 pub struct Node<'a, Message> {
     element: Box<dyn Element<'a, Message> + 'a>,
@@ -169,6 +163,22 @@ impl<'a, Message> Node<'a, Message> {
     pub fn class(mut self, class: &'a str) -> Self {
         self.class = Some(class);
         self
+    }
+
+    pub(crate) fn style(&mut self, engine: &mut Style, query: &mut Query<'a>) {
+        query.elements.push(self.element.element());
+        if let Some(class) = self.class {
+            query.classes.push(Cow::Borrowed(class));
+        }
+
+        self.style.replace(engine.get(query));
+        self.element
+            .visit_children(&mut |child| child.style(&mut *engine, &mut *query));
+
+        query.elements.pop();
+        if self.class.is_some() {
+            query.classes.pop();
+        }
     }
 
     /// Returns the `(width, height)` of this element.
@@ -226,24 +236,6 @@ impl<'a, Message> Node<'a, Message> {
 impl<'a, Message: 'a> IntoNode<'a, Message> for Node<'a, Message> {
     fn into_node(self) -> Node<'a, Message> {
         self
-    }
-}
-
-impl<'a, Message: 'a> Stylable<'a> for Node<'a, Message> {
-    fn style(&mut self, engine: &mut Style, query: &mut Query<'a>) {
-        query.elements.push(self.element.element());
-        if let Some(class) = self.class {
-            query.classes.push(Cow::Borrowed(class));
-        }
-
-        self.style.replace(engine.get(query));
-        self.element
-            .visit_children(&mut |child| child.style(&mut *engine, &mut *query));
-
-        query.elements.pop();
-        if self.class.is_some() {
-            query.classes.pop();
-        }
     }
 }
 

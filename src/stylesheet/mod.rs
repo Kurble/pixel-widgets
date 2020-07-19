@@ -1,3 +1,88 @@
+//!
+//! Style in maple is defined using stylesheets. These stylesheets are loaded from a file, with a format that is a
+//! syntactically a subset of css. The stylesheets are called `mss` - *m*aple *s*tyle*s*heets.
+//! # Features
+//! - Select elements by element type and descendant type
+//! - Select elements by class and descendant class
+//! - Stack multiple selectors that select the same element
+//!
+//! # Example
+//! ```ignore
+//! column {
+//!     align-horizontal: center
+//! }
+//!
+//! button {
+//!     background: #444
+//!     hover: #668
+//!     padding: 5
+//! }
+//!
+//! text {
+//!     text-size: 24
+//! }
+//! ```
+//!
+//! The example sets a few of the keys on some of the elements. Just try it out with the examples in the example
+//! directory and see for yourself what the effect is.
+//!
+//! # Syntax
+//! Each mss file contains a collection of _selectors_. Selectors are a group of _rules_ that are applied to _selected_
+//! elements.
+//!
+//! ## Selectors
+//! A selector has the following format:
+//! ```ignore
+//! <element...> <class...> {
+//!     <rule...>
+//! }
+//! ```
+//! The first line expects some element identifiers and some class identifiers. Class identifiers can differentiated
+//! from element identifiers by adding a period in front, as in `.class`.
+//! ```ignore
+//! window column button {
+//!     background: @button.png
+//! }
+//! ```
+//! Entering multiple elements that the selector will look for a `button` inside a `column` inside a `window`.
+//!
+//! ## Rules
+//! The interior of a selector consists of a number of rules. These rules are what specifies style.
+//! A rule starts with a key, and each key has it's own associated format. Take a look at the table to see what keys
+//! exist.
+//!
+//! | key | description | format |
+//! |---|---|---|
+//! | background | Background for the element that full covers the layout rect | background |
+//! | hover | Background for button like elements that are hovered | background |
+//! | pressed | Background for button like elements that are pressed | background |
+//! | disabled | Background for button like elements that are disabled | background |
+//! | checked | Background for toggle like elements that are checked | background |
+//! | font | Font to use for text rendering | url |
+//! | color | Color to use for foreground drawing, including text | color |
+//! | scrollbar_horizontal | Graphics to use for horizontal scrollbars | background |
+//! | scrollbar_vertical | Graphics to use for vertical scrollbars | background |
+//! | padding | Amount of padding to use on each side of the content | rectangle |
+//! | text_size | Size of text | number |
+//! | text_wrap | Wrapping strategy for text | textwrap |
+//! | width | element width | size |
+//! | height | element height | size |
+//! | align_horizontal | how to align children horizontally | align |
+//! | align_vertical | how to align children vertically | align |
+//!
+//! ### Value syntax
+//! | Type | Syntax | Notes |
+//! |---|---|---|
+//! | color | `#rgb`<br>`#rgba`<br>`#rrggbb`<br>`#rrggbbaa` | Examples:<br>`#fff`<br>`#ff00ff` |
+//! | url | `@filename` | An `@` followed by an url<br>`@image.png`<br>`@font.ttf` |
+//! | number | floating point literal | A number, such as `2.0` or `42` |
+//! | background | `<url>`<br>`<color>`<br>`image(<url>, <color>)`<br>`patch(<url>, <color>)`<br>`none` | If a url ends with `.9.png` it will be resolved as a 9 patch. If your 9 slice doesn't end with `.9.png`, use `patch`. |
+//! | rectangle | `<number>`<br>`(left: <number> right: <number> top: <number> bottom: <number>)` | All fields are optional as they default to zero:<br>`(left: 2 right: 2)` |
+//! | textwrap | `no-wrap`<br>`wrap`<br>`word-wrap` | |
+//! | size | `<number>`<br>`fill(<number>)`<br>`exact(<number>)`<br>`shrink` | Just a number resolves to `exact` |
+//! | align | `begin`<br>`center`<br>`end` | |
+
+
 use std::borrow::{Borrow, Cow};
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -15,37 +100,61 @@ mod tokenize;
 use parse::*;
 use tokenize::*;
 
+/// Errors that can be encountered while loading a stylesheet
 #[derive(Debug)]
 pub enum Error<E: std::error::Error> {
+    /// Syntax error
     Syntax(String, TokenPos),
+    /// Unexpected end of file error
     Eof,
+    /// Image loading error
     Image(image::ImageError),
+    /// File input/output error
     Io(E),
 }
 
+/// A style loaded from a `.mss` file.
 pub struct Style {
     resolved: HashMap<Query<'static>, Rc<Stylesheet>>,
     default: Rc<Stylesheet>,
     selectors: Vec<Selector>,
 }
 
+/// A fully resolved stylesheet, passed by reference to [`Element::draw`](../element/trait.Element.html).
+/// Contains the final versions of all possible rules.
 #[derive(Clone)]
 pub struct Stylesheet {
+    /// Background for the element that full covers the layout rect
     pub background: Background,
+    /// Background for button like elements that are hovered
     pub hover: Background,
+    /// Background for button like elements that are pressed
     pub pressed: Background,
+    /// Background for button like elements that are disabled
     pub disabled: Background,
+    /// Background for toggle like elements that are checked
     pub checked: Background,
+    /// Font to use for text rendering
     pub font: Font,
+    /// Color to use for foreground drawing, including text
     pub color: Color,
+    /// Graphics to use for horizontal scrollbars
     pub scrollbar_horizontal: Background,
+    /// Graphics to use for vertical scrollbars
     pub scrollbar_vertical: Background,
+    /// Amount of padding to use on each side of the content
     pub padding: Rectangle,
+    /// Size of text
     pub text_size: f32,
+    /// Wrapping strategy for text
     pub text_wrap: TextWrap,
+    /// Element width
     pub width: Size,
+    /// Element height
     pub height: Size,
+    /// How to align children horizontally
     pub align_horizontal: Align,
+    /// How to align children vertically
     pub align_vertical: Align,
 }
 
@@ -75,7 +184,7 @@ struct Selector {
 }
 
 #[derive(Default, Debug, PartialEq, Eq, Hash, Clone)]
-pub struct Query<'a> {
+pub(crate) struct Query<'a> {
     pub elements: Vec<&'static str>,
     pub classes: Vec<Cow<'a, str>>,
 }
@@ -114,6 +223,7 @@ impl Selector {
 }
 
 impl Style {
+    /// Construct a new default style
     pub fn new(cache: &mut Cache) -> Self {
         Style {
             resolved: HashMap::new(),
@@ -139,7 +249,7 @@ impl Style {
         }
     }
 
-    pub fn get(&mut self, query: &Query) -> Rc<Stylesheet> {
+    pub(crate) fn get(&mut self, query: &Query) -> Rc<Stylesheet> {
         if let Some(sheet) = self.resolved.get(query) {
             sheet.clone()
         } else {
@@ -155,6 +265,8 @@ impl Style {
         }
     }
 
+    /// Asynchronously load a stylesheet from a .mss file. See the [module documentation](index.html) on how to write
+    /// .mss files.
     pub async fn load<L: Loader, U: AsRef<str>>(
         loader: &L,
         url: U,

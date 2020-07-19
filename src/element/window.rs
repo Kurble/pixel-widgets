@@ -1,5 +1,5 @@
 use crate::draw::*;
-use crate::element::{Context, Element, IntoNode, Node, Stylable};
+use crate::element::{Context, Element, IntoNode, Node};
 use crate::event::{Event, Key};
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
@@ -88,7 +88,7 @@ impl<'a, T: 'a> Element<'a, T> for Window<'a, T> {
         "window"
     }
 
-    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn Stylable<'a>)) {
+    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut Node<'a, T>)) {
         visitor(&mut self.title);
         visitor(&mut self.content);
     }

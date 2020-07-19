@@ -1,7 +1,7 @@
 use std::mem::replace;
 
 use crate::draw::*;
-use crate::element::{Context, Element, IntoNode, Node, Stylable};
+use crate::element::{Context, Element, IntoNode, Node};
 use crate::event::{Event, Key};
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
@@ -44,7 +44,7 @@ impl<'a, T: 'a> Element<'a, T> for Button<'a, T> {
         "button"
     }
 
-    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn Stylable<'a>)) {
+    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut Node<'a, T>)) {
         visitor(&mut self.content);
     }
 

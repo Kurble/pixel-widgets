@@ -1,5 +1,5 @@
 use crate::draw::Primitive;
-use crate::element::{Context, Element, IntoNode, Node, Stylable};
+use crate::element::{Context, Element, IntoNode, Node};
 use crate::event::{Event, Key};
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
@@ -47,7 +47,7 @@ impl<'a, T: 'a, Id: 'a> Element<'a, T> for Layers<'a, T, Id> {
         "layers"
     }
 
-    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn Stylable<'a>)) {
+    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut Node<'a, T>)) {
         for layer in self.layers.iter_mut() {
             visitor(&mut layer.node);
         }

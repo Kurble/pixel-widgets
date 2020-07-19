@@ -26,7 +26,6 @@ pub mod layout;
 mod model_view;
 mod qtree;
 /// Styling system
-#[allow(missing_docs)]
 pub mod stylesheet;
 /// Primitives for rendering text
 pub mod text;
@@ -68,7 +67,9 @@ pub trait Loader: Send + Sync {
     fn load(&self, url: impl AsRef<str>) -> Self::Load;
 }
 
-/// Entry point for maple. Manages a [`Model`](trait.Model.html) and processes it to a [`DrawList`](draw/struct.DrawList.html) that can be rendered using your
+/// Entry point for maple.
+///
+/// `Ui` manages a [`Model`](trait.Model.html) and processes it to a [`DrawList`](draw/struct.DrawList.html) that can be rendered using your
 ///  own renderer implementation. Alternatively, you can use one of the following included wrappers:
 /// - [`WgpuUi`](backend/wgpu/struct.WgpuUi.html) Renders using [wgpu-rs](https://github.com/gfx-rs/wgpu-rs).
 /// - [`GlowUi`](backend/glow/struct.GlowUi.html) Renders using [glow](https://github.com/grovesNL/glow).

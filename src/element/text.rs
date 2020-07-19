@@ -23,7 +23,7 @@ impl<'a, T> Element<'a, T> for Text {
         "text"
     }
 
-    fn visit_children(&mut self, _: &mut dyn FnMut(&mut dyn Stylable<'a>)) {}
+    fn visit_children(&mut self, _: &mut dyn FnMut(&mut Node<'a, T>)) {}
 
     fn size(&self, style: &Stylesheet) -> (Size, Size) {
         let width = style.width;

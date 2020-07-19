@@ -1,6 +1,6 @@
 use super::{Element, Node};
 use crate::draw::Primitive;
-use crate::element::{Context, IntoNode, Stylable};
+use crate::element::{Context, IntoNode};
 use crate::event::Event;
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
@@ -70,7 +70,7 @@ impl<'a, T: 'a> Element<'a, T> for Row<'a, T> {
         "row"
     }
 
-    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn Stylable<'a>)) {
+    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut Node<'a, T>)) {
         self.children.iter_mut().for_each(|child| visitor(child));
     }
 
