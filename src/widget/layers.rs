@@ -1,10 +1,10 @@
 use crate::draw::Primitive;
-use crate::element::{Context, Element, IntoNode, Node};
+use crate::widget::{Context, Widget, IntoNode, Node};
 use crate::event::{Event, Key};
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
 
-/// Stack child elements on top of each other, while only the topmost receives events.
+/// Stack child widgets on top of each other, while only the topmost receives events.
 pub struct Layers<'a, T, Id> {
     state: &'a mut State<Id>,
     layers: Vec<Layer<'a, T, Id>>,
@@ -32,7 +32,7 @@ impl<'a, T: 'a, Id: 'a + Eq + Clone> Layers<'a, T, Id> {
         }
     }
 
-    /// Adds an element
+    /// Adds an widget
     pub fn push(mut self, id: Id, layer: impl IntoNode<'a, T>) -> Self {
         self.layers.push(Layer {
             node: layer.into_node(),
@@ -42,8 +42,8 @@ impl<'a, T: 'a, Id: 'a + Eq + Clone> Layers<'a, T, Id> {
     }
 }
 
-impl<'a, T: 'a, Id: 'a> Element<'a, T> for Layers<'a, T, Id> {
-    fn element(&self) -> &'static str {
+impl<'a, T: 'a, Id: 'a> Widget<'a, T> for Layers<'a, T, Id> {
+    fn widget(&self) -> &'static str {
         "layers"
     }
 

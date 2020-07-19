@@ -1,6 +1,4 @@
-use maple::element::Node;
-use maple::tracker::ManagedState;
-use maple::*;
+use pixel_widgets::prelude::*;
 
 mod framework;
 
@@ -39,7 +37,6 @@ impl Model for Counter {
     }
 
     fn view(&mut self) -> Node<Message> {
-        use maple::element::*;
         let mut state = self.state.tracker();
 
         let mut layers = Layers::<Message, &'static str>::new(state.get("layers"));

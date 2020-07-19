@@ -1,10 +1,10 @@
 use crate::draw::*;
-use crate::element::{Context, Element, IntoNode, Node};
+use crate::widget::{Context, Widget, IntoNode, Node};
 use crate::event::{Event, Key};
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
 
-/// A window with a title and a content element that can be moved by dragging the title.
+/// A window with a title and a content widget that can be moved by dragging the title.
 pub struct Window<'a, T> {
     state: &'a mut State,
     title: Node<'a, T>,
@@ -83,8 +83,8 @@ impl<'a, T: 'a> Window<'a, T> {
     }
 }
 
-impl<'a, T: 'a> Element<'a, T> for Window<'a, T> {
-    fn element(&self) -> &'static str {
+impl<'a, T: 'a> Widget<'a, T> for Window<'a, T> {
+    fn widget(&self) -> &'static str {
         "window"
     }
 

@@ -1,13 +1,13 @@
 use crate::draw::*;
-use crate::element::*;
+use crate::widget::*;
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
 
-/// Empty element
+/// Empty widget
 pub struct Space;
 
-impl<'a, T> Element<'a, T> for Space {
-    fn element(&self) -> &'static str {
+impl<'a, T> Widget<'a, T> for Space {
+    fn widget(&self) -> &'static str {
         "space"
     }
 

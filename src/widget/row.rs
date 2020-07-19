@@ -1,11 +1,11 @@
-use super::{Element, Node};
+use super::{Widget, Node};
 use crate::draw::Primitive;
-use crate::element::{Context, IntoNode};
+use crate::widget::{Context, IntoNode};
 use crate::event::Event;
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
 
-/// Layout child elements horizontally
+/// Layout child widgets horizontally
 pub struct Row<'a, T> {
     children: Vec<Node<'a, T>>,
     layout: Vec<Rectangle>,
@@ -20,13 +20,13 @@ impl<'a, T: 'a> Row<'a, T> {
         }
     }
 
-    /// Adds a child element to the row
+    /// Adds a child widget to the row
     pub fn push<I: IntoNode<'a, T> + 'a>(mut self, item: I) -> Self {
         self.children.push(item.into_node());
         self
     }
 
-    /// Adds child elements using an iterator
+    /// Adds child widgets using an iterator
     pub fn extend<I: IntoIterator<Item = N>, N: IntoNode<'a, T> + 'a>(mut self, iter: I) -> Self {
         self.children.extend(iter.into_iter().map(IntoNode::into_node));
         self
@@ -65,8 +65,8 @@ impl<'a, T: 'a> Row<'a, T> {
     }
 }
 
-impl<'a, T: 'a> Element<'a, T> for Row<'a, T> {
-    fn element(&self) -> &'static str {
+impl<'a, T: 'a> Widget<'a, T> for Row<'a, T> {
+    fn widget(&self) -> &'static str {
         "row"
     }
 

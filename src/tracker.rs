@@ -1,7 +1,7 @@
 use std::any::Any;
 use std::borrow::Borrow;
 
-/// An [`Element`](../element/trait.Element.html) state tracker.
+/// An [`Widget`](../widget/trait.Widget.html) state tracker.
 #[derive(Default)]
 pub struct ManagedState<Id: Eq + Clone> {
     state: Vec<Tracked<Id>>,
@@ -35,7 +35,7 @@ impl<Id: Eq + Clone> Tracked<Id> {
         let state = self
             .state
             .downcast_mut::<T>()
-            .expect("elements with the same id must always be of the same type");
+            .expect("widgets with the same id must always be of the same type");
 
         (state as *mut T).as_mut().unwrap()
     }

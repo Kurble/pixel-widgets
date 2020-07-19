@@ -4,7 +4,7 @@ use winit::{
     window::Window,
 };
 
-use maple::prelude::*;
+use pixel_widgets::prelude::*;
 
 async fn run<T: 'static + Model>(
     model: T,

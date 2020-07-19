@@ -1,5 +1,5 @@
 use crate::draw::*;
-use crate::element::{Context, Element, IntoNode, Node};
+use crate::widget::{Context, Widget, IntoNode, Node};
 use crate::event::{Event, Key, Modifiers};
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
@@ -83,8 +83,8 @@ impl<'a, T, F: Fn(String) -> T> Input<'a, T, F> {
     }
 }
 
-impl<'a, T: 'a, F: 'a + Fn(String) -> T> Element<'a, T> for Input<'a, T, F> {
-    fn element(&self) -> &'static str {
+impl<'a, T: 'a, F: 'a + Fn(String) -> T> Widget<'a, T> for Input<'a, T, F> {
+    fn widget(&self) -> &'static str {
         "input"
     }
 

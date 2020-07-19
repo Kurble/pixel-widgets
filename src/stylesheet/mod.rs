@@ -1,10 +1,10 @@
 //!
-//! Style in maple is defined using stylesheets. These stylesheets are loaded from a file, with a format that is a
+//! Style in pixel-widgets is defined using stylesheets. These stylesheets are loaded from a file, with a format that is a
 //! syntactically a subset of css. The stylesheets are called `mss` - *m*aple *s*tyle*s*heets.
 //! # Features
-//! - Select elements by element type and descendant type
-//! - Select elements by class and descendant class
-//! - Stack multiple selectors that select the same element
+//! - Select widgets by widget type and descendant type
+//! - Select widgets by class and descendant class
+//! - Stack multiple selectors that select the same widget
 //!
 //! # Example
 //! ```ignore
@@ -23,28 +23,28 @@
 //! }
 //! ```
 //!
-//! The example sets a few of the keys on some of the elements. Just try it out with the examples in the example
+//! The example sets a few of the keys on some of the widgets. Just try it out with the examples in the example
 //! directory and see for yourself what the effect is.
 //!
 //! # Syntax
 //! Each mss file contains a collection of _selectors_. Selectors are a group of _rules_ that are applied to _selected_
-//! elements.
+//! widgets.
 //!
 //! ## Selectors
 //! A selector has the following format:
 //! ```ignore
-//! <element...> <class...> {
+//! <widget...> <class...> {
 //!     <rule...>
 //! }
 //! ```
-//! The first line expects some element identifiers and some class identifiers. Class identifiers can differentiated
-//! from element identifiers by adding a period in front, as in `.class`.
+//! The first line expects some widget identifiers and some class identifiers. Class identifiers can differentiated
+//! from widget identifiers by adding a period in front, as in `.class`.
 //! ```ignore
 //! window column button {
 //!     background: @button.png
 //! }
 //! ```
-//! Entering multiple elements that the selector will look for a `button` inside a `column` inside a `window`.
+//! Entering multiple widgets that the selector will look for a `button` inside a `column` inside a `window`.
 //!
 //! ## Rules
 //! The interior of a selector consists of a number of rules. These rules are what specifies style.
@@ -53,11 +53,11 @@
 //!
 //! | key | description | format |
 //! |---|---|---|
-//! | background | Background for the element that full covers the layout rect | background |
-//! | hover | Background for button like elements that are hovered | background |
-//! | pressed | Background for button like elements that are pressed | background |
-//! | disabled | Background for button like elements that are disabled | background |
-//! | checked | Background for toggle like elements that are checked | background |
+//! | background | Background for the widget that full covers the layout rect | background |
+//! | hover | Background for button like widgets that are hovered | background |
+//! | pressed | Background for button like widgets that are pressed | background |
+//! | disabled | Background for button like widgets that are disabled | background |
+//! | checked | Background for toggle like widgets that are checked | background |
 //! | font | Font to use for text rendering | url |
 //! | color | Color to use for foreground drawing, including text | color |
 //! | scrollbar_horizontal | Graphics to use for horizontal scrollbars | background |
@@ -65,8 +65,8 @@
 //! | padding | Amount of padding to use on each side of the content | rectangle |
 //! | text_size | Size of text | number |
 //! | text_wrap | Wrapping strategy for text | textwrap |
-//! | width | element width | size |
-//! | height | element height | size |
+//! | width | widget width | size |
+//! | height | widget height | size |
 //! | align_horizontal | how to align children horizontally | align |
 //! | align_vertical | how to align children vertically | align |
 //!
@@ -120,19 +120,19 @@ pub struct Style {
     selectors: Vec<Selector>,
 }
 
-/// A fully resolved stylesheet, passed by reference to [`Element::draw`](../element/trait.Element.html).
+/// A fully resolved stylesheet, passed by reference to [`Widget::draw`](../widget/trait.Widget.html).
 /// Contains the final versions of all possible rules.
 #[derive(Clone)]
 pub struct Stylesheet {
-    /// Background for the element that full covers the layout rect
+    /// Background for the widget that full covers the layout rect
     pub background: Background,
-    /// Background for button like elements that are hovered
+    /// Background for button like widgets that are hovered
     pub hover: Background,
-    /// Background for button like elements that are pressed
+    /// Background for button like widgets that are pressed
     pub pressed: Background,
-    /// Background for button like elements that are disabled
+    /// Background for button like widgets that are disabled
     pub disabled: Background,
-    /// Background for toggle like elements that are checked
+    /// Background for toggle like widgets that are checked
     pub checked: Background,
     /// Font to use for text rendering
     pub font: Font,
@@ -148,9 +148,9 @@ pub struct Stylesheet {
     pub text_size: f32,
     /// Wrapping strategy for text
     pub text_wrap: TextWrap,
-    /// Element width
+    /// Widget width
     pub width: Size,
-    /// Element height
+    /// Widget height
     pub height: Size,
     /// How to align children horizontally
     pub align_horizontal: Align,
@@ -178,14 +178,14 @@ enum Rule {
 }
 
 struct Selector {
-    elements: Vec<String>,
+    widgets: Vec<String>,
     classes: Vec<String>,
     rules: Vec<Rule>,
 }
 
 #[derive(Default, Debug, PartialEq, Eq, Hash, Clone)]
 pub(crate) struct Query<'a> {
-    pub elements: Vec<&'static str>,
+    pub widgets: Vec<&'static str>,
     pub classes: Vec<Cow<'a, str>>,
 }
 
@@ -196,13 +196,13 @@ impl Selector {
             return false;
         }
 
-        if !self.elements.is_empty() && query.elements.last().cloned() != self.elements.last().map(String::as_str) {
+        if !self.widgets.is_empty() && query.widgets.last().cloned() != self.widgets.last().map(String::as_str) {
             return false;
         }
 
-        let mut q = query.elements.iter();
+        let mut q = query.widgets.iter();
         if !self
-            .elements
+            .widgets
             .iter()
             .fold(true, |m, d| m && q.find(|&x| x == d).is_some())
         {
@@ -303,7 +303,7 @@ impl Rule {
 impl<'a> Query<'a> {
     pub fn to_static(&self) -> Query<'static> {
         Query {
-            elements: self.elements.clone(),
+            widgets: self.widgets.clone(),
             classes: self
                 .classes
                 .iter()

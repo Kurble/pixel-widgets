@@ -1,10 +1,10 @@
 use crate::draw::*;
-use crate::element::{Context, Element, IntoNode, Node};
+use crate::widget::{Context, Widget, IntoNode, Node};
 use crate::event::{Event, Key};
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
 
-/// View a small section of larger element, with scrollbars.
+/// View a small section of larger widget, with scrollbars.
 pub struct Scroll<'a, T> {
     state: &'a mut State,
     content: Node<'a, T>,
@@ -96,8 +96,8 @@ impl<'a, T: 'a> Scroll<'a, T> {
     }
 }
 
-impl<'a, T: 'a> Element<'a, T> for Scroll<'a, T> {
-    fn element(&self) -> &'static str {
+impl<'a, T: 'a> Widget<'a, T> for Scroll<'a, T> {
+    fn widget(&self) -> &'static str {
         "scroll"
     }
 

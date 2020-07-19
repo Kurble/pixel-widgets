@@ -1,13 +1,13 @@
 [package]
-name = "maple"
+name = "pixel-widgets"
 version = "0.1.0"
 authors = ["Bram Buurlage <brambuurlage@gmail.com>"]
 edition = "2018"
 readme = "README.md"
-description = "Elm inspired UI toolkit for games"
+description = "Elm inspired UI library styled using images"
 license = "MIT"
-repository = "https://github.com/Kurble/maple"
-documentation = "https://docs.rs/maple"
+repository = "https://github.com/Kurble/pixel-widgets"
+documentation = "https://docs.rs/pixel-widgets"
 keywords = ["gui", "ui", "wgpu", "interface", "graphics", "widgets"]
 categories = ["gui"]
 

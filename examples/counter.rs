@@ -1,4 +1,4 @@
-use maple::prelude::*;
+use pixel_widgets::prelude::*;
 
 mod framework;
 

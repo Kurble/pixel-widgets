@@ -1,4 +1,4 @@
-use crate::element::{Node};
+use crate::widget::{Node};
 use crate::stylesheet::{Query, Style};
 use crate::Model;
 

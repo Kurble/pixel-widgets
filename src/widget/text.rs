@@ -1,12 +1,12 @@
 use crate::draw::Primitive;
-use crate::element::*;
+use crate::widget::*;
 use crate::event::Event;
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
 use crate::text;
 use std::borrow::Cow;
 
-/// Element that renders a paragraph of text.
+/// Widget that renders a paragraph of text.
 pub struct Text {
     text: String,
 }
@@ -18,8 +18,8 @@ impl Text {
     }
 }
 
-impl<'a, T> Element<'a, T> for Text {
-    fn element(&self) -> &'static str {
+impl<'a, T> Widget<'a, T> for Text {
+    fn widget(&self) -> &'static str {
         "text"
     }
 

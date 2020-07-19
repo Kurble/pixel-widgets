@@ -1,4 +1,4 @@
-//! Maple is a user interface library focused on use for games. It's architecture is inspired by elm, since it's very
+//! pixel-widgets is a user interface library focused on use for games. It's architecture is inspired by elm, since it's very
 //! fitting for rusts mutability patterns.
 //!
 //! # Features
@@ -6,15 +6,15 @@
 //! - Render agnostic rendering
 //! - [wgpu](https://github.com/gfx-rs/wgpu-rs) based renderer included
 //! - Styling using [stylesheets](stylesheet/index.html)
-//! - Built in [widgets](element/index.html)
+//! - Built in [widgets](widget/index.html)
 //!
-//! Check out the [examples](https://github.com/Kurble/maple/tree/master/examples) to get started quickly.
+//! Check out the [examples](https://github.com/Kurble/pixel-widgets/tree/master/examples) to get started quickly.
 //!
 //! # Overview
-//! User interfaces in maple are all defined by implementing a [`Model`](trait.Model.html), serving as the data model
+//! User interfaces in pixel-widgets are all defined by implementing a [`Model`](trait.Model.html), serving as the data model
 //! for your user interface. The model then has to implement some methods:
-//! - [`view`](trait.Model.html#tymethod.view) - for generating a tree of ui elements. These are retained for as long as
-//! the model is not mutated. Ui elements generate _messages_ when they are interacted with, which leads us to the next
+//! - [`view`](trait.Model.html#tymethod.view) - for generating a tree of ui widgets. These are retained for as long as
+//! the model is not mutated. Ui widgets generate _messages_ when they are interacted with, which leads us to the next
 //! method:
 //! - [`update`](trait.Model.html#tymethod.update) - modifies the model based on a message that was generated
 //! by the view
@@ -22,9 +22,9 @@
 //! Other ways of updating the ui, such as futures and subscriptions will be be coming in the future.
 //!
 //! # Quick start
-//! Setting up a ui with maple is easy. You start with defining a model.
+//! Setting up a ui with pixel-widgets is easy. You start with defining a model.
 //! ```
-//! use maple::prelude::*;
+//! use pixel_widgets::prelude::*;
 //!
 //! pub struct Counter {
 //!     // a state manager, used for remembering the state of our buttons
@@ -44,7 +44,7 @@
 //!
 //! And finally, we must implement [`Model`](trait.Model.html) on our state
 //! ```
-//! use maple::prelude::*;
+//! use pixel_widgets::prelude::*;
 //!
 //! pub struct Counter {
 //!     state: ManagedState<String>,
@@ -83,9 +83,9 @@
 //!     }
 //! }
 //!
-//! // Now that we have a model that can be used with maple, we can put it in a `Ui` in
+//! // Now that we have a model that can be used with pixel-widgets, we can put it in a `Ui` in
 //! // order to actually use it.
-//! // `Ui` is the entry point for maple, the user is responsible for driving it.
+//! // `Ui` is the entry point for pixel-widgets, the user is responsible for driving it.
 //! fn main() {
 //!     let mut ui = Ui::new(
 //!         Counter {
@@ -96,7 +96,7 @@
 //!     );
 //!
 //!     // your window management system should call some methods:
-//!     ui.event(maple::event::Event::Cursor(0.0, 0.0));
+//!     ui.event(pixel_widgets::event::Event::Cursor(0.0, 0.0));
 //!
 //!     // and finally you have to obtain a `DrawList` and pass it to your renderer.
 //!     let draw_list = ui.draw();
@@ -110,7 +110,7 @@ use std::ops::{Deref, DerefMut};
 
 use draw::DrawList;
 
-use crate::element::{Context, Node};
+use crate::widget::{Context, Node};
 use crate::event::Event;
 use crate::layout::Rectangle;
 use crate::model_view::ModelView;
@@ -121,8 +121,8 @@ pub mod backend;
 mod cache;
 /// Primitives used for drawing
 pub mod draw;
-/// User interface elements
-pub mod element;
+/// User interface widgets
+pub mod widget;
 /// User input events
 pub mod event;
 /// Primitives used for layouts
@@ -151,8 +151,8 @@ pub trait Model: 'static {
     fn update(&mut self, message: Self::Message);
 
     /// Called after [`update`](#tymethod.update) or after the model has been accessed mutably from the [`Ui`](struct.Ui.html).
-    /// This is where you should build all of your ui elements based on the current gui state.
-    /// The returned ui elements produce messages of the type `Self::Message`.
+    /// This is where you should build all of your ui widgets based on the current gui state.
+    /// The returned ui widgets produce messages of the type `Self::Message`.
     fn view(&mut self) -> Node<Self::Message>;
 }
 
@@ -171,7 +171,7 @@ pub trait Loader: Send + Sync {
     fn load(&self, url: impl AsRef<str>) -> Self::Load;
 }
 
-/// Entry point for maple.
+/// Entry point for pixel-widgets.
 ///
 /// `Ui` manages a [`Model`](trait.Model.html) and processes it to a [`DrawList`](draw/struct.DrawList.html) that can be rendered using your
 ///  own renderer implementation. Alternatively, you can use one of the following included wrappers:
@@ -605,7 +605,7 @@ impl Loader for std::path::PathBuf {
 pub mod prelude {
     pub use crate::{
         backend::{wgpu::WgpuUi, winit::convert_event},
-        element::*,
+        widget::*,
         layout::Rectangle,
         stylesheet::Style,
         tracker::ManagedState,

@@ -1,4 +1,4 @@
-Maple is a user interface library focused on use for games. It's architecture is inspired by elm, since it's very
+pixel-widgets is a user interface library focused on use for games. It's architecture is inspired by elm, since it's very
 fitting for rusts mutability patterns.
 
 # Features
@@ -6,15 +6,15 @@ fitting for rusts mutability patterns.
 - Render agnostic rendering
 - [wgpu](https://github.com/gfx-rs/wgpu-rs) based renderer included
 - Styling using [stylesheets](stylesheet/index.html)
-- Built in [widgets](element/index.html)
+- Built in [widgets](widget/index.html)
 
-Check out the [examples](https://github.com/Kurble/maple/tree/master/examples) to get started quickly.
+Check out the [examples](https://github.com/Kurble/pixel-widgets/tree/master/examples) to get started quickly.
 
 # Overview
-User interfaces in maple are all defined by implementing a [`Model`](trait.Model.html), serving as the data model
+User interfaces in pixel-widgets are all defined by implementing a [`Model`](trait.Model.html), serving as the data model
 for your user interface. The model then has to implement some methods:
-- [`view`](trait.Model.html#tymethod.view) - for generating a tree of ui elements. These are retained for as long as
-the model is not mutated. Ui elements generate _messages_ when they are interacted with, which leads us to the next
+- [`view`](trait.Model.html#tymethod.view) - for generating a tree of ui widgets. These are retained for as long as
+the model is not mutated. Ui widgets generate _messages_ when they are interacted with, which leads us to the next
 method:
 - [`update`](trait.Model.html#tymethod.update) - modifies the model based on a message that was generated
 by the view
@@ -22,9 +22,9 @@ by the view
 Other ways of updating the ui, such as futures and subscriptions will be be coming in the future.
 
 # Quick start
-Setting up a ui with maple is easy. You start with defining a model.
+Setting up a ui with pixel-widgets is easy. You start with defining a model.
 ```
-use maple::prelude::*;
+use pixel-widgets::prelude::*;
 
 pub struct Counter {
     // a state manager, used for remembering the state of our buttons
@@ -44,7 +44,7 @@ pub enum Message {
 
 And finally, we must implement [`Model`](trait.Model.html) on our state
 ```
-use maple::prelude::*;
+use pixel-widgets::prelude::*;
 
 pub struct Counter {
    state: ManagedState<String>,
@@ -83,9 +83,9 @@ impl Model for Counter {
     }
 }
 
-// Now that we have a model that can be used with maple, we can put it in a `Ui` in
+// Now that we have a model that can be used with pixel-widgets, we can put it in a `Ui` in
 // order to actually use it.
-// `Ui` is the entry point for maple, the user is responsible for driving it.
+// `Ui` is the entry point for pixel-widgets, the user is responsible for driving it.
 fn main() {
     let mut ui = Ui::new(
         Counter {
@@ -96,7 +96,7 @@ fn main() {
     );
 
     // your window management system should call some methods:
-    ui.event(maple::event::Event::Cursor(0.0, 0.0));
+    ui.event(pixel-widgets::event::Event::Cursor(0.0, 0.0));
 
     // and finally you have to obtain a `DrawList` and pass it to your renderer.
     let draw_list = ui.draw();

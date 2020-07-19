@@ -46,15 +46,15 @@ async fn parse_selector<I: Iterator<Item = Token>, L: Loader>(
     c: &mut LoadContext<'_, I, L>,
 ) -> Result<Selector, Error<L::Error>> {
     let mut selector = Selector {
-        elements: vec![],
+        widgets: vec![],
         classes: vec![],
         rules: vec![],
     };
 
     loop {
         match c.tokens.next() {
-            Some(Token(TokenValue::Identifier(element), _)) => {
-                selector.elements.push(element);
+            Some(Token(TokenValue::Identifier(widget), _)) => {
+                selector.widgets.push(widget);
             }
             Some(Token(TokenValue::Class(class), _)) => {
                 selector.classes.push(class);
