@@ -3,6 +3,13 @@ name = "maple"
 version = "0.1.0"
 authors = ["Bram Buurlage <brambuurlage@gmail.com>"]
 edition = "2018"
+readme = "README.md"
+description = "Elm inspired UI toolkit for games"
+license = "MIT"
+repository = "https://github.com/Kurble/maple"
+documentation = "https://docs.rs/maple"
+keywords = ["gui", "ui", "wgpu", "interface", "graphics", "widgets"]
+categories = ["gui"]
 
 [dependencies]
 rusttype = { version = "0.9.2", features = ["gpu_cache"] }
