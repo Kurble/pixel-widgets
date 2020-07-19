@@ -23,8 +23,8 @@ Other ways of updating the ui, such as futures and subscriptions will be be comi
 
 # Quick start
 Setting up a ui with pixel-widgets is easy. You start with defining a model.
-```
-use pixel-widgets::prelude::*;
+```rust
+use pixel_widgets::prelude::*;
 
 pub struct Counter {
     // a state manager, used for remembering the state of our buttons
@@ -35,7 +35,7 @@ pub struct Counter {
 ```
 
 Then, we have to define a message type. The message type should be able to tell us what happend in the ui.
-```
+```rust
 pub enum Message {
    UpClicked,
    DownClicked,
@@ -43,8 +43,8 @@ pub enum Message {
 ```
 
 And finally, we must implement [`Model`](trait.Model.html) on our state
-```
-use pixel-widgets::prelude::*;
+```rust
+use pixel_widgets::prelude::*;
 
 pub struct Counter {
    state: ManagedState<String>,
