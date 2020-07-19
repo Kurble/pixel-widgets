@@ -140,5 +140,5 @@ fn main() {
             Space.into_node()
         }
     }
-    run_model(Dummy, "tour.mss");
+    run_model(Dummy, "tour.pwss");
 }

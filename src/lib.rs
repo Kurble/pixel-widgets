@@ -201,7 +201,7 @@ impl<I: Model> Ui<I> {
     }
 
     /// Constructs a new `Ui` asynchronously by first fetching a stylesheet from a
-    /// [.mss](stylesheet/index.html) data source.
+    /// [.pwss](stylesheet/index.html) data source.
     pub async fn with_stylesheet<L: Loader, U: AsRef<str>>(
         model: I,
         loader: L,

@@ -42,6 +42,6 @@ fn main() {
             value: 0,
             state: ManagedState::default(),
         },
-        "counter.mss",
+        "counter.pwss",
     );
 }

@@ -91,6 +91,6 @@ fn main() {
             password: String::new(),
             state: ManagedState::default(),
         },
-        "tour.mss",
+        "tour.pwss",
     );
 }

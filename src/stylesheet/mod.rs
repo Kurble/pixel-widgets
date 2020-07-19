@@ -1,6 +1,6 @@
 //!
 //! Style in pixel-widgets is defined using stylesheets. These stylesheets are loaded from a file, with a format that is a
-//! syntactically a subset of css. The stylesheets are called `mss` - *m*aple *s*tyle*s*heets.
+//! syntactically a subset of css. The stylesheets are called `pwss` - *p*ixel-*w*idgets *s*tyle*s*heets.
 //! # Features
 //! - Select widgets by widget type and descendant type
 //! - Select widgets by class and descendant class
@@ -27,7 +27,7 @@
 //! directory and see for yourself what the effect is.
 //!
 //! # Syntax
-//! Each mss file contains a collection of _selectors_. Selectors are a group of _rules_ that are applied to _selected_
+//! Each pwss file contains a collection of _selectors_. Selectors are a group of _rules_ that are applied to _selected_
 //! widgets.
 //!
 //! ## Selectors
@@ -113,7 +113,7 @@ pub enum Error<E: std::error::Error> {
     Io(E),
 }
 
-/// A style loaded from a `.mss` file.
+/// A style loaded from a `.pwss` file.
 pub struct Style {
     resolved: HashMap<Query<'static>, Rc<Stylesheet>>,
     default: Rc<Stylesheet>,
@@ -265,8 +265,8 @@ impl Style {
         }
     }
 
-    /// Asynchronously load a stylesheet from a .mss file. See the [module documentation](index.html) on how to write
-    /// .mss files.
+    /// Asynchronously load a stylesheet from a .pwss file. See the [module documentation](index.html) on how to write
+    /// .pwss files.
     pub async fn load<L: Loader, U: AsRef<str>>(
         loader: &L,
         url: U,

@@ -1,5 +1,10 @@
-pixel-widgets is a user interface library focused on use for games. It's architecture is inspired by elm, since it's very
-fitting for rusts mutability patterns.
+# Pixel-widgets
+[![Documentation](https://docs.rs/pixel-widgets/badge.svg)](https://docs.rs/pixel-widgets)
+[![Crates.io](https://img.shields.io/crates/v/pixel-widgets.svg)](https://crates.io/crates/pixel-widgets)
+![License](https://img.shields.io/crates/l/pixel-widgets.svg)
+
+pixel-widgets is a user interface library focused on use for games. It's architecture is inspired by elm, 
+since it's very fitting for rust mutability patterns.
 
 # Features
 - Very compact and easy API
@@ -96,7 +101,7 @@ fn main() {
     );
 
     // your window management system should call some methods:
-    ui.event(pixel-widgets::event::Event::Cursor(0.0, 0.0));
+    ui.event(pixel_widgets::event::Event::Cursor(0.0, 0.0));
 
     // and finally you have to obtain a `DrawList` and pass it to your renderer.
     let draw_list = ui.draw();
