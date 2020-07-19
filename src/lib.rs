@@ -158,9 +158,8 @@ pub trait Model: 'static {
 
 /// A way to load URLs from a data source.
 ///
-/// Two implementations are included:
+/// Included implementations:
 /// - `PathBuf`, loads data from disk using the `PathBuf` as working directory.
-/// - `Url`, loads data over HTTP using reqwest using the `Url` as base.
 pub trait Loader: Send + Sync {
     /// A future returned when calling `load`.
     type Load: Future<Output = Result<Vec<u8>, Self::Error>> + Send + Sync;
@@ -176,7 +175,6 @@ pub trait Loader: Send + Sync {
 /// `Ui` manages a [`Model`](trait.Model.html) and processes it to a [`DrawList`](draw/struct.DrawList.html) that can be rendered using your
 ///  own renderer implementation. Alternatively, you can use one of the following included wrappers:
 /// - [`WgpuUi`](backend/wgpu/struct.WgpuUi.html) Renders using [wgpu-rs](https://github.com/gfx-rs/wgpu-rs).
-/// - [`GlowUi`](backend/glow/struct.GlowUi.html) Renders using [glow](https://github.com/grovesNL/glow).
 pub struct Ui<I: Model> {
     model_view: ModelView<I>,
     style: Style,
