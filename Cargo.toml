@@ -11,12 +11,20 @@ documentation = "https://docs.rs/pixel-widgets"
 keywords = ["gui", "ui", "wgpu", "interface", "widgets"]
 categories = ["gui"]
 
+[features]
+default = ["clipboard", "winit", "wgpu"]
+
 [dependencies]
 rusttype = { version = "0.9.2", features = ["gpu_cache"] }
 image = "0.23.6"
 smallvec = "1.4.0"
-wgpu = "0.5.0"
+wgpu = { version = "0.5.0", optional = true }
 zerocopy = "0.3.0"
 futures = "0.3"
-winit = "0.22.2"
-clipboard = "0.4.4"
+winit = { version = "0.22.2", optional = true }
+clipboard = { version = "0.5", optional = true }
+
+[package.metadata.docs.rs]
+# NOTE: clipboard feature is causing build failures
+no-default-features = true
+features = ["wgpu", "winit"]

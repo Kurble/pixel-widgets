@@ -3,6 +3,7 @@ use crate::event::{Event, Key, Modifiers};
 use winit::event::{DeviceEvent, ElementState, KeyboardInput, MouseButton, MouseScrollDelta, WindowEvent};
 
 /// Converts a winit event to a pixel-widgets event, if such a conversion is available.
+/// Requires the "winit" feature.
 pub fn convert_event<T>(ev: winit::event::Event<T>) -> Option<Event> {
     match ev {
         winit::event::Event::WindowEvent { event, .. } => match event {

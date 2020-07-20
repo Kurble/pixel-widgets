@@ -12,6 +12,7 @@ use crate::stylesheet;
 use crate::{Loader, Model, Ui};
 
 /// Wrapper for [`Ui`](../../struct.Ui.html) that adds wgpu rendering.
+/// Requires the "wgpu" feature.
 pub struct WgpuUi<I: Model> {
     inner: Ui<I>,
     pipeline: RenderPipeline,

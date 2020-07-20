@@ -4,6 +4,7 @@ use crate::event::{Event, Key, Modifiers};
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
 use crate::text::{Text, TextWrap};
+#[cfg(feature = "clipboard")]
 use clipboard::{ClipboardContext, ClipboardProvider};
 use rusttype::Scale;
 use std::borrow::Cow;
@@ -203,7 +204,7 @@ impl<'a, T: 'a, F: 'a + Fn(String) -> T> Widget<'a, T> for Input<'a, T, F> {
             }
 
             event => {
-                if let InnerState::Focused(from, to, since) = self.state.inner {
+                if let InnerState::Focused(from, to, _) = self.state.inner {
                     match event {
                         Event::Text(c) => match c {
                             '\x08' => {
@@ -267,6 +268,7 @@ impl<'a, T: 'a, F: 'a + Fn(String) -> T> Widget<'a, T> for Input<'a, T, F> {
                             }
                         }
 
+                        #[cfg(feature = "clipboard")]
                         Event::Press(Key::C) => {
                             if self.state.modifiers.ctrl {
                                 let (a, b) = (from.min(to), from.max(to));
@@ -278,6 +280,7 @@ impl<'a, T: 'a, F: 'a + Fn(String) -> T> Widget<'a, T> for Input<'a, T, F> {
                             }
                         }
 
+                        #[cfg(feature = "clipboard")]
                         Event::Press(Key::X) => {
                             if self.state.modifiers.ctrl {
                                 context.redraw();
@@ -296,11 +299,12 @@ impl<'a, T: 'a, F: 'a + Fn(String) -> T> Widget<'a, T> for Input<'a, T, F> {
                                 } else if tail.len() > 0 {
                                     self.state.buffer.push_str(tail.split_at(codepoint(&tail, 1)).1);
                                 }
-                                self.state.inner = InnerState::Focused(from, from, since);
+                                self.state.inner = InnerState::Focused(from, from, Instant::now());
                                 context.push((self.on_change)(self.state.buffer.clone()));
                             }
                         }
 
+                        #[cfg(feature = "clipboard")]
                         Event::Press(Key::V) => {
                             if self.state.modifiers.ctrl {
                                 context.redraw();
