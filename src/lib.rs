@@ -602,7 +602,6 @@ impl Loader for std::path::PathBuf {
 /// prelude module for convenience
 pub mod prelude {
     pub use crate::{
-        backend::{wgpu::WgpuUi, winit::convert_event},
         widget::*,
         layout::Rectangle,
         stylesheet::Style,

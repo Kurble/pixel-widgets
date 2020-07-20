@@ -9,12 +9,12 @@ use crate::draw::{Command, DrawList, Update, Vertex};
 use crate::event::Event;
 use crate::layout::Rectangle;
 use crate::stylesheet;
-use crate::{Loader, Model, Ui};
+use crate::{Loader, Model};
 
 /// Wrapper for [`Ui`](../../struct.Ui.html) that adds wgpu rendering.
 /// Requires the "wgpu" feature.
-pub struct WgpuUi<I: Model> {
-    inner: Ui<I>,
+pub struct Ui<M: Model> {
+    inner: crate::Ui<M>,
     pipeline: RenderPipeline,
     bind_group_layout: BindGroupLayout,
     sampler: Sampler,
@@ -28,17 +28,17 @@ struct TextureEntry {
     bind_group: BindGroup,
 }
 
-impl<I: Model> WgpuUi<I> {
-    /// Constructs a new `WgpuUi` using the default style.
+impl<M: Model> Ui<M> {
+    /// Constructs a new `Ui` using the default style.
     /// This is not recommended as the default style is very empty and only renders white text.
-    pub fn new(model: I, viewport: Rectangle, format: wgpu::TextureFormat, device: &Device) -> Self {
-        Self::new_inner(Ui::new(model, viewport), format, device)
+    pub fn new(model: M, viewport: Rectangle, format: wgpu::TextureFormat, device: &Device) -> Self {
+        Self::new_inner(crate::Ui::new(model, viewport), format, device)
     }
 
-    /// Constructs a new `WgpuUi` asynchronously by first fetching a stylesheet from a
+    /// Constructs a new `Ui` asynchronously by first fetching a stylesheet from a
     /// [.pwss](../../stylesheet/index.html) data source.
     pub async fn with_stylesheet<L: Loader, U: AsRef<str>>(
-        model: I,
+        model: M,
         loader: L,
         url: U,
         viewport: Rectangle,
@@ -46,13 +46,13 @@ impl<I: Model> WgpuUi<I> {
         device: &Device,
     ) -> Result<Self, stylesheet::Error<L::Error>> {
         Ok(Self::new_inner(
-            Ui::with_stylesheet(model, loader, url, viewport).await?,
+            crate::Ui::with_stylesheet(model, loader, url, viewport).await?,
             format,
             device,
         ))
     }
 
-    fn new_inner(inner: Ui<I>, format: wgpu::TextureFormat, device: &Device) -> Self {
+    fn new_inner(inner: crate::Ui<M>, format: wgpu::TextureFormat, device: &Device) -> Self {
         let vs_module = device.create_shader_module(
             wgpu::read_spirv(std::io::Cursor::new(&include_bytes!("wgpu_shader.vert.spv")[..]))
                 .expect("unable to load shader module")
@@ -178,7 +178,7 @@ impl<I: Model> WgpuUi<I> {
 
     /// Updates the model with a message.
     /// This forces the view to be rerendered.
-    pub fn update(&mut self, message: I::Message) {
+    pub fn update(&mut self, message: M::Message) {
         self.inner.update(message);
     }
 
@@ -358,15 +358,15 @@ impl<I: Model> WgpuUi<I> {
     }
 }
 
-impl<I: Model> Deref for WgpuUi<I> {
-    type Target = I;
+impl<M: Model> Deref for Ui<M> {
+    type Target = M;
 
     fn deref(&self) -> &Self::Target {
         self.inner.deref()
     }
 }
 
-impl<I: Model> DerefMut for WgpuUi<I> {
+impl<M: Model> DerefMut for Ui<M> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.inner.deref_mut()
     }

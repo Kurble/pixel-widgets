@@ -46,7 +46,7 @@ async fn run<T: 'static + Model>(
 
     let mut viewport = Rectangle::from_wh(size.width as f32, size.height as f32);
 
-    let mut ui = match WgpuUi::with_stylesheet(
+    let mut ui = match pixel_widgets::backend::wgpu::Ui::with_stylesheet(
         model,
         std::path::PathBuf::from("./examples/"),
         stylesheet,
@@ -108,7 +108,7 @@ async fn run<T: 'static + Model>(
                 ..
             } => *control_flow = ControlFlow::Exit,
             other => {
-                if let Some(event) = convert_event(other) {
+                if let Some(event) = pixel_widgets::backend::winit::convert_event(other) {
                     ui.event(event);
                 }
             }
