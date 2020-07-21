@@ -134,8 +134,7 @@ impl<'a, T: 'a> Widget<'a, T> for Button<'a, T> {
     fn draw(&mut self, layout: Rectangle, clip: Rectangle, stylesheet: &Stylesheet) -> Vec<Primitive<'a>> {
         let content_rect = stylesheet
             .background
-            .content_rect(layout)
-            .after_padding(stylesheet.padding);
+            .content_rect(layout, stylesheet.padding);
 
         let background = match self.state {
             State::Idle => &stylesheet.background,

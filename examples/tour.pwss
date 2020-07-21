@@ -72,4 +72,5 @@ dropdown {
     pressed: #002
     color: #00f8
     width: fill(1)
+    padding: 8
 }

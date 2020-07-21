@@ -68,28 +68,24 @@ impl<'a, T: 'a> Widget<'a, T> for Dropdown<'a, T> {
     }
 
     fn size(&self, style: &Stylesheet) -> (Size, Size) {
-        let padding = style.background.padding();
-
         let width = match style.width {
-            Size::Shrink => Size::Exact(
-                padding.left
-                    + padding.right
-                    + self.items.iter().fold(0.0f32, |size, item| match item.node.size().0 {
-                        Size::Exact(item_size) => size.max(item_size),
-                        _ => size,
-                    }),
-            ),
+            Size::Shrink => {
+                let width = self.items.iter().fold(0.0f32, |size, item| match item.node.size().0 {
+                    Size::Exact(item_size) => size.max(item_size),
+                    _ => size,
+                });
+                Size::Exact(style.background.layout_rect(Rectangle::from_wh(width, 0.0), style.padding).width())
+            },
             other => other,
         };
         let height = match style.height {
-            Size::Shrink => Size::Exact(
-                padding.top
-                    + padding.bottom
-                    + self.items.iter().fold(0.0f32, |size, item| match item.node.size().1 {
-                        Size::Exact(item_size) => size.max(item_size),
-                        _ => size,
-                    }),
-            ),
+            Size::Shrink => {
+                let height = self.items.iter().fold(0.0f32, |size, item| match item.node.size().1 {
+                    Size::Exact(item_size) => size.max(item_size),
+                    _ => size,
+                });
+                Size::Exact(style.background.layout_rect(Rectangle::from_wh(0.0, height), style.padding).height())
+            },
             other => other,
         };
         (width, height)
@@ -197,7 +193,7 @@ impl<'a, T: 'a> Widget<'a, T> for Dropdown<'a, T> {
     }
 
     fn draw(&mut self, layout: Rectangle, clip: Rectangle, style: &Stylesheet) -> Vec<Primitive<'a>> {
-        let content = style.background.content_rect(layout);
+        let content = style.background.content_rect(layout, style.padding);
         let focused = self.focused();
 
         let mut result = Vec::new();

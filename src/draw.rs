@@ -354,11 +354,24 @@ impl Patch {
 }
 
 impl Background {
-    /// Content rect for a given size
-    pub fn content_rect(&self, span: Rectangle) -> Rectangle {
+    /// Content rect for a given size and padding
+    pub fn content_rect(&self, layout: Rectangle, padding: Rectangle) -> Rectangle {
         match self {
-            &Background::Patch(ref patch, _) => patch.content_rect(span),
-            &_ => span,
+            &Background::Patch(ref patch, _) => patch.content_rect(layout).after_padding(padding),
+            &_ => layout.after_padding(padding),
+        }
+    }
+
+    /// Layout rect for a given content size and padding.
+    /// This is the inverse of [`content_rect`](#method.content_rect)
+    pub fn layout_rect(&self, content_rect: Rectangle, padding: Rectangle) -> Rectangle {
+        match self {
+            &Background::Patch(ref patch, _) => {
+                patch.measure_with_content(content_rect.after_margin(padding))
+            }
+            &_ => {
+                content_rect.after_margin(padding)
+            }
         }
     }
 

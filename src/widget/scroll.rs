@@ -38,7 +38,7 @@ impl<'a, T: 'a> Scroll<'a, T> {
     }
 
     fn scrollbars(&self, layout: Rectangle, content: Rectangle, style: &Stylesheet) -> (Rectangle, Rectangle) {
-        let content_rect = style.background.content_rect(layout).after_padding(style.padding);
+        let content_rect = style.background.content_rect(layout, style.padding);
 
         let vertical_rect = {
             let mut bar = Rectangle {
@@ -121,7 +121,7 @@ impl<'a, T: 'a> Widget<'a, T> for Scroll<'a, T> {
         event: Event,
         context: &mut Context<T>,
     ) {
-        let content_rect = style.background.content_rect(layout).after_padding(style.padding);
+        let content_rect = style.background.content_rect(layout, style.padding);
         let content_layout = self.content_layout(&content_rect);
         let (vbar, hbar) = self.scrollbars(layout, content_layout, style);
 
@@ -211,7 +211,7 @@ impl<'a, T: 'a> Widget<'a, T> for Scroll<'a, T> {
     }
 
     fn draw(&mut self, layout: Rectangle, clip: Rectangle, style: &Stylesheet) -> Vec<Primitive<'a>> {
-        let content_rect = style.background.content_rect(layout).after_padding(style.padding);
+        let content_rect = style.background.content_rect(layout, style.padding);
         let content_layout = self.content_layout(&content_rect);
         let (vbar, hbar) = self.scrollbars(layout, content_layout, style);
 
