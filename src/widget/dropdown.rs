@@ -69,26 +69,21 @@ impl<'a, T: 'a> Widget<'a, T> for Dropdown<'a, T> {
 
     fn size(&self, style: &Stylesheet) -> (Size, Size) {
         let width = match style.width {
-            Size::Shrink => {
-                let width = self.items.iter().fold(0.0f32, |size, item| match item.node.size().0 {
-                    Size::Exact(item_size) => size.max(item_size),
-                    _ => size,
-                });
-                Size::Exact(style.background.layout_rect(Rectangle::from_wh(width, 0.0), style.padding).width())
-            },
+            Size::Shrink => Size::Exact(self.items.iter().fold(0.0f32, |size, item| match item.node.size().0 {
+                Size::Exact(item_size) => size.max(item_size),
+                _ => size,
+            })),
             other => other,
         };
         let height = match style.height {
-            Size::Shrink => {
-                let height = self.items.iter().fold(0.0f32, |size, item| match item.node.size().1 {
-                    Size::Exact(item_size) => size.max(item_size),
-                    _ => size,
-                });
-                Size::Exact(style.background.layout_rect(Rectangle::from_wh(0.0, height), style.padding).height())
-            },
+            Size::Shrink => Size::Exact(self.items.iter().fold(0.0f32, |size, item| match item.node.size().1 {
+                Size::Exact(item_size) => size.max(item_size),
+                _ => size,
+            })),
             other => other,
         };
-        (width, height)
+
+        style.background.resolve_size((style.width, style.height), (width, height), style.padding)
     }
 
     fn hit(&self, layout: Rectangle, clip: Rectangle, _: &Stylesheet, x: f32, y: f32) -> bool {

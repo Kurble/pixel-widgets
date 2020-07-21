@@ -48,30 +48,8 @@ impl<'a, T: 'a> Widget<'a, T> for Button<'a, T> {
         visitor(&mut self.content);
     }
 
-    fn size(&self, stylesheet: &Stylesheet) -> (Size, Size) {
-        let (content_width, content_height) = self.content.size();
-
-        let padding = stylesheet.background.padding();
-        let padding = Rectangle {
-            left: padding.left + stylesheet.padding.left,
-            right: padding.right + stylesheet.padding.right,
-            top: padding.top + stylesheet.padding.top,
-            bottom: padding.bottom + stylesheet.padding.bottom,
-        };
-
-        let resolve = |size, content_size, padding| match size {
-            Size::Shrink => match content_size {
-                Size::Fill(_) => Size::Shrink,
-                Size::Exact(units) => Size::Exact(units + padding),
-                Size::Shrink => Size::Shrink,
-            },
-            other => other,
-        };
-
-        (
-            resolve(stylesheet.width, content_width, padding.left + padding.right),
-            resolve(stylesheet.height, content_height, padding.top + padding.bottom),
-        )
+    fn size(&self, style: &Stylesheet) -> (Size, Size) {
+        style.background.resolve_size((style.width, style.height), self.content.size(), style.padding)
     }
 
     fn event(&mut self, layout: Rectangle, clip: Rectangle, _: &Stylesheet, event: Event, context: &mut Context<T>) {
@@ -131,16 +109,16 @@ impl<'a, T: 'a> Widget<'a, T> for Button<'a, T> {
         }
     }
 
-    fn draw(&mut self, layout: Rectangle, clip: Rectangle, stylesheet: &Stylesheet) -> Vec<Primitive<'a>> {
-        let content_rect = stylesheet
+    fn draw(&mut self, layout: Rectangle, clip: Rectangle, style: &Stylesheet) -> Vec<Primitive<'a>> {
+        let content_rect = style
             .background
-            .content_rect(layout, stylesheet.padding);
+            .content_rect(layout, style.padding);
 
         let background = match self.state {
-            State::Idle => &stylesheet.background,
-            State::Hover => &stylesheet.hover,
-            State::Pressed => &stylesheet.pressed,
-            State::Disabled => &stylesheet.disabled,
+            State::Idle => &style.background,
+            State::Hover => &style.hover,
+            State::Pressed => &style.pressed,
+            State::Disabled => &style.disabled,
         };
 
         background

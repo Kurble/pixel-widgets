@@ -1,4 +1,4 @@
-use crate::layout::Rectangle;
+use crate::layout::{Rectangle, Size};
 use crate::text::Text;
 use smallvec::SmallVec;
 use zerocopy::AsBytes;
@@ -372,6 +372,31 @@ impl Background {
             &_ => {
                 content_rect.after_margin(padding)
             }
+        }
+    }
+
+    /// Resolve the size of a widget when taking this background and padding into account
+    pub fn resolve_size(&self, widget: (Size, Size), content: (Size, Size), padding: Rectangle) -> (Size, Size) {
+        let (width, height) = match (widget, content) {
+            ((Size::Shrink, Size::Shrink), (Size::Exact(width), Size::Exact(height))) => {
+                let rect = self.layout_rect(Rectangle::from_wh(width, height), padding);
+                (Size::Exact(rect.width()), Size::Exact(rect.height()))
+            }
+            ((Size::Shrink, other), (Size::Exact(width), _)) => {
+                let rect = self.layout_rect(Rectangle::from_wh(width, 0.0), padding);
+                (Size::Exact(rect.width()), other)
+            }
+            ((other, Size::Shrink), (_, Size::Exact(height))) => {
+                let rect = self.layout_rect(Rectangle::from_wh(0.0, height), padding);
+                (other, Size::Exact(rect.height()))
+            }
+            (other, _) => other
+        };
+        match (width, height) {
+            (Size::Shrink, Size::Shrink) => (Size::Exact(0.0), Size::Exact(0.0)),
+            (Size::Shrink, other) => (Size::Exact(0.0), other),
+            (other, Size::Shrink) => (other, Size::Exact(0.0)),
+            other => other,
         }
     }
 

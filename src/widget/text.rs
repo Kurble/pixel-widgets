@@ -1,9 +1,9 @@
 use crate::draw::Primitive;
-use crate::widget::*;
 use crate::event::Event;
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
 use crate::text;
+use crate::widget::*;
 use std::borrow::Cow;
 
 /// Widget that renders a paragraph of text.
@@ -35,7 +35,7 @@ impl<'a, T> Widget<'a, T> for Text {
             wrap: style.text_wrap.clone(),
             color: style.color.clone(),
         };
-        match (width, height) {
+        let content = match (width, height) {
             (Size::Shrink, Size::Shrink) => {
                 let measured = text.measure(None);
                 (Size::Exact(measured.width()), Size::Exact(measured.height()))
@@ -49,13 +49,18 @@ impl<'a, T> Widget<'a, T> for Text {
                 (Size::Exact(size), Size::Exact(measured.height()))
             }
             (width, height) => (width, height),
-        }
+        };
+        style
+            .background
+            .resolve_size((style.width, style.height), content, style.padding)
     }
 
     fn event(&mut self, _: Rectangle, _: Rectangle, _: &Stylesheet, _: Event, _: &mut Context<T>) {}
 
     fn draw(&mut self, layout: Rectangle, _: Rectangle, style: &Stylesheet) -> Vec<Primitive<'a>> {
-        vec![Primitive::DrawText(
+        let mut result = Vec::new();
+        result.extend(style.background.render(layout));
+        result.push(Primitive::DrawText(
             text::Text {
                 text: Cow::Owned(self.text.clone()),
                 font: style.font.clone(),
@@ -63,8 +68,9 @@ impl<'a, T> Widget<'a, T> for Text {
                 wrap: style.text_wrap.clone(),
                 color: style.color.clone(),
             },
-            layout,
-        )]
+            style.background.content_rect(layout, style.padding),
+        ));
+        result
     }
 }
 

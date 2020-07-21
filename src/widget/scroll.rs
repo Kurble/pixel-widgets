@@ -106,7 +106,7 @@ impl<'a, T: 'a> Widget<'a, T> for Scroll<'a, T> {
     }
 
     fn size(&self, style: &Stylesheet) -> (Size, Size) {
-        (style.width, style.height)
+        style.background.resolve_size((style.width, style.height), self.content.size(), style.padding)
     }
 
     fn focused(&self) -> bool {

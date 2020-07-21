@@ -35,10 +35,11 @@ impl<'a, T: 'a> Column<'a, T> {
     fn layout(
         &mut self,
         layout: Rectangle,
-        stylesheet: &Stylesheet,
+        style: &Stylesheet,
     ) -> impl Iterator<Item = (&mut Node<'a, T>, Rectangle)> {
+        let layout = style.background.content_rect(layout, style.padding);
         if self.layout.len() != self.children.len() {
-            let align = stylesheet.align_horizontal;
+            let align = style.align_horizontal;
             let available_parts = self.children.iter().map(|c| c.size().1.parts()).sum();
             let available_space = layout.height() - self.children.iter().map(|c| c.size().1.min_size()).sum::<f32>();
             let mut cursor = 0.0;
@@ -76,22 +77,23 @@ impl<'a, T: 'a> Widget<'a, T> for Column<'a, T> {
         self.children.iter_mut().for_each(|child| visitor(child));
     }
 
-    fn size(&self, stylesheet: &Stylesheet) -> (Size, Size) {
-        let width = match stylesheet.width {
+    fn size(&self, style: &Stylesheet) -> (Size, Size) {
+        let width = match style.width {
             Size::Shrink => Size::Exact(self.children.iter().fold(0.0, |size, child| match child.size().0 {
                 Size::Exact(child_size) => size.max(child_size),
                 _ => size,
             })),
             other => other,
         };
-        let height = match stylesheet.height {
+        let height = match style.height {
             Size::Shrink => Size::Exact(self.children.iter().fold(0.0, |size, child| match child.size().1 {
                 Size::Exact(child_size) => size + child_size,
                 _ => size,
             })),
             other => other,
         };
-        (width, height)
+
+        style.background.resolve_size((style.width, style.height), (width, height), style.padding)
     }
 
     fn focused(&self) -> bool {
@@ -121,6 +123,8 @@ impl<'a, T: 'a> Widget<'a, T> for Column<'a, T> {
 
     fn draw(&mut self, layout: Rectangle, clip: Rectangle, stylesheet: &Stylesheet) -> Vec<Primitive<'a>> {
         let mut result = Vec::new();
+
+        result.extend(stylesheet.background.render(layout));
 
         result = self
             .layout(layout, stylesheet)

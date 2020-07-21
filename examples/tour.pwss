@@ -19,7 +19,6 @@ button {
     pressed: #222
     disabled: #868
     padding: (left: 20.0 right: 20.0 top: 5.0 bottom: 5.0)
-    text-size: 24.0
 }
 
 button text {
@@ -47,14 +46,18 @@ window space .close {
 
 row {
     width: fill(1)
+    background: #0208
+    padding: 2
 }
 
 row .title {
     width: 300
+    padding: 2
 }
 
 column {
     width: fill(1)
+    padding: 2
 }
 
 space {
