@@ -94,6 +94,10 @@ impl<'a, T: 'a> Widget<'a, T> for Column<'a, T> {
         (width, height)
     }
 
+    fn focused(&self) -> bool {
+        self.children.iter().fold(false, |focused, child| focused || child.focused())
+    }
+
     fn event(
         &mut self,
         layout: Rectangle,
@@ -102,9 +106,15 @@ impl<'a, T: 'a> Widget<'a, T> for Column<'a, T> {
         event: Event,
         context: &mut Context<T>,
     ) {
-        for (child, layout) in self.layout(layout, stylesheet) {
-            if let Some(clip) = clip.intersect(&layout) {
+        let focused = self.children.iter().position(|child| child.focused());
+
+        for (index, (child, layout)) in self.layout(layout, stylesheet).enumerate() {
+            if Some(index) == focused {
                 child.event(layout, clip, event, context);
+            } else if focused.is_none() {
+                if let Some(clip) = clip.intersect(&layout) {
+                    child.event(layout, clip, event, context);
+                }
             }
         }
     }

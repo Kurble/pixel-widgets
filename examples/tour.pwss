@@ -14,7 +14,6 @@ scroll {
 }
 
 button {
-    width: fill(1)
     background: #888
     hover: #aaa
     pressed: #222
@@ -23,12 +22,8 @@ button {
     text-size: 24.0
 }
 
-text {
-    color: #f00
-}
-
 button text {
-    color: #0f0
+    color: #000
 }
 
 input {
@@ -50,7 +45,15 @@ window space .close {
     background: #00f
 }
 
+row {
+    width: fill(1)
+}
+
 row .title {
+    width: 300
+}
+
+column {
     width: fill(1)
 }
 
@@ -62,4 +65,11 @@ space {
 space .dummy {
     width: 200
     height: 200
+}
+
+dropdown {
+    background: #0008
+    pressed: #002
+    color: #00f8
+    width: fill(1)
 }

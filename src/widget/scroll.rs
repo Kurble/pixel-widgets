@@ -109,6 +109,10 @@ impl<'a, T: 'a> Widget<'a, T> for Scroll<'a, T> {
         (style.width, style.height)
     }
 
+    fn focused(&self) -> bool {
+        self.content.focused()
+    }
+
     fn event(
         &mut self,
         layout: Rectangle,
@@ -120,6 +124,11 @@ impl<'a, T: 'a> Widget<'a, T> for Scroll<'a, T> {
         let content_rect = style.background.content_rect(layout).after_padding(style.padding);
         let content_layout = self.content_layout(&content_rect);
         let (vbar, hbar) = self.scrollbars(layout, content_layout, style);
+
+        if self.content.focused() {
+            self.content.event(content_layout, content_rect, event, context);
+            return;
+        }
 
         match (event, self.state.inner) {
             (Event::Cursor(cx, cy), InnerState::DragHorizontalBar(x)) => {

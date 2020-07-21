@@ -13,6 +13,10 @@ pub enum Primitive<'a> {
     /// Pops a clipping rectangle from a clipping rectangle stack. All [`PushClip`s](#variant.PushClip) should have
     /// a matching `PopClip`.
     PopClip,
+    /// Increase the current layer. Higher layers always draw in front of lower layers.
+    IncreaseLayer,
+    /// Decrease the current layer. Higher layers always draw in front of lower layers.
+    DecreaseLayer,
     /// Draw a rectangle filled with a color.
     DrawRect(Rectangle, Color),
     /// Draw some text within the bounds of a rectangle.
@@ -398,7 +402,7 @@ impl Background {
 impl Command {
     /// Append another `Command` to this `Command`. If the `Command`s can be chained together
     /// the `Command` is extended and `None` is returned, but if the `Command`s can not be chained
-    /// `self` is replaced by the new `Command` and the old `Command` is returned.
+    /// the new command is returned again.
     pub fn append(&mut self, command: Command) -> Option<Command> {
         match *self {
             Command::Nop => {
@@ -406,31 +410,13 @@ impl Command {
                 None
             }
 
-            Command::Clip { scissor } => match command {
+            Command::Clip { .. } => match command {
                 Command::Nop => None,
-                Command::Clip { scissor: new_scissor } => {
-                    *self = Command::Clip { scissor: new_scissor };
-                    None
-                }
-                Command::Colored { offset, count } => {
-                    *self = Command::Colored { offset, count };
-                    Some(Command::Clip { scissor })
-                }
-                Command::Textured { texture, offset, count } => {
-                    *self = Command::Textured { texture, offset, count };
-                    Some(Command::Clip { scissor })
-                }
+                other => Some(other),
             },
 
             Command::Colored { offset, count } => match command {
-                Command::Nop => {
-                    *self = Command::Nop;
-                    Some(Command::Colored { offset, count })
-                }
-                Command::Clip { scissor } => {
-                    *self = Command::Clip { scissor: scissor };
-                    Some(Command::Colored { offset, count })
-                }
+                Command::Nop => None,
                 Command::Colored {
                     offset: new_offset,
                     count: new_count,
@@ -442,64 +428,14 @@ impl Command {
                         };
                         None
                     } else {
-                        *self = Command::Colored {
-                            offset: new_offset,
-                            count: new_count,
-                        };
                         Some(Command::Colored { offset, count })
                     }
                 }
-                Command::Textured {
-                    texture,
-                    offset: new_offset,
-                    count: new_count,
-                } => {
-                    if new_offset == offset + count {
-                        *self = Command::Textured {
-                            texture: texture,
-                            offset: offset,
-                            count: count + new_count,
-                        };
-                        None
-                    } else {
-                        *self = Command::Textured {
-                            texture: texture,
-                            offset: new_offset,
-                            count: new_count,
-                        };
-                        Some(Command::Colored { offset, count })
-                    }
-                }
+                other => Some(other),
             },
 
             Command::Textured { texture, offset, count } => match command {
-                Command::Nop => {
-                    *self = Command::Nop;
-                    Some(Command::Textured { texture, offset, count })
-                }
-                Command::Clip { scissor } => {
-                    *self = Command::Clip { scissor: scissor };
-                    Some(Command::Textured { texture, offset, count })
-                }
-                Command::Colored {
-                    offset: new_offset,
-                    count: new_count,
-                } => {
-                    if new_offset == offset + count {
-                        *self = Command::Textured {
-                            texture: texture,
-                            offset: offset,
-                            count: count + new_count,
-                        };
-                        None
-                    } else {
-                        *self = Command::Colored {
-                            offset: new_offset,
-                            count: new_count,
-                        };
-                        Some(Command::Textured { texture, offset, count })
-                    }
-                }
+                Command::Nop => None,
                 Command::Textured {
                     texture: new_texture,
                     offset: new_offset,
@@ -513,21 +449,11 @@ impl Command {
                         };
                         None
                     } else {
-                        *self = Command::Textured {
-                            texture: new_texture,
-                            offset: new_offset,
-                            count: new_count,
-                        };
                         Some(Command::Textured { texture, offset, count })
                     }
                 }
+                other => Some(other),
             },
         }
-    }
-
-    /// Return any draw command that is still being built by the `Command`.
-    /// This function is the same as `append(Command::Nop)`.
-    pub fn flush(&mut self) -> Option<Command> {
-        self.append(Command::Nop)
     }
 }

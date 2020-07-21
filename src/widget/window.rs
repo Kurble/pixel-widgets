@@ -106,6 +106,10 @@ impl<'a, T: 'a> Widget<'a, T> for Window<'a, T> {
         }
     }
 
+    fn focused(&self) -> bool {
+        self.title.focused() || self.content.focused()
+    }
+
     fn event(
         &mut self,
         viewport: Rectangle,
@@ -115,6 +119,16 @@ impl<'a, T: 'a> Widget<'a, T> for Window<'a, T> {
         context: &mut Context<T>,
     ) {
         let (layout, title, content) = self.layout(viewport, style);
+
+        if self.title.focused() {
+            self.title.event(title, clip, event, context);
+            return;
+        }
+
+        if self.content.focused() {
+            self.content.event(content, clip, event, context);
+            return;
+        }
 
         match (event, self.state.inner) {
             (Event::Cursor(x, y), InnerState::Idle) => {

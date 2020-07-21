@@ -32,6 +32,7 @@ use crate::stylesheet::*;
 
 pub use self::button::Button;
 pub use self::column::Column;
+pub use self::dropdown::Dropdown;
 pub use self::input::Input;
 pub use self::layers::Layers;
 pub use self::row::Row;
@@ -45,6 +46,8 @@ pub use self::window::Window;
 pub mod button;
 /// Layout child widgets vertically
 pub mod column;
+/// Pick an item from a dropdown box
+pub mod dropdown;
 /// Editable text input
 pub mod input;
 /// Stack child widgets on top of each other, while only the topmost receives events.
@@ -93,6 +96,15 @@ pub trait Widget<'a, Message> {
         layout.point_inside(x, y) && clip.point_inside(x, y)
     }
 
+    /// Test the widget for focus exclusivity.
+    /// If the widget or one of it's descendants is in an exclusive focus state, this function should return `true`.
+    /// In all other cases, it should return `false`. When a widget is in an exclusive focus state it is
+    /// the only widget that is allowed to receive events in [`event`](#tymethod.event).
+    /// Widgets that intended to use this behaviour are modal dialogs, dropdown boxes, context menu's, etc.
+    fn focused(&self) -> bool {
+        false
+    }
+
     /// Handle an event. If an event changes the graphical appearance of an `Widget`,
     /// [`redraw`](struct.Context.html#method.redraw) should be called to let the [`Ui`](../struct.Ui.html) know that
     /// the ui should be redrawn.
@@ -138,6 +150,7 @@ pub trait IntoNode<'a, Message: 'a>: 'a + Sized {
 pub struct Node<'a, Message> {
     widget: Box<dyn Widget<'a, Message> + 'a>,
     size_cache: Cell<Option<(Size, Size)>>,
+    focused: Cell<Option<bool>>,
     style: Option<Rc<Stylesheet>>,
     class: Option<&'a str>,
 }
@@ -154,6 +167,7 @@ impl<'a, Message> Node<'a, Message> {
         Node {
             widget: Box::new(widget),
             size_cache: Cell::new(None),
+            focused: Cell::new(None),
             style: None,
             class: None,
         }
@@ -208,6 +222,18 @@ impl<'a, Message> Node<'a, Message> {
         self.widget.hit(layout, clip, stylesheet, x, y)
     }
 
+    /// Test the widget for focus exclusivity.
+    /// If the widget or one of it's descendants is in an exclusive focus state, this function should return `true`.
+    /// In all other cases, it should return `false`. When a widget is in an exclusive focus state it is
+    /// the only widget that is allowed to receive events in [`event`](#tymethod.event).
+    /// Widgets that intended to use this behaviour are modal dialogs, dropdown boxes, context menu's, etc.
+    pub fn focused(&self) -> bool {
+        if self.focused.get().is_none() {
+            self.focused.replace(Some(self.widget.focused()));
+        }
+        self.focused.get().unwrap()
+    }
+
     /// Handle an event.
     ///
     /// Arguments:
@@ -220,6 +246,7 @@ impl<'a, Message> Node<'a, Message> {
     pub fn event(&mut self, layout: Rectangle, clip: Rectangle, event: Event, context: &mut Context<Message>) {
         let stylesheet = self.style.as_ref().unwrap().deref();
         self.widget.event(layout, clip, stylesheet, event, context);
+        self.focused.replace(Some(self.widget.focused()));
     }
 
     /// Draw the widget. Returns a list of [`Primitive`s](../draw/enum.Primitive.html) that should be drawn.

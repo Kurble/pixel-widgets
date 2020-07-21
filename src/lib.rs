@@ -110,19 +110,17 @@ use std::ops::{Deref, DerefMut};
 
 use draw::DrawList;
 
-use crate::widget::{Context, Node};
 use crate::event::Event;
 use crate::layout::Rectangle;
 use crate::model_view::ModelView;
 use crate::stylesheet::Style;
+use crate::widget::{Context, Node};
 
 /// Backend specific code
 pub mod backend;
 mod cache;
 /// Primitives used for drawing
 pub mod draw;
-/// User interface widgets
-pub mod widget;
 /// User input events
 pub mod event;
 /// Primitives used for layouts
@@ -135,6 +133,8 @@ pub mod stylesheet;
 pub mod text;
 /// Utility for tracking state conveniently.
 pub mod tracker;
+/// User interface widgets
+pub mod widget;
 
 /// A model that keeps track of the state of your GUI. Serves to control the behaviour and DOM of your GUI.
 /// Styling is handled separately. Once you implemented a model, you can run your GUI using a [`Ui`](struct.Ui.html).
@@ -278,13 +278,24 @@ impl<I: Model> Ui<I> {
         };
         self.redraw = false;
 
-        let mut vtx = Vec::new();
-        let mut cmd = Vec::new();
+        struct Layer {
+            vtx: Vec<Vertex>,
+            cmd: Vec<Command>,
+        };
+
+        impl Layer {
+            fn append(&mut self, command: Command) {
+                if let Some(next) = self.cmd.last_mut().unwrap().append(command) {
+                    self.cmd.push(next);
+                }
+            }
+        }
+
+        let mut layers = vec![Layer { vtx: Vec::new(), cmd: vec![Command::Nop] }];
+        let mut layer: usize = 0;
 
         let mut scissors = Vec::new();
         scissors.push(viewport);
-
-        let mut current_command = Command::Nop;
 
         let validate_clip = move |clip: Rectangle| {
             let v = Rectangle {
@@ -308,10 +319,7 @@ impl<I: Model> Ui<I> {
                     scissors.push(scissor);
 
                     draw_enabled = validate_clip(scissor).map_or(false, |s| {
-                        current_command
-                            .append(Command::Clip { scissor: s })
-                            .and_then(|c| Some(cmd.push(c)));
-
+                        layers[layer].append(Command::Clip { scissor: s });
                         true
                     });
                 }
@@ -321,12 +329,20 @@ impl<I: Model> Ui<I> {
                     let scissor = scissors[scissors.len() - 1];
 
                     draw_enabled = validate_clip(scissor).map_or(false, |s| {
-                        current_command
-                            .append(Command::Clip { scissor: s })
-                            .and_then(|c| Some(cmd.push(c)));
-
+                        layers[layer].append(Command::Clip { scissor: s });
                         true
                     });
+                }
+
+                Primitive::IncreaseLayer => {
+                    layer += 1;
+                    while layer >= layers.len() {
+                        layers.push(Layer { vtx: Vec::new(), cmd: vec![Command::Nop] });
+                    }
+                }
+
+                Primitive::DecreaseLayer => {
+                    layer -= 1;
                 }
 
                 Primitive::DrawRect(r, color) => {
@@ -334,47 +350,44 @@ impl<I: Model> Ui<I> {
                         let r = r.to_device_coordinates(viewport);
                         let color = [color.r, color.g, color.b, color.a];
                         let mode = 2;
-                        let offset = vtx.len();
-                        vtx.push(Vertex {
+                        let offset = layers[layer].vtx.len();
+                        layers[layer].vtx.push(Vertex {
                             pos: [r.left, r.top],
                             uv: [0.0; 2],
                             color,
                             mode,
                         });
-                        vtx.push(Vertex {
+                        layers[layer].vtx.push(Vertex {
                             pos: [r.right, r.top],
                             uv: [0.0; 2],
                             color,
                             mode,
                         });
-                        vtx.push(Vertex {
+                        layers[layer].vtx.push(Vertex {
                             pos: [r.right, r.bottom],
                             uv: [0.0; 2],
                             color,
                             mode,
                         });
-                        vtx.push(Vertex {
+                        layers[layer].vtx.push(Vertex {
                             pos: [r.left, r.top],
                             uv: [0.0; 2],
                             color,
                             mode,
                         });
-                        vtx.push(Vertex {
+                        layers[layer].vtx.push(Vertex {
                             pos: [r.right, r.bottom],
                             uv: [0.0; 2],
                             color,
                             mode,
                         });
-                        vtx.push(Vertex {
+                        layers[layer].vtx.push(Vertex {
                             pos: [r.left, r.bottom],
                             uv: [0.0; 2],
                             color,
                             mode,
                         });
-
-                        current_command
-                            .append(Command::Colored { offset, count: 6 })
-                            .and_then(|c| Some(cmd.push(c)));
+                        layers[layer].append(Command::Colored { offset, count: 6 });
                     }
                 }
 
@@ -382,7 +395,7 @@ impl<I: Model> Ui<I> {
                     if draw_enabled {
                         let color = [text.color.r, text.color.g, text.color.b, text.color.a];
                         let mode = 0;
-                        let offset = vtx.len();
+                        let offset = layers[layer].vtx.len();
 
                         self.cache.draw_text(&text, rect, |uv, pos| {
                             let rc = Rectangle {
@@ -393,37 +406,37 @@ impl<I: Model> Ui<I> {
                             }
                             .to_device_coordinates(viewport);
 
-                            vtx.push(Vertex {
+                            layers[layer].vtx.push(Vertex {
                                 pos: [rc.left, rc.top],
                                 uv: uv.pt(0.0, 0.0),
                                 color,
                                 mode,
                             });
-                            vtx.push(Vertex {
+                            layers[layer].vtx.push(Vertex {
                                 pos: [rc.right, rc.top],
                                 uv: uv.pt(1.0, 0.0),
                                 color,
                                 mode,
                             });
-                            vtx.push(Vertex {
+                            layers[layer].vtx.push(Vertex {
                                 pos: [rc.right, rc.bottom],
                                 uv: uv.pt(1.0, 1.0),
                                 color,
                                 mode,
                             });
-                            vtx.push(Vertex {
+                            layers[layer].vtx.push(Vertex {
                                 pos: [rc.left, rc.top],
                                 uv: uv.pt(0.0, 0.0),
                                 color,
                                 mode,
                             });
-                            vtx.push(Vertex {
+                            layers[layer].vtx.push(Vertex {
                                 pos: [rc.right, rc.bottom],
                                 uv: uv.pt(1.0, 1.0),
                                 color,
                                 mode,
                             });
-                            vtx.push(Vertex {
+                            layers[layer].vtx.push(Vertex {
                                 pos: [rc.left, rc.bottom],
                                 uv: uv.pt(0.0, 1.0),
                                 color,
@@ -431,13 +444,12 @@ impl<I: Model> Ui<I> {
                             });
                         });
 
-                        current_command
-                            .append(Command::Textured {
-                                texture: text.font.tex_slot,
-                                offset,
-                                count: vtx.len() - offset,
-                            })
-                            .and_then(|c| Some(cmd.push(c)));
+                        let count = layers[layer].vtx.len() - offset;
+                        layers[layer].append(Command::Textured {
+                            texture: text.font.tex_slot,
+                            offset,
+                            count,
+                        });
                     }
                 }
 
@@ -446,7 +458,7 @@ impl<I: Model> Ui<I> {
                         let uv = patch.image.texcoords;
                         let color = [color.r, color.g, color.b, color.a];
                         let mode = 1;
-                        let offset = vtx.len();
+                        let offset = layers[layer].vtx.len();
 
                         patch.iterate_sections(false, rect.width(), |x, u| {
                             patch.iterate_sections(true, rect.height(), |y, v| {
@@ -458,37 +470,37 @@ impl<I: Model> Ui<I> {
                                 }
                                 .to_device_coordinates(viewport);
 
-                                vtx.push(Vertex {
+                                layers[layer].vtx.push(Vertex {
                                     pos: [rc.left, rc.top],
                                     uv: uv.pt(u.0, v.0),
                                     color,
                                     mode,
                                 });
-                                vtx.push(Vertex {
+                                layers[layer].vtx.push(Vertex {
                                     pos: [rc.right, rc.top],
                                     uv: uv.pt(u.1, v.0),
                                     color,
                                     mode,
                                 });
-                                vtx.push(Vertex {
+                                layers[layer].vtx.push(Vertex {
                                     pos: [rc.right, rc.bottom],
                                     uv: uv.pt(u.1, v.1),
                                     color,
                                     mode,
                                 });
-                                vtx.push(Vertex {
+                                layers[layer].vtx.push(Vertex {
                                     pos: [rc.left, rc.top],
                                     uv: uv.pt(u.0, v.0),
                                     color,
                                     mode,
                                 });
-                                vtx.push(Vertex {
+                                layers[layer].vtx.push(Vertex {
                                     pos: [rc.right, rc.bottom],
                                     uv: uv.pt(u.1, v.1),
                                     color,
                                     mode,
                                 });
-                                vtx.push(Vertex {
+                                layers[layer].vtx.push(Vertex {
                                     pos: [rc.left, rc.bottom],
                                     uv: uv.pt(u.0, v.1),
                                     color,
@@ -497,13 +509,12 @@ impl<I: Model> Ui<I> {
                             });
                         });
 
-                        current_command
-                            .append(Command::Textured {
-                                texture: patch.image.texture,
-                                offset,
-                                count: vtx.len() - offset,
-                            })
-                            .and_then(|c| Some(cmd.push(c)));
+                        let count = layers[layer].vtx.len() - offset;
+                        layers[layer].append(Command::Textured {
+                            texture: patch.image.texture,
+                            offset,
+                            count,
+                        });
                     }
                 }
 
@@ -513,64 +524,74 @@ impl<I: Model> Ui<I> {
                         let uv = image.texcoords;
                         let color = [color.r, color.g, color.b, color.a];
                         let mode = 1;
-                        let offset = vtx.len();
+                        let offset = layers[layer].vtx.len();
 
-                        vtx.push(Vertex {
+                        layers[layer].vtx.push(Vertex {
                             pos: [r.left, r.top],
                             uv: [uv.left, uv.top],
                             color,
                             mode,
                         });
-                        vtx.push(Vertex {
+                        layers[layer].vtx.push(Vertex {
                             pos: [r.right, r.top],
                             uv: [uv.right, uv.top],
                             color,
                             mode,
                         });
-                        vtx.push(Vertex {
+                        layers[layer].vtx.push(Vertex {
                             pos: [r.right, r.bottom],
                             uv: [uv.right, uv.bottom],
                             color,
                             mode,
                         });
-                        vtx.push(Vertex {
+                        layers[layer].vtx.push(Vertex {
                             pos: [r.left, r.top],
                             uv: [uv.left, uv.top],
                             color,
                             mode,
                         });
-                        vtx.push(Vertex {
+                        layers[layer].vtx.push(Vertex {
                             pos: [r.right, r.bottom],
                             uv: [uv.right, uv.bottom],
                             color,
                             mode,
                         });
-                        vtx.push(Vertex {
+                        layers[layer].vtx.push(Vertex {
                             pos: [r.left, r.bottom],
                             uv: [uv.left, uv.bottom],
                             color,
                             mode,
                         });
 
-                        current_command
-                            .append(Command::Textured {
-                                texture: image.texture,
-                                offset,
-                                count: 6,
-                            })
-                            .and_then(|c| Some(cmd.push(c)));
+                        layers[layer].append(Command::Textured {
+                            texture: image.texture,
+                            offset,
+                            count: 6,
+                        });
                     }
                 }
             }
         }
 
-        // Flush any commands that are not finalized
-        current_command.flush().and_then(|c| Some(cmd.push(c)));
+        let (vertices, commands) = layers.into_iter().fold((Vec::new(), Vec::new()), |(mut vtx, mut cmd), mut layer| {
+            let layer_offset = vtx.len();
+            vtx.append(&mut layer.vtx);
+            cmd.extend(layer.cmd.into_iter().map(|command| match command {
+                Command::Textured { texture, offset, count } => {
+                    Command::Textured { texture, offset: offset + layer_offset, count }
+                }
+                Command::Colored { offset, count } => {
+                    Command::Colored { offset: offset + layer_offset, count }
+                }
+                other => other,
+            }));
+            (vtx, cmd)
+        });
 
         DrawList {
             updates: self.cache.take_updates(),
-            vertices: vtx,
-            commands: cmd,
+            vertices,
+            commands,
         }
     }
 }
@@ -601,11 +622,5 @@ impl Loader for std::path::PathBuf {
 
 /// prelude module for convenience
 pub mod prelude {
-    pub use crate::{
-        widget::*,
-        layout::Rectangle,
-        stylesheet::Style,
-        tracker::ManagedState,
-        Model, Ui,
-    };
+    pub use crate::{layout::Rectangle, stylesheet::Style, tracker::ManagedState, widget::*, Model, Ui};
 }
