@@ -88,22 +88,18 @@ impl Model for Counter {
     }
 }
 
-// Now that we have a model that can be used with pixel-widgets, we can put it in a `Ui` in
-// order to actually use it.
-// `Ui` is the entry point for pixel-widgets, the user is responsible for driving it.
+// Now that we have a model that can be used with pixel-widgets,
+// we can pass it to the sandbox to quickly see some results!
 fn main() {
-    let mut ui = Ui::new(
-        Counter {
-            state: ManagedState::default(),
-            count: 0,
-        },
-        Rectangle::from_wh(800.0, 600.0)
-    );
+    let model = Counter {
+        state: ManagedState::default(),
+        count: 0,
+    };
 
-    // your window management system should call some methods:
-    ui.event(pixel_widgets::event::Event::Cursor(0.0, 0.0));
+    let window = winit::window::WindowBuilder::new()
+        .with_title("Counter")
+        .with_inner_size(winit::dpi::LogicalSize::new(240, 240));
 
-    // and finally you have to obtain a `DrawList` and pass it to your renderer.
-    let draw_list = ui.draw();
+    pixel_widgets::sandbox::run(model, PathBuf::from("."), "counter.pwss", window);
 }
 ```
