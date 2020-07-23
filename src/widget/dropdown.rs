@@ -193,7 +193,7 @@ impl<'a, T: 'a> Widget<'a, T> for Dropdown<'a, T> {
 
         let mut result = Vec::new();
         if focused {
-            result.push(Primitive::IncreaseLayer);
+            result.push(Primitive::LayerUp);
         }
         match self.state.inner {
             InnerState::Idle => {
@@ -234,7 +234,7 @@ impl<'a, T: 'a> Widget<'a, T> for Dropdown<'a, T> {
             }
         }
         if focused {
-            result.push(Primitive::DecreaseLayer);
+            result.push(Primitive::LayerDown);
         }
         result
     }

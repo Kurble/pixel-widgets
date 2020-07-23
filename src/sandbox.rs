@@ -1,15 +1,32 @@
 use winit::{
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
-    window::Window,
+    window::{Window, WindowBuilder},
 };
 
-use pixel_widgets::prelude::*;
+use crate::prelude::*;
+use crate::Loader;
 
-async fn run<T: 'static + Model>(
+/// Creates a window using the winit `WindowBuilder` and blocks on it's event loop.
+/// The created window will be used to manage the ui for `model`.
+pub fn run<T: 'static + Model, L: Loader, S: AsRef<str>>(model: T, loader: L, stylesheet: S, builder: WindowBuilder) {
+    let event_loop = EventLoop::<T::Message>::with_user_event();
+    let window = builder.build(&event_loop).unwrap();
+    futures::executor::block_on(run_loop(
+        model,
+        loader,
+        stylesheet,
+        event_loop,
+        window,
+        wgpu::TextureFormat::Bgra8UnormSrgb,
+    ));
+}
+
+async fn run_loop<T: 'static + Model>(
     model: T,
+    loader: impl Loader,
     stylesheet: impl AsRef<str>,
-    event_loop: EventLoop<()>,
+    event_loop: EventLoop<T::Message>,
     window: Window,
     swapchain_format: wgpu::TextureFormat,
 ) {
@@ -46,22 +63,16 @@ async fn run<T: 'static + Model>(
 
     let mut viewport = Rectangle::from_wh(size.width as f32, size.height as f32);
 
-    let mut ui = match pixel_widgets::backend::wgpu::Ui::with_stylesheet(
-        model,
-        std::path::PathBuf::from("./examples/"),
-        stylesheet,
-        viewport,
-        swapchain_format,
-        &device,
-    )
-    .await
-    {
-        Ok(ui) => ui,
-        Err(err) => {
-            println!("{}", err);
-            panic!();
-        }
-    };
+    let mut ui =
+        match crate::backend::wgpu::Ui::with_stylesheet(model, loader, stylesheet, viewport, swapchain_format, &device)
+            .await
+        {
+            Ok(ui) => ui,
+            Err(err) => {
+                println!("{}", err);
+                panic!();
+            }
+        };
 
     event_loop.run(move |event, _, control_flow| {
         let _ = &adapter;
@@ -108,37 +119,10 @@ async fn run<T: 'static + Model>(
                 ..
             } => *control_flow = ControlFlow::Exit,
             other => {
-                if let Some(event) = pixel_widgets::backend::winit::convert_event(other) {
+                if let Some(event) = crate::backend::winit::convert_event(other) {
                     ui.event(event);
                 }
             }
         }
     });
-}
-
-pub fn run_model<T: 'static + Model, S: AsRef<str>>(model: T, stylesheet: S) {
-    let event_loop = EventLoop::new();
-    let window = winit::window::Window::new(&event_loop).unwrap();
-    futures::executor::block_on(run(
-        model,
-        stylesheet,
-        event_loop,
-        window,
-        wgpu::TextureFormat::Bgra8UnormSrgb,
-    ));
-}
-
-#[allow(unused)]
-fn main() {
-    struct Dummy;
-    impl Model for Dummy {
-        type Message = ();
-
-        fn update(&mut self, _message: Self::Message) {}
-
-        fn view(&mut self) -> Node<Self::Message> {
-            Space.into_node()
-        }
-    }
-    run_model(Dummy, "tour.pwss");
 }

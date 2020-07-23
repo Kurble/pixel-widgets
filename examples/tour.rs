@@ -1,8 +1,6 @@
 use pixel_widgets::prelude::*;
 
-mod framework;
-
-struct Counter {
+struct Tour {
     pub show_dummy: bool,
     pub show_login: bool,
     pub name: String,
@@ -19,7 +17,7 @@ enum Message {
     PlanetSelected(&'static str),
 }
 
-impl Model for Counter {
+impl Model for Tour {
     type Message = Message;
 
     fn update(&mut self, message: Self::Message) {
@@ -109,14 +107,17 @@ impl Model for Counter {
 }
 
 fn main() {
-    framework::run_model(
-        Counter {
-            show_dummy: false,
-            show_login: false,
-            name: String::new(),
-            password: String::new(),
-            state: ManagedState::default(),
-        },
-        "tour.pwss",
-    );
+    let model = Tour {
+        show_dummy: false,
+        show_login: false,
+        name: String::new(),
+        password: String::new(),
+        state: ManagedState::default(),
+    };
+
+    let window = winit::window::WindowBuilder::new()
+        .with_title("Tour")
+        .with_inner_size(winit::dpi::LogicalSize::new(960, 480));
+
+    pixel_widgets::sandbox::run(model, std::path::PathBuf::from("./examples"), "tour.pwss", window);
 }

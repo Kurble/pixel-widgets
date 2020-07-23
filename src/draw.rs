@@ -13,10 +13,10 @@ pub enum Primitive<'a> {
     /// Pops a clipping rectangle from a clipping rectangle stack. All [`PushClip`s](#variant.PushClip) should have
     /// a matching `PopClip`.
     PopClip,
-    /// Increase the current layer. Higher layers always draw in front of lower layers.
-    IncreaseLayer,
-    /// Decrease the current layer. Higher layers always draw in front of lower layers.
-    DecreaseLayer,
+    /// Move following commands one layer up. Higher layers always draw in front of lower layers.
+    LayerUp,
+    /// Move following commands one layer down. Higher layers always draw in front of lower layers.
+    LayerDown,
     /// Draw a rectangle filled with a color.
     DrawRect(Rectangle, Color),
     /// Draw some text within the bounds of a rectangle.

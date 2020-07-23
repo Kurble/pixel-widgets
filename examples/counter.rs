@@ -1,6 +1,6 @@
 use pixel_widgets::prelude::*;
-
-mod framework;
+use std::path::PathBuf;
+use winit::window::WindowBuilder;
 
 struct Counter {
     pub value: i32,
@@ -37,11 +37,14 @@ impl Model for Counter {
 }
 
 fn main() {
-    framework::run_model(
-        Counter {
-            value: 0,
-            state: ManagedState::default(),
-        },
-        "counter.pwss",
-    );
+    let model = Counter {
+        value: 0,
+        state: ManagedState::default(),
+    };
+
+    let window = WindowBuilder::new()
+        .with_title("Counter")
+        .with_inner_size(winit::dpi::LogicalSize::new(240, 240));
+
+    pixel_widgets::sandbox::run(model, PathBuf::from("./examples"), "counter.pwss", window);
 }

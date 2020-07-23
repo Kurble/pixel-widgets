@@ -127,6 +127,10 @@ pub mod event;
 pub mod layout;
 mod model_view;
 mod qtree;
+/// Simple windowing system for those who want to render _just_ widgets.
+#[cfg(feature="winit")]
+#[cfg(feature="wgpu")]
+pub mod sandbox;
 /// Styling system
 pub mod stylesheet;
 /// Primitives for rendering text
@@ -334,14 +338,14 @@ impl<I: Model> Ui<I> {
                     });
                 }
 
-                Primitive::IncreaseLayer => {
+                Primitive::LayerUp => {
                     layer += 1;
                     while layer >= layers.len() {
                         layers.push(Layer { vtx: Vec::new(), cmd: vec![Command::Nop] });
                     }
                 }
 
-                Primitive::DecreaseLayer => {
+                Primitive::LayerDown => {
                     layer -= 1;
                 }
 

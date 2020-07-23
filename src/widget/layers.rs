@@ -91,9 +91,20 @@ impl<'a, T: 'a, Id: 'a> Widget<'a, T> for Layers<'a, T, Id> {
         }
 
         match event {
-            Event::Cursor(x, y) => {
+            Event::Cursor(mut x, mut y) => {
                 self.state.cursor_x = x;
                 self.state.cursor_y = y;
+                // make sure that hovering always works regardless of the active layer
+                for layer in self.layers.iter_mut() {
+                    layer.node.event(layout, clip, Event::Cursor(x, y), context);
+                    if layer.node.hit(layout, clip, x, y) {
+                        // I hate this hack, but this will stop layers hidden behind the current from being hovered
+                        x = std::f32::INFINITY;
+                        y = std::f32::INFINITY;
+                    }
+                }
+                self.background.as_mut().map(|bg| bg.event(layout, clip, Event::Cursor(x, y), context));
+                return;
             }
             Event::Press(Key::LeftMouseButton) => {
                 let x = self.state.cursor_x;

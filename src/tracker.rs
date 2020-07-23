@@ -71,23 +71,27 @@ impl<'a, Id: Eq + Clone> ManagedStateTracker<'a, Id> {
         F: FnOnce() -> T,
         Id: Borrow<Q>,
     {
+        let search_start = self.index;
+
         while self.index < self.tracker.state.len() {
             if self.tracker.state[self.index].id.borrow().eq(id) {
+                self.tracker.state.drain(search_start .. self.index).count();
                 unsafe {
-                    let i = self.index;
-                    self.index += 1;
+                    let i = search_start;
+                    self.index = search_start + 1;
                     return self.tracker.state[i].unchecked_mut_ref();
                 }
             } else {
-                self.tracker.state.remove(self.index);
+                self.index += 1;
             }
         }
-        self.index += 1;
-        self.tracker.state.push(Tracked {
+
+        self.tracker.state.insert(search_start, Tracked {
             id: id.to_owned(),
             state: Box::new(default()) as Box<dyn Any>,
         });
-        unsafe { self.tracker.state.last_mut().unwrap().unchecked_mut_ref() }
+        self.index = search_start + 1;
+        unsafe { self.tracker.state[search_start].unchecked_mut_ref() }
     }
 }
 

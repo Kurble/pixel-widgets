@@ -149,7 +149,7 @@ pub trait IntoNode<'a, Message: 'a>: 'a + Sized {
 /// Generic ui widget.
 pub struct Node<'a, Message> {
     widget: Box<dyn Widget<'a, Message> + 'a>,
-    size_cache: Cell<Option<(Size, Size)>>,
+    size: Cell<Option<(Size, Size)>>,
     focused: Cell<Option<bool>>,
     style: Option<Rc<Stylesheet>>,
     class: Option<&'a str>,
@@ -166,7 +166,7 @@ impl<'a, Message> Node<'a, Message> {
     pub fn new<T: 'a + Widget<'a, Message>>(widget: T) -> Self {
         Node {
             widget: Box::new(widget),
-            size_cache: Cell::new(None),
+            size: Cell::new(None),
             focused: Cell::new(None),
             style: None,
             class: None,
@@ -199,11 +199,11 @@ impl<'a, Message> Node<'a, Message> {
     /// The extents are defined as a [`Size`](../layout/struct.Size.html),
     /// which will later be resolved to actual dimensions.
     pub fn size(&self) -> (Size, Size) {
-        if self.size_cache.get().is_none() {
+        if self.size.get().is_none() {
             let stylesheet = self.style.as_ref().unwrap().deref();
-            self.size_cache.replace(Some(self.widget.size(stylesheet)));
+            self.size.replace(Some(self.widget.size(stylesheet)));
         }
-        self.size_cache.get().unwrap()
+        self.size.get().unwrap()
     }
 
     /// Perform a hit detect on the widget. Most widgets are fine with the default implementation, but some
