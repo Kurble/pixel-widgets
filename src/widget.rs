@@ -19,17 +19,15 @@
 //!
 //! When implementing custom widgets, you need to make sure that the custom widgets do not remember absolute layouts.
 //! Widgets like [`Scroll`](scroll/struct.Scroll.html) can change the layout without needing a rebuild of the ui.
-
-use std::borrow::Cow;
 use std::cell::Cell;
-use std::ops::{Deref};
+use std::ops::Deref;
 use std::rc::Rc;
 
+use crate::bitset::BitSet;
 use crate::draw::Primitive;
 use crate::event::Event;
 use crate::layout::*;
 use crate::stylesheet::*;
-use crate::bitset::BitSet;
 
 pub use self::button::Button;
 pub use self::column::Column;
@@ -42,7 +40,6 @@ pub use self::space::Space;
 pub use self::text::Text;
 pub use self::toggle::Toggle;
 pub use self::window::Window;
-use std::iter::FromIterator;
 
 /// A clickable button
 pub mod button;
@@ -73,7 +70,9 @@ pub trait Widget<'a, Message> {
     fn widget(&self) -> &'static str;
 
     /// The state of this widget, used for computing the style. Usually an empty string, "hover", "pressed", etc.
-    fn state(&self) -> &'static str { "" }
+    fn state(&self) -> &'static str {
+        ""
+    }
 
     /// Applies a visitor to all childs of the widget. If an widget fails to visit it's children, the children won't
     /// be able to resolve their stylesheet, resulting in a panic when calling [`size`](struct.Node.html#method.size),
@@ -156,9 +155,9 @@ pub struct Node<'a, Message> {
     widget: Box<dyn Widget<'a, Message> + 'a>,
     size: Cell<Option<(Size, Size)>>,
     focused: Cell<Option<bool>>,
-    style: Option<Rc<Stylesheet>>,
-    tree: Option<Rc<Style>>,
-    style_id: BitSet,
+    style: Option<Rc<Style>>,
+    selector_matches: BitSet,
+    stylesheet: Option<Rc<Stylesheet>>,
     class: Option<&'a str>,
     state: Option<&'static str>,
 }
@@ -177,8 +176,8 @@ impl<'a, Message> Node<'a, Message> {
             size: Cell::new(None),
             focused: Cell::new(None),
             style: None,
-            tree: None,
-            style_id: BitSet::new(),
+            selector_matches: BitSet::new(),
+            stylesheet: None,
             class: None,
             state: None,
         }
@@ -191,16 +190,21 @@ impl<'a, Message> Node<'a, Message> {
     }
 
     pub(crate) fn style(&mut self, query: &mut Query) {
-        // remember rule tree
-        self.tree = Some(query.style.clone());
+        // remember style
+        self.style = Some(query.style.clone());
 
-        // resolve own style
-        self.style_id = query.match_widget(self.widget.widget(), self.class.unwrap_or(""), self.widget.state(), false);
-        self.style.replace(query.style.get(self.style_id.clone()));
+        // resolve own stylesheet
+        self.selector_matches = query.match_widget(
+            self.widget.widget(),
+            self.class.unwrap_or(""),
+            self.widget.state(),
+            false,
+        );
+        self.stylesheet.replace(query.style.get(&self.selector_matches));
         self.state = Some(self.widget.state());
 
         // resolve children style
-        query.ancestors.push(self.style_id.clone());
+        query.ancestors.push(self.selector_matches.clone());
         let own_siblings = std::mem::replace(&mut query.siblings, Vec::new());
         self.widget.visit_children(&mut |child| child.style(&mut *query));
         std::mem::replace(&mut query.siblings, own_siblings);
@@ -212,7 +216,7 @@ impl<'a, Message> Node<'a, Message> {
     /// which will later be resolved to actual dimensions.
     pub fn size(&self) -> (Size, Size) {
         if self.size.get().is_none() {
-            let stylesheet = self.style.as_ref().unwrap().deref();
+            let stylesheet = self.stylesheet.as_ref().unwrap().deref();
             self.size.replace(Some(self.widget.size(stylesheet)));
         }
         self.size.get().unwrap()
@@ -230,7 +234,7 @@ impl<'a, Message> Node<'a, Message> {
     /// - `x`: x mouse coordinate being queried
     /// - `y`: y mouse coordinate being queried
     pub fn hit(&self, layout: Rectangle, clip: Rectangle, x: f32, y: f32) -> bool {
-        let stylesheet = self.style.as_ref().unwrap().deref();
+        let stylesheet = self.stylesheet.as_ref().unwrap().deref();
         self.widget.hit(layout, clip, stylesheet, x, y)
     }
 
@@ -256,15 +260,28 @@ impl<'a, Message> Node<'a, Message> {
     /// - `event`: the event that needs to be handled
     /// - `context`: context for submitting messages and requesting redraws of the ui.
     pub fn event(&mut self, layout: Rectangle, clip: Rectangle, event: Event, context: &mut Context<Message>) {
-        let stylesheet = self.style.as_ref().unwrap().deref();
+        let stylesheet = self.stylesheet.as_ref().unwrap().deref();
         self.widget.event(layout, clip, stylesheet, event, context);
         self.focused.replace(Some(self.widget.focused()));
 
         if Some(self.widget.state()) != self.state {
-            // trigger a restyle for this widget and it's children
-            println!("restyle needed!");
             self.state = Some(self.widget.state());
-            //self.style = self.style_id.iter().flat_map(|node| self.tree.match)
+
+            // trigger a restyle for this widget and it's children
+            let new_style = self.style.as_ref().unwrap().restyle(
+                &self.selector_matches,
+                self.widget.widget(),
+                self.class.unwrap_or(""),
+                self.widget.state(),
+            );
+
+            if new_style != self.selector_matches {
+                self.stylesheet.replace(self.style.as_ref().unwrap().get(&self.selector_matches));
+
+                // todo: restyle children here
+
+                self.selector_matches = new_style;
+            }
         }
     }
 
@@ -274,7 +291,7 @@ impl<'a, Message> Node<'a, Message> {
     /// - `layout`: the layout assigned to the widget
     /// - `clip`: a clipping rect for use with [`Primitive::PushClip`](../draw/enum.Primitive.html#variant.PushClip).
     pub fn draw(&mut self, layout: Rectangle, clip: Rectangle) -> Vec<Primitive<'a>> {
-        let stylesheet = self.style.as_ref().unwrap().deref();
+        let stylesheet = self.stylesheet.as_ref().unwrap().deref();
         self.widget.draw(layout, clip, stylesheet)
     }
 }
@@ -309,7 +326,9 @@ impl<Message> Context<Message> {
     }
 
     /// Returns the redraw flag.
-    pub fn redraw_requested(&self) -> bool { self.redraw }
+    pub fn redraw_requested(&self) -> bool {
+        self.redraw
+    }
 }
 
 impl<Message> IntoIterator for Context<Message> {

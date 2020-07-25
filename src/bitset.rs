@@ -104,7 +104,7 @@ impl<'a> Iterator for BlockIter<'a> {
         }
 
         // find the least significant bit
-        let bit = (self.current & !(self.current - 1));
+        let bit = self.current & !(self.current - 1);
         // clear the least significant bit
         self.current = self.current & (self.current - 1);
 

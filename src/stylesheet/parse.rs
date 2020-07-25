@@ -42,7 +42,11 @@ pub async fn parse<L: Loader>(tokens: Vec<Token>, loader: &L, cache: &mut Cache)
         fonts: &mut fonts,
     };
 
-    let mut rule_tree = NewRuleTree::default();
+    let mut rule_tree = NewRuleTree {
+        selector: Selector::Widget(SelectorWidget::Any),
+        rules: Vec::new(),
+        children: Vec::new(),
+    };
     while let Some(_) = context.tokens.peek() {
         let (selectors, rules) = parse_block(&mut context).await?;
         rule_tree.insert(selectors, rules);

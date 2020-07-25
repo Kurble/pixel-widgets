@@ -81,7 +81,6 @@
 //! | textwrap | `no-wrap`<br>`wrap`<br>`word-wrap` | |
 //! | size | `<number>`<br>`fill(<number>)`<br>`exact(<number>)`<br>`shrink` | Just a number resolves to `exact` |
 //! | align | `begin`<br>`center`<br>`end` | |
-use std::borrow::{Borrow, Cow};
 use std::collections::HashMap;
 use std::iter::{FromIterator, Peekable};
 use std::rc::Rc;
@@ -165,10 +164,10 @@ enum Rule {
     AlignVertical(Align),
 }
 
-#[derive(Default)]
 pub(crate) struct NewRuleTree {
+    selector: Selector,
     rules: Vec<Rule>,
-    children: Vec<(Selector, NewRuleTree)>,
+    children: Vec<NewRuleTree>,
 }
 
 pub(crate) struct RuleTree {
@@ -176,8 +175,9 @@ pub(crate) struct RuleTree {
 }
 
 pub(crate) struct RuleNode {
+    selector: Selector,
     rules: Vec<Rule>,
-    children: Vec<(Selector, usize)>,
+    children: Vec<usize>,
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -230,14 +230,22 @@ impl Style {
         }
     }
 
-    pub(crate) fn get(&self, style: BitSet) -> Rc<Stylesheet> {
-        Rc::<Stylesheet>::clone(self.resolved.borrow_mut().entry(style.clone()).or_insert_with(move || {
-            let mut computed = self.default.clone();
-            for rule in self.rule_tree.iter_rules(&style) {
-                rule.apply(&mut computed);
-            }
-            Rc::new(computed)
-        }))
+    pub(crate) fn get(&self, style: &BitSet) -> Rc<Stylesheet> {
+        let mut resolved = self.resolved.borrow_mut();
+        if let Some(existing) = resolved.get(style) {
+            return existing.clone();
+        }
+        let mut computed = self.default.clone();
+        for rule in self.rule_tree.iter_rules(&style) {
+            rule.apply(&mut computed);
+        }
+        let result = Rc::new(computed);
+        resolved.insert(style.clone(), result.clone());
+        result
+    }
+
+    pub(crate) fn restyle(&self, style: &BitSet, widget: &str, class: &str, state: &str) -> BitSet {
+        unimplemented!()
     }
 
     /// Asynchronously load a stylesheet from a .pwss file. See the [module documentation](index.html) on how to write
@@ -260,18 +268,22 @@ impl NewRuleTree {
             Some(selector) => {
                 let mut index = self.children.len();
 
-                for (i, (ref child_selector, _)) in self.children.iter().enumerate() {
-                    if child_selector == selector {
+                for (i, node) in self.children.iter().enumerate() {
+                    if &node.selector == selector {
                         index = i;
                         break;
                     }
                 }
 
                 if index == self.children.len() {
-                    self.children.push((selector.clone(), NewRuleTree::default()));
+                    self.children.push(NewRuleTree {
+                        selector: selector.clone(),
+                        rules: Vec::new(),
+                        children: Vec::new(),
+                    });
                 }
 
-                self.children[index].1.insert(&selectors.as_ref()[1..], rules)
+                self.children[index].insert(&selectors.as_ref()[1..], rules);
             }
         }
     }
@@ -279,12 +291,14 @@ impl NewRuleTree {
     fn flatten(self, into: &mut RuleTree) -> usize {
         let index = into.nodes.len();
         into.nodes.push(RuleNode {
+            selector: self.selector,
             rules: self.rules,
             children: Vec::new(),
         });
-        for (selector, child) in self.children {
+
+        for child in self.children {
             let child = child.flatten(into);
-            into.nodes[index].children.push((selector, child));
+            into.nodes[index].children.push(child);
         }
         index
     }
@@ -300,13 +314,13 @@ impl RuleTree {
         self.nodes[node]
             .children
             .iter()
-            .filter_map(move |&(ref selector, tree)| match selector {
-                &Selector::State(ref sel_state) => Some(tree).filter(|_| sel_state == state),
-                &Selector::First => Some(tree).filter(|_| n == 0),
-                &Selector::Modulo(num, den) => Some(tree).filter(|_| (n % den) == num),
-                &Selector::Nth(num) => Some(tree).filter(|_| n == num),
-                &Selector::Last => Some(tree).filter(|_| last),
-                &_ => None,
+            .filter_map(move |&tree| match self.nodes[tree].selector {
+                Selector::State(ref sel_state) => Some(tree).filter(|_| sel_state == state),
+                Selector::First => Some(tree).filter(|_| n == 0),
+                Selector::Modulo(num, den) => Some(tree).filter(|_| (n % den) == num),
+                Selector::Nth(num) => Some(tree).filter(|_| n == num),
+                Selector::Last => Some(tree).filter(|_| last),
+                _ => None,
             })
             .chain(Some(node).into_iter())
     }
@@ -322,13 +336,13 @@ impl RuleTree {
         self.nodes[node]
             .children
             .iter()
-            .filter_map(move |&(ref selector, tree)| match selector {
-                &Selector::Class(ref sel_class) => Some(tree).filter(|_| sel_class == class),
-                &Selector::Widget(ref sel_widget) => Some(tree).filter(|_| sel_widget.matches(widget)),
-                &Selector::WidgetDirectChild(ref sel_widget) => {
+            .filter_map(move |&tree| match self.nodes[tree].selector {
+                Selector::Class(ref sel_class) => Some(tree).filter(|_| sel_class == class),
+                Selector::Widget(ref sel_widget) => Some(tree).filter(|_| sel_widget.matches(widget)),
+                Selector::WidgetDirectChild(ref sel_widget) => {
                     Some(tree).filter(|_| direct && sel_widget.matches(widget))
                 }
-                &_ => None,
+                _ => None,
             })
     }
 
@@ -337,12 +351,12 @@ impl RuleTree {
         self.nodes[node]
             .children
             .iter()
-            .filter_map(move |&(ref selector, tree)| match selector {
-                &Selector::WidgetDirectAfter(ref sel_widget) => {
+            .filter_map(move |&tree| match self.nodes[tree].selector {
+                Selector::WidgetDirectAfter(ref sel_widget) => {
                     Some(tree).filter(|_| direct && sel_widget.matches(widget))
                 }
-                &Selector::WidgetAfter(ref sel_widget) => Some(tree).filter(|_| sel_widget.matches(widget)),
-                &_ => None,
+                Selector::WidgetAfter(ref sel_widget) => Some(tree).filter(|_| sel_widget.matches(widget)),
+                _ => None,
             })
     }
 }
@@ -351,6 +365,7 @@ impl Default for RuleTree {
     fn default() -> Self {
         Self {
             nodes: vec![RuleNode {
+                selector: Selector::Widget(SelectorWidget::Any),
                 rules: vec![],
                 children: vec![],
             }],
