@@ -83,8 +83,8 @@
 //! | align | `begin`<br>`center`<br>`end` | |
 use std::borrow::{Borrow, Cow};
 use std::collections::HashMap;
+use std::iter::{FromIterator, Peekable};
 use std::rc::Rc;
-use std::iter::Peekable;
 
 use crate::bitset::BitSet;
 use crate::cache::Cache;
@@ -97,8 +97,8 @@ mod parse;
 mod tokenize;
 
 use parse::*;
-use tokenize::*;
 use std::cell::RefCell;
+use tokenize::*;
 
 /// Errors that can be encountered while loading a stylesheet
 #[derive(Debug)]
@@ -166,10 +166,18 @@ enum Rule {
 }
 
 #[derive(Default)]
-pub(crate) struct RuleTree {
-    pub index: usize,
+pub(crate) struct NewRuleTree {
     rules: Vec<Rule>,
-    children: Vec<(Selector, RuleTree)>,
+    children: Vec<(Selector, NewRuleTree)>,
+}
+
+pub(crate) struct RuleTree {
+    nodes: Vec<RuleNode>,
+}
+
+pub(crate) struct RuleNode {
+    rules: Vec<Rule>,
+    children: Vec<(Selector, usize)>,
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -192,10 +200,11 @@ enum Selector {
     State(String),
 }
 
-#[derive(Default, Clone)]
-pub(crate) struct Query<'a> {
-    pub ancestors: Vec<Vec<&'a RuleTree>>,
-    pub siblings: Vec<Vec<&'a RuleTree>>,
+#[derive(Clone)]
+pub(crate) struct Query {
+    pub style: Rc<Style>,
+    pub ancestors: Vec<BitSet>,
+    pub siblings: Vec<BitSet>,
 }
 
 impl Style {
@@ -222,19 +231,13 @@ impl Style {
     }
 
     pub(crate) fn get(&self, style: BitSet) -> Rc<Stylesheet> {
-        Rc::<Stylesheet>::clone(
-            self.resolved
-                .borrow_mut()
-                .entry(style.clone())
-                .or_insert_with(move || {
-                    let mut computed = self.default.clone();
-
-                    println!("get stylesheet for {:?}", style);
-                    // todo: loop over the rules and apply them
-
-                    Rc::new(computed)
-                })
-        )
+        Rc::<Stylesheet>::clone(self.resolved.borrow_mut().entry(style.clone()).or_insert_with(move || {
+            let mut computed = self.default.clone();
+            for rule in self.rule_tree.iter_rules(&style) {
+                rule.apply(&mut computed);
+            }
+            Rc::new(computed)
+        }))
     }
 
     /// Asynchronously load a stylesheet from a .pwss file. See the [module documentation](index.html) on how to write
@@ -249,7 +252,7 @@ impl Style {
     }
 }
 
-impl RuleTree {
+impl NewRuleTree {
     /// Recursively insert some rules at the selectors path
     fn insert(&mut self, selectors: impl AsRef<[Selector]>, rules: Vec<Rule>) {
         match selectors.as_ref().get(0) {
@@ -265,7 +268,7 @@ impl RuleTree {
                 }
 
                 if index == self.children.len() {
-                    self.children.push((selector.clone(), RuleTree::default()));
+                    self.children.push((selector.clone(), NewRuleTree::default()));
                 }
 
                 self.children[index].1.insert(&selectors.as_ref()[1..], rules)
@@ -273,73 +276,119 @@ impl RuleTree {
         }
     }
 
-    /// Recursively set the index field used for bitset identification
-    fn index(&mut self, counter: &mut usize) {
-        self.index = *counter;
-        *counter += 1;
-        for (_, ref mut child) in self.children.iter_mut() {
-            child.index(counter);
+    fn flatten(self, into: &mut RuleTree) -> usize {
+        let index = into.nodes.len();
+        into.nodes.push(RuleNode {
+            rules: self.rules,
+            children: Vec::new(),
+        });
+        for (selector, child) in self.children {
+            let child = child.flatten(into);
+            into.nodes[index].children.push((selector, child));
         }
-    }
-
-    /// Match a widget matched to this rule tree
-    fn match_self<'a>(&'a self, state: &'a str, n: usize, last: bool) -> impl Iterator<Item = &'a RuleTree> {
-        self.children.iter().filter_map(move |(selector, tree)| match selector {
-            &Selector::State(ref sel_state) => Some(tree).filter(|_| sel_state == state),
-            &Selector::First => Some(tree).filter(|_| n == 0),
-            &Selector::Modulo(num, den) => Some(tree).filter(|_| (n%den) == num),
-            &Selector::Nth(num) => Some(tree).filter(|_| n == num),
-            &Selector::Last => Some(tree).filter(|_| last),
-            &_ => None,
-        }).chain(Some(self).into_iter())
-    }
-
-    /// Match a child widget of a widget matched to this rule tree.
-    fn match_child<'a>(&'a self, direct: bool, widget: &'a str, class: &'a str) -> impl Iterator<Item = &'a RuleTree> {
-        self.children.iter().filter_map(move |(selector, tree)| match selector {
-            &Selector::Class(ref sel_class) => Some(tree).filter(|_| sel_class == class),
-            &Selector::Widget(ref sel_widget) => Some(tree).filter(|_| sel_widget.matches(widget)),
-            &Selector::WidgetDirectChild(ref sel_widget) => Some(tree).filter(|_| direct && sel_widget.matches(widget)),
-            &_ => None,
-        })
-    }
-
-    /// Match a sibling widget of a widget matched to this rule tree.
-    fn match_sibling<'a>(&'a self, direct: bool, widget: &'a str) -> impl Iterator<Item = &'a RuleTree> {
-        self.children.iter().filter_map(move |(selector, tree)| match selector {
-            &Selector::WidgetDirectAfter(ref sel_widget) => Some(tree).filter(|_| direct && sel_widget.matches(widget)),
-            &Selector::WidgetAfter(ref sel_widget) => Some(tree).filter(|_| sel_widget.matches(widget)),
-            &_ => None,
-        })
+        index
     }
 }
 
-impl<'a> Query<'a> {
-    pub fn from_style(style: &'a Style) -> Self {
+impl RuleTree {
+    fn iter_rules<'a>(&'a self, style: &'a BitSet) -> impl Iterator<Item = &'a Rule> {
+        style.iter().flat_map(move |node| self.nodes[node].rules.iter())
+    }
+
+    /// Match a widget matched to this rule tree
+    fn match_self<'a>(&'a self, node: usize, state: &'a str, n: usize, last: bool) -> impl 'a + Iterator<Item = usize> {
+        self.nodes[node]
+            .children
+            .iter()
+            .filter_map(move |&(ref selector, tree)| match selector {
+                &Selector::State(ref sel_state) => Some(tree).filter(|_| sel_state == state),
+                &Selector::First => Some(tree).filter(|_| n == 0),
+                &Selector::Modulo(num, den) => Some(tree).filter(|_| (n % den) == num),
+                &Selector::Nth(num) => Some(tree).filter(|_| n == num),
+                &Selector::Last => Some(tree).filter(|_| last),
+                &_ => None,
+            })
+            .chain(Some(node).into_iter())
+    }
+
+    /// Match a child widget of a widget matched to this rule tree.
+    fn match_child<'a>(
+        &'a self,
+        node: usize,
+        direct: bool,
+        widget: &'a str,
+        class: &'a str,
+    ) -> impl 'a + Iterator<Item = usize> {
+        self.nodes[node]
+            .children
+            .iter()
+            .filter_map(move |&(ref selector, tree)| match selector {
+                &Selector::Class(ref sel_class) => Some(tree).filter(|_| sel_class == class),
+                &Selector::Widget(ref sel_widget) => Some(tree).filter(|_| sel_widget.matches(widget)),
+                &Selector::WidgetDirectChild(ref sel_widget) => {
+                    Some(tree).filter(|_| direct && sel_widget.matches(widget))
+                }
+                &_ => None,
+            })
+    }
+
+    /// Match a sibling widget of a widget matched to this rule tree.
+    fn match_sibling<'a>(&'a self, node: usize, direct: bool, widget: &'a str) -> impl 'a + Iterator<Item = usize> {
+        self.nodes[node]
+            .children
+            .iter()
+            .filter_map(move |&(ref selector, tree)| match selector {
+                &Selector::WidgetDirectAfter(ref sel_widget) => {
+                    Some(tree).filter(|_| direct && sel_widget.matches(widget))
+                }
+                &Selector::WidgetAfter(ref sel_widget) => Some(tree).filter(|_| sel_widget.matches(widget)),
+                &_ => None,
+            })
+    }
+}
+
+impl Default for RuleTree {
+    fn default() -> Self {
         Self {
-            ancestors: vec![vec![&style.rule_tree]],
+            nodes: vec![RuleNode {
+                rules: vec![],
+                children: vec![],
+            }],
+        }
+    }
+}
+
+impl Into<RuleTree> for NewRuleTree {
+    fn into(self) -> RuleTree {
+        let mut result = RuleTree { nodes: Vec::new() };
+        self.flatten(&mut result);
+        result
+    }
+}
+
+impl Query {
+    pub fn from_style(style: Rc<Style>) -> Self {
+        Self {
+            style,
+            ancestors: vec![BitSet::from_iter(Some(0))],
             siblings: Vec::new(),
         }
     }
 
-    pub fn match_widget(&self, widget: &'a str, class: &'a str, state: &'a str, last: bool) -> Vec<&'a RuleTree> {
-        let from_ancestors = self.ancestors
-            .iter()
-            .rev()
-            .enumerate()
-            .flat_map(move |(i, matches)| {
-                matches.iter().flat_map(move |tree| tree.match_child(i == 0, widget, class))
-            });
-        let from_siblings = self.siblings
-            .iter()
-            .rev()
-            .enumerate()
-            .flat_map(move |(i, matches)| {
-                matches.iter().flat_map(move |tree| tree.match_sibling(i == 0, widget))
-            });
+    pub fn match_widget(&self, widget: &str, class: &str, state: &str, last: bool) -> BitSet {
+        let from_ancestors = self.ancestors.iter().rev().enumerate().flat_map(move |(i, matches)| {
+            matches
+                .iter()
+                .flat_map(move |node| self.style.rule_tree.match_child(node, i == 0, widget, class))
+        });
+        let from_siblings = self.siblings.iter().rev().enumerate().flat_map(move |(i, matches)| {
+            matches
+                .iter()
+                .flat_map(move |node| self.style.rule_tree.match_sibling(node, i == 0, widget))
+        });
         from_ancestors
             .chain(from_siblings)
-            .flat_map(move |tree| tree.match_self(state, self.siblings.len(), last))
+            .flat_map(move |node| self.style.rule_tree.match_self(node, state, self.siblings.len(), last))
             .collect()
     }
 }

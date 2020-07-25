@@ -157,8 +157,10 @@ pub struct Node<'a, Message> {
     size: Cell<Option<(Size, Size)>>,
     focused: Cell<Option<bool>>,
     style: Option<Rc<Stylesheet>>,
+    tree: Option<Rc<Style>>,
     style_id: BitSet,
     class: Option<&'a str>,
+    state: Option<&'static str>,
 }
 
 /// Context for posting messages and requesting redraws of the ui.
@@ -175,8 +177,10 @@ impl<'a, Message> Node<'a, Message> {
             size: Cell::new(None),
             focused: Cell::new(None),
             style: None,
+            tree: None,
             style_id: BitSet::new(),
             class: None,
+            state: None,
         }
     }
 
@@ -186,15 +190,19 @@ impl<'a, Message> Node<'a, Message> {
         self
     }
 
-    pub(crate) fn style(&mut self, engine: Rc<Style>, query: &mut Query<'a>) {
+    pub(crate) fn style(&mut self, query: &mut Query) {
+        // remember rule tree
+        self.tree = Some(query.style.clone());
+
         // resolve own style
-        let nodes = query.match_widget(self.widget.widget(), self.class.unwrap_or(""), self.widget.state(), false);
-        self.style.replace(engine.get(BitSet::from_iter(nodes.iter().map(|n| n.index))));
+        self.style_id = query.match_widget(self.widget.widget(), self.class.unwrap_or(""), self.widget.state(), false);
+        self.style.replace(query.style.get(self.style_id.clone()));
+        self.state = Some(self.widget.state());
 
         // resolve children style
-        query.ancestors.push(nodes);
+        query.ancestors.push(self.style_id.clone());
         let own_siblings = std::mem::replace(&mut query.siblings, Vec::new());
-        self.widget.visit_children(&mut |child| child.style(engine.clone(), &mut *query));
+        self.widget.visit_children(&mut |child| child.style(&mut *query));
         std::mem::replace(&mut query.siblings, own_siblings);
         query.siblings.push(query.ancestors.pop().unwrap());
     }
@@ -252,9 +260,12 @@ impl<'a, Message> Node<'a, Message> {
         self.widget.event(layout, clip, stylesheet, event, context);
         self.focused.replace(Some(self.widget.focused()));
 
-        //if self.widget.state() != self.current_state {
+        if Some(self.widget.state()) != self.state {
             // trigger a restyle for this widget and it's children
-        //}
+            println!("restyle needed!");
+            self.state = Some(self.widget.state());
+            //self.style = self.style_id.iter().flat_map(|node| self.tree.match)
+        }
     }
 
     /// Draw the widget. Returns a list of [`Primitive`s](../draw/enum.Primitive.html) that should be drawn.

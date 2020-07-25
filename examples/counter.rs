@@ -31,6 +31,10 @@ impl Model for Counter {
         Column::new()
             .push(Button::new(state.get("up"), Text::new("Up")).on_clicked(Message::UpPressed))
             .push(Text::new(format!("Count: {}", self.value)))
+            .push(Text::new("Test 1"))
+            .push(Text::new("Test 2"))
+            .push(Text::new("Test 3"))
+            .push(Text::new("Test 4"))
             .push(Button::new(state.get("down"), Text::new("Down")).on_clicked(Message::DownPressed))
             .into_node()
     }

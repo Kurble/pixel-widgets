@@ -7,7 +7,7 @@ button {
     padding: 5
 }
 
-button:hover {
+button :hover {
     background: #668
 }
 
@@ -17,4 +17,10 @@ button :hover > text {
 
 text {
     text-size: 24
+    padding: 3
+}
+
+text :odd {
+    background: #fff
+    color: #000
 }

@@ -37,8 +37,7 @@ impl<M: Model> ModelView<M> {
         if self.view.is_none() {
             unsafe {
                 let mut root = (self.model.as_mut() as *mut M).as_mut().unwrap().view();
-                let style_ref = (&*style as *const Style).as_ref().unwrap();
-                root.style(style, &mut Query::from_style(style_ref));
+                root.style(&mut Query::from_style(style));
                 self.view.replace(root);
             }
         }

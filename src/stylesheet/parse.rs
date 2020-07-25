@@ -42,12 +42,13 @@ pub async fn parse<L: Loader>(tokens: Vec<Token>, loader: &L, cache: &mut Cache)
         fonts: &mut fonts,
     };
 
+    let mut rule_tree = NewRuleTree::default();
     while let Some(_) = context.tokens.peek() {
         let (selectors, rules) = parse_block(&mut context).await?;
-        result.rule_tree.insert(selectors, rules);
+        rule_tree.insert(selectors, rules);
     }
 
-    result.rule_tree.index(&mut 0);
+    result.rule_tree = rule_tree.into();
 
     Ok(result)
 }
