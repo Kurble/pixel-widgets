@@ -37,6 +37,19 @@ impl<'a, T, F: Fn(bool) -> T> Widget<'a, T> for Toggle<'a, T, F> {
         "toggle"
     }
 
+    fn state(&self) -> &'static str {
+        if self.checked {
+            "checked"
+        } else {
+            match self.state {
+                State::Idle => "",
+                State::Hover => "hover",
+                State::Pressed => "pressed",
+                State::Disabled => "disabled",
+            }
+        }
+    }
+
     fn visit_children(&mut self, _: &mut dyn FnMut(&mut Node<'a, T>)) {}
 
     fn size(&self, stylesheet: &Stylesheet) -> (Size, Size) {
@@ -108,12 +121,7 @@ impl<'a, T, F: Fn(bool) -> T> Widget<'a, T> for Toggle<'a, T, F> {
     }
 
     fn draw(&mut self, layout: Rectangle, _: Rectangle, stylesheet: &Stylesheet) -> Vec<Primitive<'a>> {
-        let background = match self.checked {
-            false => &stylesheet.background,
-            true => &stylesheet.checked,
-        };
-
-        background.render(layout).into_iter().collect()
+        stylesheet.background.render(layout).into_iter().collect()
     }
 }
 

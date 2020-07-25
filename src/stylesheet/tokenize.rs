@@ -11,23 +11,27 @@ pub struct TokenPos {
     pub col_end: usize,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TokenValue {
-    Identifier(String),
-    Class(String),
+    Iden(String),
+    Color(String),
     Path(String),
     Number(String),
-    Color(String),
     ParenOpen,
     ParenClose,
     BraceOpen,
     BraceClose,
     Colon,
     Semi,
+    Dot,
     Comma,
+    Gt,
+    Plus,
+    Tilde,
+    Star,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Token(pub TokenValue, pub TokenPos);
 
 pub fn tokenize<E: std::error::Error>(text: String) -> Result<Vec<Token>, Error<E>> {
@@ -59,19 +63,23 @@ pub fn tokenize<E: std::error::Error>(text: String) -> Result<Vec<Token>, Error<
                 }
                 chr if chr.is_whitespace() => None,
                 chr if chr.is_alphabetic() || chr == '_' || chr == '-' => {
-                    Some(Token(TokenValue::Identifier(chr.to_string()), pos))
+                    Some(Token(TokenValue::Iden(chr.to_string()), pos))
                 }
                 chr if chr.is_numeric() => Some(Token(TokenValue::Number(chr.to_string()), pos)),
-                '.' => Some(Token(TokenValue::Class(String::new()), pos)),
-                '@' => Some(Token(TokenValue::Path(String::new()), pos)),
                 '#' => Some(Token(TokenValue::Color(String::new()), pos)),
+                '@' => Some(Token(TokenValue::Path(String::new()), pos)),
                 '(' => Some(Token(TokenValue::ParenOpen, pos)),
                 ')' => Some(Token(TokenValue::ParenClose, pos)),
                 '{' => Some(Token(TokenValue::BraceOpen, pos)),
                 '}' => Some(Token(TokenValue::BraceClose, pos)),
                 ':' => Some(Token(TokenValue::Colon, pos)),
                 ';' => Some(Token(TokenValue::Semi, pos)),
+                '.' => Some(Token(TokenValue::Dot, pos)),
                 ',' => Some(Token(TokenValue::Comma, pos)),
+                '>' => Some(Token(TokenValue::Gt, pos)),
+                '+' => Some(Token(TokenValue::Plus, pos)),
+                '~' => Some(Token(TokenValue::Tilde, pos)),
+                '*' => Some(Token(TokenValue::Star, pos)),
                 chr => {
                     return Err(Error::Syntax(format!("Unexpected character '{}'", chr), pos));
                 }
@@ -87,11 +95,19 @@ pub fn tokenize<E: std::error::Error>(text: String) -> Result<Vec<Token>, Error<
 impl Token {
     fn extend(&mut self, ch: char) -> bool {
         match self {
-            Token(TokenValue::Identifier(ref mut s), ref mut pos)
-            | Token(TokenValue::Class(ref mut s), ref mut pos) => {
+            Token(TokenValue::Iden(ref mut s), ref mut pos) => {
                 if ch.is_alphanumeric() || ch == '_' || ch == '-' {
                     pos.col_end += 1;
                     s.push(ch);
+                    true
+                } else {
+                    false
+                }
+            }
+            Token(TokenValue::Color(ref mut p), ref mut pos) => {
+                if ch.is_ascii_hexdigit() {
+                    pos.col_end += 1;
+                    p.push(ch);
                     true
                 } else {
                     false
@@ -110,15 +126,6 @@ impl Token {
                 if NUMBER_CHARACTERS.chars().find(|&c| c == ch).is_some() {
                     pos.col_end += 1;
                     n.push(ch);
-                    true
-                } else {
-                    false
-                }
-            }
-            Token(TokenValue::Color(ref mut c), ref mut pos) => {
-                if ch.is_ascii_hexdigit() {
-                    pos.col_end += 1;
-                    c.push(ch);
                     true
                 } else {
                     false

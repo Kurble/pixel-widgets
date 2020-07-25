@@ -111,9 +111,11 @@ use crate::layout::Rectangle;
 use crate::model_view::ModelView;
 use crate::stylesheet::Style;
 use crate::widget::{Context, Node};
+use std::rc::Rc;
 
 /// Backend specific code
 pub mod backend;
+mod bitset;
 mod cache;
 /// Primitives used for drawing
 pub mod draw;
@@ -177,7 +179,7 @@ pub trait Loader: Send + Sync {
 /// - [`WgpuUi`](backend/wgpu/struct.WgpuUi.html) Renders using [wgpu-rs](https://github.com/gfx-rs/wgpu-rs).
 pub struct Ui<I: Model> {
     model_view: ModelView<I>,
-    style: Style,
+    style: Rc<Style>,
     cache: self::cache::Cache,
     viewport: Rectangle,
     redraw: bool,
@@ -189,7 +191,7 @@ impl<I: Model> Ui<I> {
     pub fn new(model: I, viewport: Rectangle) -> Self {
         let mut cache = self::cache::Cache::new(512, 0);
 
-        let style = Style::new(&mut cache);
+        let style = Rc::new(Style::new(&mut cache));
 
         Self {
             model_view: ModelView::new(model),
@@ -210,7 +212,7 @@ impl<I: Model> Ui<I> {
     ) -> Result<Self, stylesheet::Error<L::Error>> {
         let mut cache = self::cache::Cache::new(512, 0);
 
-        let style = Style::load(&loader, url, &mut cache).await?;
+        let style = Rc::new(Style::load(&loader, url, &mut cache).await?);
 
         Ok(Self {
             model_view: ModelView::new(model),
@@ -240,7 +242,7 @@ impl<I: Model> Ui<I> {
         let mut context = Context::new(self.redraw);
 
         {
-            let view = self.model_view.view(&mut self.style);
+            let view = self.model_view.view(self.style.clone());
             let (w, h) = view.size();
             let layout = Rectangle::from_wh(
                 w.resolve(self.viewport.width(), w.parts()),
@@ -268,7 +270,7 @@ impl<I: Model> Ui<I> {
 
         let viewport = self.viewport;
         let primitives = {
-            let view = self.model_view.view(&mut self.style);
+            let view = self.model_view.view(self.style.clone());
             let (w, h) = view.size();
             let layout = Rectangle::from_wh(
                 w.resolve(viewport.width(), w.parts()),

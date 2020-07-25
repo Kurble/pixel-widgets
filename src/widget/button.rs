@@ -44,6 +44,15 @@ impl<'a, T: 'a> Widget<'a, T> for Button<'a, T> {
         "button"
     }
 
+    fn state(&self) -> &'static str {
+        match self.state {
+            State::Idle => "",
+            State::Hover => "hover",
+            State::Pressed => "pressed",
+            State::Disabled => "disabled",
+        }
+    }
+
     fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut Node<'a, T>)) {
         visitor(&mut self.content);
     }
@@ -114,14 +123,7 @@ impl<'a, T: 'a> Widget<'a, T> for Button<'a, T> {
             .background
             .content_rect(layout, style.padding);
 
-        let background = match self.state {
-            State::Idle => &style.background,
-            State::Hover => &style.hover,
-            State::Pressed => &style.pressed,
-            State::Disabled => &style.disabled,
-        };
-
-        background
+        style.background
             .render(layout)
             .into_iter()
             .chain(self.content.draw(content_rect, clip).into_iter())

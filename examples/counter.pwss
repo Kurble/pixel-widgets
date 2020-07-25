@@ -4,8 +4,20 @@ column {
 
 button {
     background: #444
-    hover: #668
     padding: 5
+}
+
+button:hover {
+    background: #668
+}
+
+button :hover > text {
+    color: #f00
+}
+
+button~* {
+    width: 200
+    height: 200
 }
 
 text {

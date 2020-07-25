@@ -22,13 +22,14 @@
 
 use std::borrow::Cow;
 use std::cell::Cell;
-use std::ops::Deref;
+use std::ops::{Deref};
 use std::rc::Rc;
 
 use crate::draw::Primitive;
 use crate::event::Event;
 use crate::layout::*;
 use crate::stylesheet::*;
+use crate::bitset::BitSet;
 
 pub use self::button::Button;
 pub use self::column::Column;
@@ -41,6 +42,7 @@ pub use self::space::Space;
 pub use self::text::Text;
 pub use self::toggle::Toggle;
 pub use self::window::Window;
+use std::iter::FromIterator;
 
 /// A clickable button
 pub mod button;
@@ -69,6 +71,9 @@ pub mod window;
 pub trait Widget<'a, Message> {
     /// The name of this widget, used to identify widgets of this type in stylesheets.
     fn widget(&self) -> &'static str;
+
+    /// The state of this widget, used for computing the style. Usually an empty string, "hover", "pressed", etc.
+    fn state(&self) -> &'static str { "" }
 
     /// Applies a visitor to all childs of the widget. If an widget fails to visit it's children, the children won't
     /// be able to resolve their stylesheet, resulting in a panic when calling [`size`](struct.Node.html#method.size),
@@ -152,6 +157,7 @@ pub struct Node<'a, Message> {
     size: Cell<Option<(Size, Size)>>,
     focused: Cell<Option<bool>>,
     style: Option<Rc<Stylesheet>>,
+    style_id: BitSet,
     class: Option<&'a str>,
 }
 
@@ -169,6 +175,7 @@ impl<'a, Message> Node<'a, Message> {
             size: Cell::new(None),
             focused: Cell::new(None),
             style: None,
+            style_id: BitSet::new(),
             class: None,
         }
     }
@@ -179,20 +186,17 @@ impl<'a, Message> Node<'a, Message> {
         self
     }
 
-    pub(crate) fn style(&mut self, engine: &mut Style, query: &mut Query<'a>) {
-        query.widgets.push(self.widget.widget());
-        if let Some(class) = self.class {
-            query.classes.push(Cow::Borrowed(class));
-        }
+    pub(crate) fn style(&mut self, engine: Rc<Style>, query: &mut Query<'a>) {
+        // resolve own style
+        let nodes = query.match_widget(self.widget.widget(), self.class.unwrap_or(""), self.widget.state(), false);
+        self.style.replace(engine.get(BitSet::from_iter(nodes.iter().map(|n| n.index))));
 
-        self.style.replace(engine.get(query));
-        self.widget
-            .visit_children(&mut |child| child.style(&mut *engine, &mut *query));
-
-        query.widgets.pop();
-        if self.class.is_some() {
-            query.classes.pop();
-        }
+        // resolve children style
+        query.ancestors.push(nodes);
+        let own_siblings = std::mem::replace(&mut query.siblings, Vec::new());
+        self.widget.visit_children(&mut |child| child.style(engine.clone(), &mut *query));
+        std::mem::replace(&mut query.siblings, own_siblings);
+        query.siblings.push(query.ancestors.pop().unwrap());
     }
 
     /// Returns the `(width, height)` of this widget.
@@ -247,6 +251,10 @@ impl<'a, Message> Node<'a, Message> {
         let stylesheet = self.style.as_ref().unwrap().deref();
         self.widget.event(layout, clip, stylesheet, event, context);
         self.focused.replace(Some(self.widget.focused()));
+
+        //if self.widget.state() != self.current_state {
+            // trigger a restyle for this widget and it's children
+        //}
     }
 
     /// Draw the widget. Returns a list of [`Primitive`s](../draw/enum.Primitive.html) that should be drawn.

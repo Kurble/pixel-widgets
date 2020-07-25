@@ -61,6 +61,14 @@ impl<'a, T: 'a> Widget<'a, T> for Dropdown<'a, T> {
         "dropdown"
     }
 
+    fn state(&self) -> &'static str {
+        match self.state.inner {
+            InnerState::Open { .. } | InnerState::Pressed { .. } => "open",
+            InnerState::Idle if self.state.hovered => "hover",
+            InnerState::Idle => "",
+        }
+    }
+
     fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut Node<'a, T>)) {
         for item in self.items.iter_mut() {
             visitor(&mut item.node);
@@ -209,7 +217,7 @@ impl<'a, T: 'a> Widget<'a, T> for Dropdown<'a, T> {
                     right: layout.right,
                     bottom: layout.bottom + self.items.len() as f32 * layout.height(),
                 };
-                result.extend(style.pressed.render(expanded));
+                result.extend(style.background.render(expanded));
                 for (index, item) in self.items.iter_mut().enumerate() {
                     if index == hover_item {
                         result.push(Primitive::DrawRect(

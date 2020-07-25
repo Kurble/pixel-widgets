@@ -15,10 +15,15 @@ scroll {
 
 button {
     background: #888
-    hover: #aaa
-    pressed: #222
-    disabled: #868
     padding: (left: 20.0 right: 20.0 top: 5.0 bottom: 5.0)
+}
+
+button:hover {
+    background: #aaa
+}
+
+button:pressed {
+    background: #222
 }
 
 button text {
@@ -72,8 +77,11 @@ space .dummy {
 
 dropdown {
     background: #0008
-    pressed: #002
     color: #00f8
     width: fill(1)
     padding: 8
+}
+
+dropdown:open {
+    background: #002
 }
