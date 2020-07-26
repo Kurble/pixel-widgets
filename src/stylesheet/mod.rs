@@ -244,8 +244,20 @@ impl Style {
         result
     }
 
-    pub(crate) fn restyle(&self, style: &BitSet, widget: &str, class: &str, state: &str) -> BitSet {
-        unimplemented!()
+    pub(crate) fn restyle(&self, style: &BitSet, state: &str, n: usize, last: bool) -> BitSet {
+        let mut result = BitSet::new();
+
+        for selector in style.iter() {
+            let keep = match self.rule_tree.nodes[selector].selector {
+                Selector::State(ref sel_state) => sel_state == state,
+                _ => true,
+            };
+            if keep {
+                self.rule_tree.add_to_bitset(selector, state, n, last, &mut result);
+            }
+        }
+
+        result
     }
 
     /// Asynchronously load a stylesheet from a .pwss file. See the [module documentation](index.html) on how to write
@@ -309,20 +321,23 @@ impl RuleTree {
         style.iter().flat_map(move |node| self.nodes[node].rules.iter())
     }
 
-    /// Match a widget matched to this rule tree
-    fn match_self<'a>(&'a self, node: usize, state: &'a str, n: usize, last: bool) -> impl 'a + Iterator<Item = usize> {
-        self.nodes[node]
-            .children
-            .iter()
-            .filter_map(move |&tree| match self.nodes[tree].selector {
-                Selector::State(ref sel_state) => Some(tree).filter(|_| sel_state == state),
-                Selector::First => Some(tree).filter(|_| n == 0),
-                Selector::Modulo(num, den) => Some(tree).filter(|_| (n % den) == num),
-                Selector::Nth(num) => Some(tree).filter(|_| n == num),
-                Selector::Last => Some(tree).filter(|_| last),
-                _ => None,
-            })
-            .chain(Some(node).into_iter())
+    /// Add a node from the rule tree to a bitset.
+    /// This will also add all the `:` based child selectors that apply based on `state`, `n` and `last`.
+    fn add_to_bitset(&self, node: usize, state: &str, n: usize, last: bool, to: &mut BitSet) {
+        to.insert(node);
+        for &child in self.nodes[node].children.iter() {
+            let add = match self.nodes[child].selector {
+                Selector::State(ref sel_state) => sel_state == state,
+                Selector::First => n == 0,
+                Selector::Modulo(num, den) => (n % den) == num,
+                Selector::Nth(num) => n == num,
+                Selector::Last => last,
+                _ => false,
+            };
+            if add {
+                self.add_to_bitset(child, state, n, last, to);
+            }
+        }
     }
 
     /// Match a child widget of a widget matched to this rule tree.
@@ -390,7 +405,9 @@ impl Query {
         }
     }
 
-    pub fn match_widget(&self, widget: &str, class: &str, state: &str, last: bool) -> BitSet {
+    pub fn match_widget(&self, widget: &str, class: &str, state: &str, n: usize, last: bool) -> BitSet {
+        let mut result = BitSet::new();
+
         let from_ancestors = self.ancestors.iter().rev().enumerate().flat_map(move |(i, matches)| {
             matches
                 .iter()
@@ -401,10 +418,12 @@ impl Query {
                 .iter()
                 .flat_map(move |node| self.style.rule_tree.match_sibling(node, i == 0, widget))
         });
-        from_ancestors
-            .chain(from_siblings)
-            .flat_map(move |node| self.style.rule_tree.match_self(node, state, self.siblings.len(), last))
-            .collect()
+
+        for node in from_ancestors.chain(from_siblings) {
+            self.style.rule_tree.add_to_bitset(node, state, n, last, &mut result);
+        }
+
+        result
     }
 }
 

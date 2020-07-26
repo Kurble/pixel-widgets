@@ -40,6 +40,7 @@ pub use self::space::Space;
 pub use self::text::Text;
 pub use self::toggle::Toggle;
 pub use self::window::Window;
+use std::iter::FromIterator;
 
 /// A clickable button
 pub mod button;
@@ -155,6 +156,7 @@ pub struct Node<'a, Message> {
     widget: Box<dyn Widget<'a, Message> + 'a>,
     size: Cell<Option<(Size, Size)>>,
     focused: Cell<Option<bool>>,
+    position: (usize, bool),
     style: Option<Rc<Style>>,
     selector_matches: BitSet,
     stylesheet: Option<Rc<Stylesheet>>,
@@ -175,6 +177,7 @@ impl<'a, Message> Node<'a, Message> {
             widget: Box::new(widget),
             size: Cell::new(None),
             focused: Cell::new(None),
+            position: (0, false),
             style: None,
             selector_matches: BitSet::new(),
             stylesheet: None,
@@ -194,11 +197,13 @@ impl<'a, Message> Node<'a, Message> {
         self.style = Some(query.style.clone());
 
         // resolve own stylesheet
+        self.position = (query.siblings.len(), false);
         self.selector_matches = query.match_widget(
             self.widget.widget(),
             self.class.unwrap_or(""),
             self.widget.state(),
-            false,
+            self.position.0,
+            self.position.1,
         );
         self.stylesheet.replace(query.style.get(&self.selector_matches));
         self.state = Some(self.widget.state());
@@ -207,6 +212,50 @@ impl<'a, Message> Node<'a, Message> {
         query.ancestors.push(self.selector_matches.clone());
         let own_siblings = std::mem::replace(&mut query.siblings, Vec::new());
         self.widget.visit_children(&mut |child| child.style(&mut *query));
+        std::mem::replace(&mut query.siblings, own_siblings);
+        query.siblings.push(query.ancestors.pop().unwrap());
+    }
+
+    fn restyle_add(&mut self, query: &mut Query) {
+        let adds = query.match_widget(
+            self.widget.widget(),
+            self.class.unwrap_or(""),
+            self.widget.state(),
+            self.position.0,
+            self.position.1,
+        );
+
+        let new_style = self.selector_matches.union(&adds);
+        if new_style != self.selector_matches {
+            self.selector_matches = new_style;
+            self.stylesheet.replace(self.style.as_ref().unwrap().get(&self.selector_matches));
+        }
+
+        query.ancestors.push(adds);
+        let own_siblings = std::mem::replace(&mut query.siblings, Vec::new());
+        self.widget.visit_children(&mut |child| child.restyle_add(&mut *query));
+        std::mem::replace(&mut query.siblings, own_siblings);
+        query.siblings.push(query.ancestors.pop().unwrap());
+    }
+
+    fn restyle_remove(&mut self, query: &mut Query) {
+        let removals = query.match_widget(
+            self.widget.widget(),
+            self.class.unwrap_or(""),
+            self.widget.state(),
+            self.position.0,
+            self.position.1,
+        );
+
+        let new_style = self.selector_matches.difference(&removals);
+        if new_style != self.selector_matches {
+            self.selector_matches = new_style;
+            self.stylesheet.replace(self.style.as_ref().unwrap().get(&self.selector_matches));
+        }
+
+        query.ancestors.push(removals);
+        let own_siblings = std::mem::replace(&mut query.siblings, Vec::new());
+        self.widget.visit_children(&mut |child| child.restyle_remove(&mut *query));
         std::mem::replace(&mut query.siblings, own_siblings);
         query.siblings.push(query.ancestors.pop().unwrap());
     }
@@ -267,20 +316,40 @@ impl<'a, Message> Node<'a, Message> {
         if Some(self.widget.state()) != self.state {
             self.state = Some(self.widget.state());
 
-            // trigger a restyle for this widget and it's children
+            // find out if the style changed as a result of the state change
             let new_style = self.style.as_ref().unwrap().restyle(
                 &self.selector_matches,
-                self.widget.widget(),
-                self.class.unwrap_or(""),
                 self.widget.state(),
+                self.position.0,
+                self.position.1,
             );
 
+            // apply the style change to self and any children that have styles living down the same rule tree paths.
             if new_style != self.selector_matches {
-                self.stylesheet.replace(self.style.as_ref().unwrap().get(&self.selector_matches));
+                let difference = new_style.difference(&self.selector_matches);
+                let additions = difference.intersection(&new_style);
+                let removals = difference.intersection(&self.selector_matches);
 
-                // todo: restyle children here
+                if !additions.is_empty() {
+                    let mut query = Query {
+                        style: self.style.clone().unwrap(),
+                        ancestors: vec![additions],
+                        siblings: vec![],
+                    };
+                    self.widget.visit_children(&mut |child| child.restyle_add(&mut query));
+                }
+
+                if !removals.is_empty() {
+                    let mut query = Query {
+                        style: self.style.clone().unwrap(),
+                        ancestors: vec![removals],
+                        siblings: vec![],
+                    };
+                    self.widget.visit_children(&mut |child| child.restyle_remove(&mut query));
+                }
 
                 self.selector_matches = new_style;
+                self.stylesheet.replace(self.style.as_ref().unwrap().get(&self.selector_matches));
             }
         }
     }
