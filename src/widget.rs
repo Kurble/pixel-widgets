@@ -19,12 +19,11 @@
 //!
 //! When implementing custom widgets, you need to make sure that the custom widgets do not remember absolute layouts.
 //! Widgets like [`Scroll`](scroll/struct.Scroll.html) can change the layout without needing a rebuild of the ui.
-
-use std::borrow::Cow;
 use std::cell::Cell;
 use std::ops::Deref;
 use std::rc::Rc;
 
+use crate::bitset::BitSet;
 use crate::draw::Primitive;
 use crate::event::Event;
 use crate::layout::*;
@@ -69,6 +68,11 @@ pub mod window;
 pub trait Widget<'a, Message> {
     /// The name of this widget, used to identify widgets of this type in stylesheets.
     fn widget(&self) -> &'static str;
+
+    /// The state of this widget, used for computing the style. Usually an empty string, "hover", "pressed", etc.
+    fn state(&self) -> &'static str {
+        ""
+    }
 
     /// Applies a visitor to all childs of the widget. If an widget fails to visit it's children, the children won't
     /// be able to resolve their stylesheet, resulting in a panic when calling [`size`](struct.Node.html#method.size),
@@ -151,8 +155,12 @@ pub struct Node<'a, Message> {
     widget: Box<dyn Widget<'a, Message> + 'a>,
     size: Cell<Option<(Size, Size)>>,
     focused: Cell<Option<bool>>,
-    style: Option<Rc<Stylesheet>>,
+    position: (usize, bool),
+    style: Option<Rc<Style>>,
+    selector_matches: BitSet,
+    stylesheet: Option<Rc<Stylesheet>>,
     class: Option<&'a str>,
+    state: Option<&'static str>,
 }
 
 /// Context for posting messages and requesting redraws of the ui.
@@ -168,8 +176,12 @@ impl<'a, Message> Node<'a, Message> {
             widget: Box::new(widget),
             size: Cell::new(None),
             focused: Cell::new(None),
+            position: (0, false),
             style: None,
+            selector_matches: BitSet::new(),
+            stylesheet: None,
             class: None,
+            state: None,
         }
     }
 
@@ -179,20 +191,72 @@ impl<'a, Message> Node<'a, Message> {
         self
     }
 
-    pub(crate) fn style(&mut self, engine: &mut Style, query: &mut Query<'a>) {
-        query.widgets.push(self.widget.widget());
-        if let Some(class) = self.class {
-            query.classes.push(Cow::Borrowed(class));
+    pub(crate) fn style(&mut self, query: &mut Query) {
+        // remember style
+        self.style = Some(query.style.clone());
+
+        // resolve own stylesheet
+        self.position = (query.siblings.len(), false);
+        self.selector_matches = query.match_widget(
+            self.widget.widget(),
+            self.class.unwrap_or(""),
+            self.widget.state(),
+            self.position.0,
+            self.position.1,
+        );
+        self.stylesheet.replace(query.style.get(&self.selector_matches));
+        self.state = Some(self.widget.state());
+
+        // resolve children style
+        query.ancestors.push(self.selector_matches.clone());
+        let own_siblings = std::mem::replace(&mut query.siblings, Vec::new());
+        self.widget.visit_children(&mut |child| child.style(&mut *query));
+        std::mem::replace(&mut query.siblings, own_siblings);
+        query.siblings.push(query.ancestors.pop().unwrap());
+    }
+
+    fn restyle_add(&mut self, query: &mut Query) {
+        let adds = query.match_widget(
+            self.widget.widget(),
+            self.class.unwrap_or(""),
+            self.widget.state(),
+            self.position.0,
+            self.position.1,
+        );
+
+        let new_style = self.selector_matches.union(&adds);
+        if new_style != self.selector_matches {
+            self.selector_matches = new_style;
+            self.stylesheet.replace(self.style.as_ref().unwrap().get(&self.selector_matches));
         }
 
-        self.style.replace(engine.get(query));
-        self.widget
-            .visit_children(&mut |child| child.style(&mut *engine, &mut *query));
+        query.ancestors.push(adds);
+        let own_siblings = std::mem::replace(&mut query.siblings, Vec::new());
+        self.widget.visit_children(&mut |child| child.restyle_add(&mut *query));
+        std::mem::replace(&mut query.siblings, own_siblings);
+        query.siblings.push(query.ancestors.pop().unwrap());
+    }
 
-        query.widgets.pop();
-        if self.class.is_some() {
-            query.classes.pop();
+    fn restyle_remove(&mut self, query: &mut Query) {
+        let removals = query.match_widget(
+            self.widget.widget(),
+            self.class.unwrap_or(""),
+            self.widget.state(),
+            self.position.0,
+            self.position.1,
+        );
+
+        let new_style = self.selector_matches.difference(&removals);
+        if new_style != self.selector_matches {
+            self.selector_matches = new_style;
+            self.stylesheet.replace(self.style.as_ref().unwrap().get(&self.selector_matches));
         }
+
+        query.ancestors.push(removals);
+        let own_siblings = std::mem::replace(&mut query.siblings, Vec::new());
+        self.widget.visit_children(&mut |child| child.restyle_remove(&mut *query));
+        std::mem::replace(&mut query.siblings, own_siblings);
+        query.siblings.push(query.ancestors.pop().unwrap());
     }
 
     /// Returns the `(width, height)` of this widget.
@@ -200,7 +264,7 @@ impl<'a, Message> Node<'a, Message> {
     /// which will later be resolved to actual dimensions.
     pub fn size(&self) -> (Size, Size) {
         if self.size.get().is_none() {
-            let stylesheet = self.style.as_ref().unwrap().deref();
+            let stylesheet = self.stylesheet.as_ref().unwrap().deref();
             self.size.replace(Some(self.widget.size(stylesheet)));
         }
         self.size.get().unwrap()
@@ -218,7 +282,7 @@ impl<'a, Message> Node<'a, Message> {
     /// - `x`: x mouse coordinate being queried
     /// - `y`: y mouse coordinate being queried
     pub fn hit(&self, layout: Rectangle, clip: Rectangle, x: f32, y: f32) -> bool {
-        let stylesheet = self.style.as_ref().unwrap().deref();
+        let stylesheet = self.stylesheet.as_ref().unwrap().deref();
         self.widget.hit(layout, clip, stylesheet, x, y)
     }
 
@@ -244,9 +308,50 @@ impl<'a, Message> Node<'a, Message> {
     /// - `event`: the event that needs to be handled
     /// - `context`: context for submitting messages and requesting redraws of the ui.
     pub fn event(&mut self, layout: Rectangle, clip: Rectangle, event: Event, context: &mut Context<Message>) {
-        let stylesheet = self.style.as_ref().unwrap().deref();
+        let stylesheet = self.stylesheet.as_ref().unwrap().deref();
         self.widget.event(layout, clip, stylesheet, event, context);
         self.focused.replace(Some(self.widget.focused()));
+
+        if Some(self.widget.state()) != self.state {
+            self.state = Some(self.widget.state());
+
+            // find out if the style changed as a result of the state change
+            let new_style = self.style.as_ref().unwrap().restyle(
+                &self.selector_matches,
+                self.widget.state(),
+                self.class.unwrap_or(""),
+                self.position.0,
+                self.position.1,
+            );
+
+            // apply the style change to self and any children that have styles living down the same rule tree paths.
+            if new_style != self.selector_matches {
+                let difference = new_style.difference(&self.selector_matches);
+                let additions = difference.intersection(&new_style);
+                let removals = difference.intersection(&self.selector_matches);
+
+                if !additions.is_empty() {
+                    let mut query = Query {
+                        style: self.style.clone().unwrap(),
+                        ancestors: vec![additions],
+                        siblings: vec![],
+                    };
+                    self.widget.visit_children(&mut |child| child.restyle_add(&mut query));
+                }
+
+                if !removals.is_empty() {
+                    let mut query = Query {
+                        style: self.style.clone().unwrap(),
+                        ancestors: vec![removals],
+                        siblings: vec![],
+                    };
+                    self.widget.visit_children(&mut |child| child.restyle_remove(&mut query));
+                }
+
+                self.selector_matches = new_style;
+                self.stylesheet.replace(self.style.as_ref().unwrap().get(&self.selector_matches));
+            }
+        }
     }
 
     /// Draw the widget. Returns a list of [`Primitive`s](../draw/enum.Primitive.html) that should be drawn.
@@ -255,7 +360,7 @@ impl<'a, Message> Node<'a, Message> {
     /// - `layout`: the layout assigned to the widget
     /// - `clip`: a clipping rect for use with [`Primitive::PushClip`](../draw/enum.Primitive.html#variant.PushClip).
     pub fn draw(&mut self, layout: Rectangle, clip: Rectangle) -> Vec<Primitive<'a>> {
-        let stylesheet = self.style.as_ref().unwrap().deref();
+        let stylesheet = self.stylesheet.as_ref().unwrap().deref();
         self.widget.draw(layout, clip, stylesheet)
     }
 }
@@ -290,7 +395,9 @@ impl<Message> Context<Message> {
     }
 
     /// Returns the redraw flag.
-    pub fn redraw_requested(&self) -> bool { self.redraw }
+    pub fn redraw_requested(&self) -> bool {
+        self.redraw
+    }
 }
 
 impl<Message> IntoIterator for Context<Message> {

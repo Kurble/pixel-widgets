@@ -1,6 +1,7 @@
 use crate::widget::{Node};
 use crate::stylesheet::{Query, Style};
 use crate::Model;
+use std::rc::Rc;
 
 pub struct ModelView<M: Model> {
     model: Box<M>,
@@ -32,11 +33,11 @@ impl<M: Model> ModelView<M> {
         &mut self.model
     }
 
-    pub fn view(&mut self, style: &mut Style) -> &mut Node<'static, M::Message> {
+    pub fn view(&mut self, style: Rc<Style>) -> &mut Node<'static, M::Message> {
         if self.view.is_none() {
             unsafe {
                 let mut root = (self.model.as_mut() as *mut M).as_mut().unwrap().view();
-                root.style(style, &mut Query::default());
+                root.style(&mut Query::from_style(style));
                 self.view.replace(root);
             }
         }

@@ -4,10 +4,23 @@ column {
 
 button {
     background: #444
-    hover: #668
     padding: 5
+}
+
+button :hover {
+    background: #668
+}
+
+button :hover > text {
+    color: #f00
 }
 
 text {
     text-size: 24
+    padding: 3
+}
+
+text :odd {
+    background: #fff
+    color: #000
 }

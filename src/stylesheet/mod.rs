@@ -81,23 +81,22 @@
 //! | textwrap | `no-wrap`<br>`wrap`<br>`word-wrap` | |
 //! | size | `<number>`<br>`fill(<number>)`<br>`exact(<number>)`<br>`shrink` | Just a number resolves to `exact` |
 //! | align | `begin`<br>`center`<br>`end` | |
-
-
-use std::borrow::{Borrow, Cow};
 use std::collections::HashMap;
+use std::iter::{FromIterator, Peekable};
 use std::rc::Rc;
 
+use crate::bitset::BitSet;
 use crate::cache::Cache;
 use crate::draw::{Background, Color, Image, Patch};
 use crate::layout::{Align, Rectangle, Size};
 use crate::text::{Font, TextWrap};
 use crate::Loader;
-use std::iter::Peekable;
 
 mod parse;
 mod tokenize;
 
 use parse::*;
+use std::cell::RefCell;
 use tokenize::*;
 
 /// Errors that can be encountered while loading a stylesheet
@@ -115,9 +114,9 @@ pub enum Error<E: std::error::Error> {
 
 /// A style loaded from a `.pwss` file.
 pub struct Style {
-    resolved: HashMap<Query<'static>, Rc<Stylesheet>>,
-    default: Rc<Stylesheet>,
-    selectors: Vec<Selector>,
+    resolved: RefCell<HashMap<BitSet, Rc<Stylesheet>>>,
+    default: Stylesheet,
+    rule_tree: RuleTree,
 }
 
 /// A fully resolved stylesheet, passed by reference to [`Widget::draw`](../widget/trait.Widget.html).
@@ -126,14 +125,6 @@ pub struct Style {
 pub struct Stylesheet {
     /// Background for the widget that full covers the layout rect
     pub background: Background,
-    /// Background for button like widgets that are hovered
-    pub hover: Background,
-    /// Background for button like widgets that are pressed
-    pub pressed: Background,
-    /// Background for button like widgets that are disabled
-    pub disabled: Background,
-    /// Background for toggle like widgets that are checked
-    pub checked: Background,
     /// Font to use for text rendering
     pub font: Font,
     /// Color to use for foreground drawing, including text
@@ -160,10 +151,6 @@ pub struct Stylesheet {
 
 enum Rule {
     Background(Background),
-    Hover(Background),
-    Pressed(Background),
-    Disabled(Background),
-    Checked(Background),
     Font(Font),
     Color(Color),
     ScrollbarHorizontal(Background),
@@ -177,63 +164,57 @@ enum Rule {
     AlignVertical(Align),
 }
 
-struct Selector {
-    widgets: Vec<String>,
-    classes: Vec<String>,
+pub(crate) struct NewRuleTree {
+    selector: Selector,
     rules: Vec<Rule>,
+    children: Vec<NewRuleTree>,
 }
 
-#[derive(Default, Debug, PartialEq, Eq, Hash, Clone)]
-pub(crate) struct Query<'a> {
-    pub widgets: Vec<&'static str>,
-    pub classes: Vec<Cow<'a, str>>,
+pub(crate) struct RuleTree {
+    nodes: Vec<RuleNode>,
 }
 
-impl Selector {
-    fn matches(&self, query: &Query) -> bool {
-        if !self.classes.is_empty() && query.classes.last().map(Cow::borrow) != self.classes.last().map(String::as_str)
-        {
-            return false;
-        }
+pub(crate) struct RuleNode {
+    selector: Selector,
+    rules: Vec<Rule>,
+    children: Vec<usize>,
+}
 
-        if !self.widgets.is_empty() && query.widgets.last().cloned() != self.widgets.last().map(String::as_str) {
-            return false;
-        }
+#[derive(Clone, PartialEq, Eq)]
+enum SelectorWidget {
+    Any,
+    Some(String),
+}
 
-        let mut q = query.widgets.iter();
-        if !self
-            .widgets
-            .iter()
-            .fold(true, |m, d| m && q.find(|&x| x == d).is_some())
-        {
-            return false;
-        }
+#[derive(Clone, PartialEq, Eq)]
+enum Selector {
+    Widget(SelectorWidget),
+    WidgetDirectChild(SelectorWidget),
+    WidgetDirectAfter(SelectorWidget),
+    WidgetAfter(SelectorWidget),
+    Modulo(usize, usize),
+    Nth(usize),
+    First,
+    Last,
+    Class(String),
+    State(String),
+}
 
-        let mut q = query.classes.iter();
-        if !self
-            .classes
-            .iter()
-            .fold(true, |m, d| m && q.find(|x| x.as_ref() == d).is_some())
-        {
-            return false;
-        }
-
-        return true;
-    }
+#[derive(Clone)]
+pub(crate) struct Query {
+    pub style: Rc<Style>,
+    pub ancestors: Vec<BitSet>,
+    pub siblings: Vec<BitSet>,
 }
 
 impl Style {
     /// Construct a new default style
     pub fn new(cache: &mut Cache) -> Self {
         Style {
-            resolved: HashMap::new(),
-            selectors: Vec::new(),
-            default: Rc::new(Stylesheet {
+            resolved: RefCell::new(HashMap::new()),
+            rule_tree: RuleTree::default(),
+            default: Stylesheet {
                 background: Background::None,
-                hover: Background::None,
-                pressed: Background::None,
-                disabled: Background::None,
-                checked: Background::None,
                 font: cache.load_font(include_bytes!("../../default_font.ttf").to_vec()),
                 color: Color::white(),
                 scrollbar_horizontal: Background::Color(Color::white()),
@@ -245,24 +226,38 @@ impl Style {
                 height: Size::Shrink,
                 align_horizontal: Align::Begin,
                 align_vertical: Align::Begin,
-            }),
+            },
         }
     }
 
-    pub(crate) fn get(&mut self, query: &Query) -> Rc<Stylesheet> {
-        if let Some(sheet) = self.resolved.get(query) {
-            sheet.clone()
-        } else {
-            let mut stylesheet = (*self.default).clone();
-            for selector in self.selectors.iter().filter(|s| s.matches(query)) {
-                for rule in selector.rules.iter() {
-                    rule.apply(&mut stylesheet);
-                }
-            }
-            let stylesheet = Rc::new(stylesheet);
-            self.resolved.insert(query.to_static(), stylesheet.clone());
-            stylesheet
+    pub(crate) fn get(&self, style: &BitSet) -> Rc<Stylesheet> {
+        let mut resolved = self.resolved.borrow_mut();
+        if let Some(existing) = resolved.get(style) {
+            return existing.clone();
         }
+        let mut computed = self.default.clone();
+        for rule in self.rule_tree.iter_rules(&style) {
+            rule.apply(&mut computed);
+        }
+        let result = Rc::new(computed);
+        resolved.insert(style.clone(), result.clone());
+        result
+    }
+
+    pub(crate) fn restyle(&self, style: &BitSet, state: &str, class: &str, n: usize, last: bool) -> BitSet {
+        let mut result = BitSet::new();
+
+        for selector in style.iter() {
+            let keep = match self.rule_tree.nodes[selector].selector {
+                Selector::State(ref sel_state) => sel_state == state,
+                _ => true,
+            };
+            if keep {
+                self.rule_tree.add_to_bitset(selector, state, class, n, last, &mut result);
+            }
+        }
+
+        result
     }
 
     /// Asynchronously load a stylesheet from a .pwss file. See the [module documentation](index.html) on how to write
@@ -277,14 +272,164 @@ impl Style {
     }
 }
 
+impl NewRuleTree {
+    /// Recursively insert some rules at the selectors path
+    fn insert(&mut self, selectors: impl AsRef<[Selector]>, rules: Vec<Rule>) {
+        match selectors.as_ref().get(0) {
+            None => self.rules.extend(rules),
+            Some(selector) => {
+                let mut index = self.children.len();
+
+                for (i, node) in self.children.iter().enumerate() {
+                    if &node.selector == selector {
+                        index = i;
+                        break;
+                    }
+                }
+
+                if index == self.children.len() {
+                    self.children.push(NewRuleTree {
+                        selector: selector.clone(),
+                        rules: Vec::new(),
+                        children: Vec::new(),
+                    });
+                }
+
+                self.children[index].insert(&selectors.as_ref()[1..], rules);
+            }
+        }
+    }
+
+    fn flatten(self, into: &mut RuleTree) -> usize {
+        let index = into.nodes.len();
+        into.nodes.push(RuleNode {
+            selector: self.selector,
+            rules: self.rules,
+            children: Vec::new(),
+        });
+
+        for child in self.children {
+            let child = child.flatten(into);
+            into.nodes[index].children.push(child);
+        }
+        index
+    }
+}
+
+impl RuleTree {
+    fn iter_rules<'a>(&'a self, style: &'a BitSet) -> impl Iterator<Item = &'a Rule> {
+        style.iter().flat_map(move |node| self.nodes[node].rules.iter())
+    }
+
+    /// Add a node from the rule tree to a bitset.
+    /// This will also add all the `:` based child selectors that apply based on `state`, `n` and `last`.
+    fn add_to_bitset(&self, node: usize, state: &str, class: &str, n: usize, last: bool, to: &mut BitSet) {
+        to.insert(node);
+        for &child in self.nodes[node].children.iter() {
+            let add = match self.nodes[child].selector {
+                Selector::State(ref sel_state) => sel_state == state,
+                Selector::Class(ref sel_class) => sel_class == class,
+                Selector::First => n == 0,
+                Selector::Modulo(num, den) => (n % den) == num,
+                Selector::Nth(num) => n == num,
+                Selector::Last => last,
+                _ => false,
+            };
+            if add {
+                self.add_to_bitset(child, state, class, n, last, to);
+            }
+        }
+    }
+
+    /// Match a child widget of a widget matched to this rule tree.
+    fn match_child<'a>(
+        &'a self,
+        node: usize,
+        direct: bool,
+        widget: &'a str,
+    ) -> impl 'a + Iterator<Item = usize> {
+        self.nodes[node]
+            .children
+            .iter()
+            .filter_map(move |&tree| match self.nodes[tree].selector {
+                Selector::Widget(ref sel_widget) => Some(tree).filter(|_| sel_widget.matches(widget)),
+                Selector::WidgetDirectChild(ref sel_widget) => {
+                    Some(tree).filter(|_| direct && sel_widget.matches(widget))
+                }
+                _ => None,
+            })
+    }
+
+    /// Match a sibling widget of a widget matched to this rule tree.
+    fn match_sibling<'a>(&'a self, node: usize, direct: bool, widget: &'a str) -> impl 'a + Iterator<Item = usize> {
+        self.nodes[node]
+            .children
+            .iter()
+            .filter_map(move |&tree| match self.nodes[tree].selector {
+                Selector::WidgetDirectAfter(ref sel_widget) => {
+                    Some(tree).filter(|_| direct && sel_widget.matches(widget))
+                }
+                Selector::WidgetAfter(ref sel_widget) => Some(tree).filter(|_| sel_widget.matches(widget)),
+                _ => None,
+            })
+    }
+}
+
+impl Default for RuleTree {
+    fn default() -> Self {
+        Self {
+            nodes: vec![RuleNode {
+                selector: Selector::Widget(SelectorWidget::Any),
+                rules: vec![],
+                children: vec![],
+            }],
+        }
+    }
+}
+
+impl Into<RuleTree> for NewRuleTree {
+    fn into(self) -> RuleTree {
+        let mut result = RuleTree { nodes: Vec::new() };
+        self.flatten(&mut result);
+        result
+    }
+}
+
+impl Query {
+    pub fn from_style(style: Rc<Style>) -> Self {
+        Self {
+            style,
+            ancestors: vec![BitSet::from_iter(Some(0))],
+            siblings: Vec::new(),
+        }
+    }
+
+    pub fn match_widget(&self, widget: &str, class: &str, state: &str, n: usize, last: bool) -> BitSet {
+        let mut result = BitSet::new();
+
+        let from_ancestors = self.ancestors.iter().rev().enumerate().flat_map(move |(i, matches)| {
+            matches
+                .iter()
+                .flat_map(move |node| self.style.rule_tree.match_child(node, i == 0, widget))
+        });
+        let from_siblings = self.siblings.iter().rev().enumerate().flat_map(move |(i, matches)| {
+            matches
+                .iter()
+                .flat_map(move |node| self.style.rule_tree.match_sibling(node, i == 0, widget))
+        });
+
+        for node in from_ancestors.chain(from_siblings) {
+            self.style.rule_tree.add_to_bitset(node, state, class, n, last, &mut result);
+        }
+
+        result
+    }
+}
+
 impl Rule {
     pub fn apply(&self, stylesheet: &mut Stylesheet) {
         match self {
             Rule::Background(x) => stylesheet.background = x.clone(),
-            Rule::Hover(x) => stylesheet.hover = x.clone(),
-            Rule::Pressed(x) => stylesheet.pressed = x.clone(),
-            Rule::Disabled(x) => stylesheet.disabled = x.clone(),
-            Rule::Checked(x) => stylesheet.checked = x.clone(),
             Rule::Font(x) => stylesheet.font = x.clone(),
             Rule::Color(x) => stylesheet.color = x.clone(),
             Rule::ScrollbarHorizontal(x) => stylesheet.scrollbar_horizontal = x.clone(),
@@ -300,15 +445,11 @@ impl Rule {
     }
 }
 
-impl<'a> Query<'a> {
-    pub fn to_static(&self) -> Query<'static> {
-        Query {
-            widgets: self.widgets.clone(),
-            classes: self
-                .classes
-                .iter()
-                .map(|x| Cow::Owned(x.clone().into_owned()))
-                .collect(),
+impl SelectorWidget {
+    fn matches(&self, widget: &str) -> bool {
+        match self {
+            Self::Any => true,
+            Self::Some(ref select) => select == widget,
         }
     }
 }
