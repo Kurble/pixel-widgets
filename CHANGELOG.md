@@ -1,6 +1,7 @@
 # Changelog
 
  ### v0.3.0
+- Added `len()` to `Widget`.
 - New style system
     - Removed some backgrounds from [`Stylesheet`](src/stylesheet/mod.rs).
     The styling system is now responsible for specifying these using selectors like `:hover`.

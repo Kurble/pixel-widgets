@@ -244,7 +244,7 @@ impl Style {
         result
     }
 
-    pub(crate) fn restyle(&self, style: &BitSet, state: &str, class: &str, n: usize, last: bool) -> BitSet {
+    pub(crate) fn restyle(&self, style: &BitSet, state: &str, class: &str, n: usize, len: usize) -> BitSet {
         let mut result = BitSet::new();
 
         for selector in style.iter() {
@@ -253,7 +253,7 @@ impl Style {
                 _ => true,
             };
             if keep {
-                self.rule_tree.add_to_bitset(selector, state, class, n, last, &mut result);
+                self.rule_tree.add_to_bitset(selector, state, class, n, len, &mut result);
             }
         }
 
@@ -323,7 +323,7 @@ impl RuleTree {
 
     /// Add a node from the rule tree to a bitset.
     /// This will also add all the `:` based child selectors that apply based on `state`, `n` and `last`.
-    fn add_to_bitset(&self, node: usize, state: &str, class: &str, n: usize, last: bool, to: &mut BitSet) {
+    fn add_to_bitset(&self, node: usize, state: &str, class: &str, n: usize, len: usize, to: &mut BitSet) {
         to.insert(node);
         for &child in self.nodes[node].children.iter() {
             let add = match self.nodes[child].selector {
@@ -332,11 +332,11 @@ impl RuleTree {
                 Selector::First => n == 0,
                 Selector::Modulo(num, den) => (n % den) == num,
                 Selector::Nth(num) => n == num,
-                Selector::Last => last,
+                Selector::Last => n == len - 1,
                 _ => false,
             };
             if add {
-                self.add_to_bitset(child, state, class, n, last, to);
+                self.add_to_bitset(child, state, class, n, len, to);
             }
         }
     }
@@ -404,7 +404,7 @@ impl Query {
         }
     }
 
-    pub fn match_widget(&self, widget: &str, class: &str, state: &str, n: usize, last: bool) -> BitSet {
+    pub fn match_widget(&self, widget: &str, class: &str, state: &str, n: usize, len: usize) -> BitSet {
         let mut result = BitSet::new();
 
         let from_ancestors = self.ancestors.iter().rev().enumerate().flat_map(move |(i, matches)| {
@@ -419,7 +419,7 @@ impl Query {
         });
 
         for node in from_ancestors.chain(from_siblings) {
-            self.style.rule_tree.add_to_bitset(node, state, class, n, last, &mut result);
+            self.style.rule_tree.add_to_bitset(node, state, class, n, len, &mut result);
         }
 
         result

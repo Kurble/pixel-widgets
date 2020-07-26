@@ -159,7 +159,7 @@ pub struct Node<'a, Message> {
     widget: Box<dyn Widget<'a, Message> + 'a>,
     size: Cell<Option<(Size, Size)>>,
     focused: Cell<Option<bool>>,
-    position: (usize, bool),
+    position: (usize, usize),
     style: Option<Rc<Style>>,
     selector_matches: BitSet,
     stylesheet: Option<Rc<Stylesheet>>,
@@ -180,7 +180,7 @@ impl<'a, Message> Node<'a, Message> {
             widget: Box::new(widget),
             size: Cell::new(None),
             focused: Cell::new(None),
-            position: (0, false),
+            position: (0, 1),
             style: None,
             selector_matches: BitSet::new(),
             stylesheet: None,
@@ -200,7 +200,6 @@ impl<'a, Message> Node<'a, Message> {
         self.style = Some(query.style.clone());
 
         // resolve own stylesheet
-        self.position = (query.siblings.len(), false);
         self.selector_matches = query.match_widget(
             self.widget.widget(),
             self.class.unwrap_or(""),
@@ -214,7 +213,13 @@ impl<'a, Message> Node<'a, Message> {
         // resolve children style
         query.ancestors.push(self.selector_matches.clone());
         let own_siblings = std::mem::replace(&mut query.siblings, Vec::new());
-        self.widget.visit_children(&mut |child| child.style(&mut *query));
+        let mut i = 0;
+        let len = self.widget.len();
+        self.widget.visit_children(&mut |child| {
+            child.position = (i, len);
+            child.style(&mut *query);
+            i += 1;
+        });
         std::mem::replace(&mut query.siblings, own_siblings);
         query.siblings.push(query.ancestors.pop().unwrap());
     }
