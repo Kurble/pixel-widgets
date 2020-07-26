@@ -73,6 +73,10 @@ impl<'a, T: 'a> Widget<'a, T> for Column<'a, T> {
         "column"
     }
 
+    fn len(&self) -> usize {
+        self.children.len()
+    }
+
     fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut Node<'a, T>)) {
         self.children.iter_mut().for_each(|child| visitor(child));
     }

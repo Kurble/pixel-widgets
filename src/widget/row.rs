@@ -75,6 +75,10 @@ impl<'a, T: 'a> Widget<'a, T> for Row<'a, T> {
         self.children.iter_mut().for_each(|child| visitor(child));
     }
 
+    fn len(&self) -> usize {
+        self.children.len()
+    }
+
     fn size(&self, style: &Stylesheet) -> (Size, Size) {
         let width = match style.width {
             Size::Shrink => Size::Exact(self.children.iter().fold(0.0, |size, child| match child.size().0 {

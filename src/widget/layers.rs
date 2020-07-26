@@ -59,6 +59,10 @@ impl<'a, T: 'a, Id: 'a> Widget<'a, T> for Layers<'a, T, Id> {
         "layers"
     }
 
+    fn len(&self) -> usize {
+        self.layers.len()
+    }
+
     fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut Node<'a, T>)) {
         for background in self.background.iter_mut() {
             visitor(background);

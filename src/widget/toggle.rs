@@ -50,6 +50,8 @@ impl<'a, T, F: Fn(bool) -> T> Widget<'a, T> for Toggle<'a, T, F> {
         }
     }
 
+    fn len(&self) -> usize { 0 }
+
     fn visit_children(&mut self, _: &mut dyn FnMut(&mut Node<'a, T>)) {}
 
     fn size(&self, stylesheet: &Stylesheet) -> (Size, Size) {

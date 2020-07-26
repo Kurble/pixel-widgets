@@ -74,6 +74,10 @@ pub trait Widget<'a, Message> {
         ""
     }
 
+    /// Should return the amount of children this widget has. Must be consistent with
+    /// [`visit_children()`](#tymethod.visit_children).
+    fn len(&self) -> usize;
+
     /// Applies a visitor to all childs of the widget. If an widget fails to visit it's children, the children won't
     /// be able to resolve their stylesheet, resulting in a panic when calling [`size`](struct.Node.html#method.size),
     /// [`hit`](struct.Node.html#method.hit), [`event`](struct.Node.html#method.event) or

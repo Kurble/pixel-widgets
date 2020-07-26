@@ -53,6 +53,8 @@ impl<'a, T: 'a> Widget<'a, T> for Button<'a, T> {
         }
     }
 
+    fn len(&self) -> usize { 1 }
+
     fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut Node<'a, T>)) {
         visitor(&mut self.content);
     }

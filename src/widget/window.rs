@@ -88,6 +88,8 @@ impl<'a, T: 'a> Widget<'a, T> for Window<'a, T> {
         "window"
     }
 
+    fn len(&self) -> usize { 2 }
+
     fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut Node<'a, T>)) {
         visitor(&mut self.title);
         visitor(&mut self.content);

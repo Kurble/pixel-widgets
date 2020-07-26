@@ -69,6 +69,10 @@ impl<'a, T: 'a> Widget<'a, T> for Dropdown<'a, T> {
         }
     }
 
+    fn len(&self) -> usize {
+        self.items.len()
+    }
+
     fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut Node<'a, T>)) {
         for item in self.items.iter_mut() {
             visitor(&mut item.node);

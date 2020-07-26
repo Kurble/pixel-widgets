@@ -89,6 +89,8 @@ impl<'a, T: 'a, F: 'a + Fn(String) -> T> Widget<'a, T> for Input<'a, T, F> {
         "input"
     }
 
+    fn len(&self) -> usize { 0 }
+
     fn visit_children(&mut self, _: &mut dyn FnMut(&mut Node<'a, T>)) {}
 
     fn size(&self, stylesheet: &Stylesheet) -> (Size, Size) {
