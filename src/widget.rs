@@ -40,7 +40,6 @@ pub use self::space::Space;
 pub use self::text::Text;
 pub use self::toggle::Toggle;
 pub use self::window::Window;
-use std::iter::FromIterator;
 
 /// A clickable button
 pub mod button;
@@ -320,6 +319,7 @@ impl<'a, Message> Node<'a, Message> {
             let new_style = self.style.as_ref().unwrap().restyle(
                 &self.selector_matches,
                 self.widget.state(),
+                self.class.unwrap_or(""),
                 self.position.0,
                 self.position.1,
             );

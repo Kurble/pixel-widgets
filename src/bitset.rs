@@ -9,6 +9,7 @@ pub enum BitSet {
     Large(Vec<u64>),
 }
 
+#[allow(unused)]
 impl BitSet {
     pub fn new() -> Self {
         BitSet::Small(0)
@@ -113,7 +114,7 @@ impl BitSet {
         }
     }
 
-    pub fn map<F: Fn(u64, u64) -> u64>(&self, other: &Self, f: F) -> Self {
+    pub fn apply<F: Fn(u64, u64) -> u64>(&self, other: &Self, f: F) -> Self {
         let mut result = match (self, other) {
             (&BitSet::Small(bits), &BitSet::Small(other_bits)) => BitSet::Small(f(bits, other_bits)),
             (&BitSet::Small(bits), &BitSet::Large(ref vec)) |
@@ -133,11 +134,11 @@ impl BitSet {
     }
 
     pub fn difference(&self, other: &Self) -> Self {
-        self.map(other, |a, b| a ^ b)
+        self.apply(other, |a, b| a ^ b)
     }
 
     pub fn union(&self, other: &Self) -> Self {
-        self.map(other, |a, b| a | b)
+        self.apply(other, |a, b| a | b)
     }
 
     pub fn intersection(&self, other: &Self) -> Self {
