@@ -1,5 +1,6 @@
 use crate::widget::{Node};
-use crate::stylesheet::{Query, Style};
+use crate::stylesheet::Style;
+use crate::stylesheet::tree::Query;
 use crate::Model;
 use std::rc::Rc;
 
