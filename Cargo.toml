@@ -1,6 +1,6 @@
 [package]
 name = "pixel-widgets"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["Bram Buurlage <brambuurlage@gmail.com>"]
 edition = "2018"
 readme = "README.md"
@@ -15,13 +15,13 @@ categories = ["gui"]
 default = ["clipboard", "winit", "wgpu"]
 
 [dependencies]
-rusttype = { version = "0.9.2", features = ["gpu_cache"] }
-image = "0.23.6"
-smallvec = "1.4.0"
-zerocopy = "0.3.0"
+rusttype = { version = "0.9", features = ["gpu_cache"] }
+image = "0.23"
+smallvec = "1"
+zerocopy = "0.3"
 futures = "0.3"
-wgpu = { version = "0.5.0", optional = true }
-winit = { version = "0.22.2", optional = true }
+wgpu = { version = "0.5", optional = true }
+winit = { version = "0.22", optional = true }
 clipboard = { version = "0.5", optional = true }
 
 [package.metadata.docs.rs]
