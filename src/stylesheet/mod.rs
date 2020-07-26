@@ -192,10 +192,10 @@ enum Selector {
     WidgetDirectChild(SelectorWidget),
     WidgetDirectAfter(SelectorWidget),
     WidgetAfter(SelectorWidget),
-    Modulo(usize, usize),
+    NthMod(usize, usize),
+    NthLastMod(usize, usize),
     Nth(usize),
-    First,
-    Last,
+    NthLast(usize),
     Class(String),
     State(String),
 }
@@ -329,10 +329,10 @@ impl RuleTree {
             let add = match self.nodes[child].selector {
                 Selector::State(ref sel_state) => sel_state == state,
                 Selector::Class(ref sel_class) => sel_class == class,
-                Selector::First => n == 0,
-                Selector::Modulo(num, den) => (n % den) == num,
                 Selector::Nth(num) => n == num,
-                Selector::Last => n == len - 1,
+                Selector::NthMod(num, den) => (n % den) == num,
+                Selector::NthLast(num) => len - 1 - n == num,
+                Selector::NthLastMod(num, den) => ((len - 1 - n) % den) == num,
                 _ => false,
             };
             if add {

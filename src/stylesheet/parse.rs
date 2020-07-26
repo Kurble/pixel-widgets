@@ -74,23 +74,66 @@ async fn parse_block<I: Iterator<Item = Token>, L: Loader>(
             Some(Token(TokenValue::Colon, _)) => {
                 let (id, _) = c.take_identifier()?;
                 match id.as_str() {
-                    "odd" => selectors.push(Selector::Modulo(1, 2)),
-                    "even" => selectors.push(Selector::Modulo(0, 2)),
-                    "mod" => {
+                    "nth-child-mod" => {
                         c.take(TokenValue::ParenOpen)?;
                         let numerator = parse_usize(c)?;
                         c.take(TokenValue::Comma)?;
                         let denominator = parse_usize(c)?;
                         c.take(TokenValue::ParenClose)?;
-                        selectors.push(Selector::Modulo(numerator, denominator));
+                        selectors.push(Selector::NthMod(numerator, denominator));
                     }
-                    "nth" => {
+                    "nth-last-child-mod" => {
                         c.take(TokenValue::ParenOpen)?;
-                        selectors.push(Selector::Nth(parse_usize(c)?));
+                        let numerator = parse_usize(c)?;
+                        c.take(TokenValue::Comma)?;
+                        let denominator = parse_usize(c)?;
+                        c.take(TokenValue::ParenClose)?;
+                        selectors.push(Selector::NthLastMod(numerator, denominator));
+                    }
+                    "nth-child" => {
+                        c.take(TokenValue::ParenOpen)?;
+                        match c.tokens.next().ok_or(Error::Eof)? {
+                            Token(TokenValue::Iden(special), pos) => match special.as_str() {
+                                "odd" => selectors.push(Selector::NthMod(1, 2)),
+                                "even" => selectors.push(Selector::NthMod(0, 2)),
+                                _ => return Err(Error::Syntax("Expected 'odd', 'even' or <number>.".into(), pos)),
+                            },
+                            Token(TokenValue::Number(number), pos) => {
+                                selectors.push(Selector::Nth(
+                                    number
+                                        .parse::<usize>()
+                                        .map_err(|err| Error::Syntax(format!("{}", err), pos))?,
+                                ));
+                            }
+                            Token(_, pos) => {
+                                return Err(Error::Syntax("Expected 'odd', 'even' or <number>.".into(), pos))
+                            }
+                        }
                         c.take(TokenValue::ParenClose)?;
                     }
-                    "first" => selectors.push(Selector::First),
-                    "last" => selectors.push(Selector::Last),
+                    "nth-last-child" => {
+                        c.take(TokenValue::ParenOpen)?;
+                        match c.tokens.next().ok_or(Error::Eof)? {
+                            Token(TokenValue::Iden(special), pos) => match special.as_str() {
+                                "odd" => selectors.push(Selector::NthLastMod(1, 2)),
+                                "even" => selectors.push(Selector::NthLastMod(0, 2)),
+                                _ => return Err(Error::Syntax("Expected 'odd', 'even' or <number>.".into(), pos)),
+                            },
+                            Token(TokenValue::Number(number), pos) => {
+                                selectors.push(Selector::NthLast(
+                                    number
+                                        .parse::<usize>()
+                                        .map_err(|err| Error::Syntax(format!("{}", err), pos))?,
+                                ));
+                            }
+                            Token(_, pos) => {
+                                return Err(Error::Syntax("Expected 'odd', 'even' or <number>.".into(), pos))
+                            }
+                        }
+                        c.take(TokenValue::ParenClose)?;
+                    }
+                    "first-child" => selectors.push(Selector::Nth(0)),
+                    "last-child" => selectors.push(Selector::NthLast(0)),
                     state => selectors.push(Selector::State(state.to_string())),
                 }
             }
@@ -130,10 +173,7 @@ async fn parse_rule<I: Iterator<Item = Token>, L: Loader>(
                 "height" => Ok(Rule::Height(parse_size(c)?)),
                 "align-horizontal" => Ok(Rule::AlignHorizontal(parse_align(c)?)),
                 "align-vertical" => Ok(Rule::AlignVertical(parse_align(c)?)),
-                unrecognized => Err(Error::Syntax(
-                    format!("Rule '{}' not recognized", unrecognized),
-                    pos,
-                )),
+                unrecognized => Err(Error::Syntax(format!("Rule '{}' not recognized", unrecognized), pos)),
             }
         }
         Some(Token(_, pos)) => Err(Error::Syntax("Expected <identifier>".into(), pos)),
@@ -154,8 +194,9 @@ async fn parse_background<I: Iterator<Item = Token>, L: Loader>(
                     let image = match c.tokens.next() {
                         Some(Token(TokenValue::Path(url), _)) => {
                             if c.images.get(&url).is_none() {
-                                let image =
-                                    image::load_from_memory(c.loader.load(url.clone()).await.map_err(Error::Io)?.as_ref())?;
+                                let image = image::load_from_memory(
+                                    c.loader.load(url.clone()).await.map_err(Error::Io)?.as_ref(),
+                                )?;
                                 c.images.insert(url.clone(), c.cache.load_image(image.to_rgba()));
                             }
                             Ok(c.images[&url].clone())
@@ -173,8 +214,9 @@ async fn parse_background<I: Iterator<Item = Token>, L: Loader>(
                     let image = match c.tokens.next() {
                         Some(Token(TokenValue::Path(url), _)) => {
                             if c.patches.get(&url).is_none() {
-                                let image =
-                                    image::load_from_memory(c.loader.load(url.clone()).await.map_err(Error::Io)?.as_ref())?;
+                                let image = image::load_from_memory(
+                                    c.loader.load(url.clone()).await.map_err(Error::Io)?.as_ref(),
+                                )?;
                                 c.patches.insert(url.clone(), c.cache.load_patch(image.to_rgba()));
                             }
                             Ok(c.patches[&url].clone())
@@ -189,7 +231,7 @@ async fn parse_background<I: Iterator<Item = Token>, L: Loader>(
                 }
                 _ => Err(Error::Syntax("Expected `image`, `patch` or `none`".into(), pos)),
             }
-        },
+        }
         Token(TokenValue::Color(_), _) => Ok(Background::Color(parse_color(c)?)),
         Token(TokenValue::Path(url), _) => {
             c.tokens.next();
@@ -230,11 +272,13 @@ async fn parse_font<I: Iterator<Item = Token>, L: Loader>(
     }
 }
 
-fn parse_widget<I: Iterator<Item = Token>, L: Loader>(c: &mut LoadContext<I, L>) -> Result<SelectorWidget, Error<L::Error>> {
+fn parse_widget<I: Iterator<Item = Token>, L: Loader>(
+    c: &mut LoadContext<I, L>,
+) -> Result<SelectorWidget, Error<L::Error>> {
     match c.tokens.next().ok_or(Error::Eof)? {
         Token(TokenValue::Star, _) => Ok(SelectorWidget::Any),
         Token(TokenValue::Iden(widget), _) => Ok(SelectorWidget::Some(widget)),
-        Token(_, pos) => Err(Error::Syntax("Expected '*' or 'identifier'".into(), pos))
+        Token(_, pos) => Err(Error::Syntax("Expected '*' or 'identifier'".into(), pos)),
     }
 }
 

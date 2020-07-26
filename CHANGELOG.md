@@ -5,7 +5,8 @@
 - New style system
     - Removed some backgrounds from [`Stylesheet`](src/stylesheet/mod.rs).
     The styling system is now responsible for specifying these using selectors like `:hover`.
-    - Added `:odd`, `:even`, `:nth(n)`, `:first`, `:last` selectors.
+    - Added `:nth-first-child(n)`, `:nth-last-child(n)`, `:nth-first-child-mod(n, d)`, 
+    `:nth-last-child-mod(n, d)` selectors. All support numbers, `odd` and `even`.
     - Added a `:<state>` selector that checks the result of the new method `Widget::state()`.
     Useful for states such as `hover`, `pressed` or `open`.
     - Added `+ <widget>`, `> <widget>` and `~ <widget>` selectors.
