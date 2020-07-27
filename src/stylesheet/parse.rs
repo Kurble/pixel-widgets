@@ -1,5 +1,5 @@
+use super::tree::RuleTreeBuilder;
 use super::*;
-use super::tree::NewRuleTree;
 
 struct LoadContext<'a, I: Iterator<Item = Token>, L: Loader> {
     loader: &'a L,
@@ -43,9 +43,9 @@ pub async fn parse<L: Loader>(tokens: Vec<Token>, loader: &L, cache: &mut Cache)
         fonts: &mut fonts,
     };
 
-    let mut rule_tree = NewRuleTree::new(Selector::Widget(SelectorWidget::Any));
+    let mut rule_tree = RuleTreeBuilder::new(Selector::Widget(SelectorWidget::Any));
     while let Some(_) = context.tokens.peek() {
-        let (selectors, rules) = parse_block(&mut context).await?;
+        let (selectors, rules) = parse_rule(&mut context).await?;
         rule_tree.insert(selectors, rules);
     }
 
@@ -54,126 +54,52 @@ pub async fn parse<L: Loader>(tokens: Vec<Token>, loader: &L, cache: &mut Cache)
     Ok(result)
 }
 
-async fn parse_block<I: Iterator<Item = Token>, L: Loader>(
+async fn parse_rule<I: Iterator<Item = Token>, L: Loader>(
     c: &mut LoadContext<'_, I, L>,
-) -> Result<(Vec<Selector>, Vec<Rule>), Error<L::Error>> {
+) -> Result<(Vec<Selector>, Vec<Declaration>), Error<L::Error>> {
     let mut selectors = Vec::new();
-    let mut rules = Vec::new();
-
+    let mut declarations = Vec::new();
     loop {
-        match c.tokens.next() {
-            Some(Token(TokenValue::Star, _)) => selectors.push(Selector::Widget(SelectorWidget::Any)),
-            Some(Token(TokenValue::Dot, _)) => selectors.push(Selector::Class(c.take_identifier()?.0)),
-            Some(Token(TokenValue::Iden(widget), _)) => selectors.push(Selector::Widget(SelectorWidget::Some(widget))),
-            Some(Token(TokenValue::Gt, _)) => selectors.push(Selector::WidgetDirectChild(parse_widget(c)?)),
-            Some(Token(TokenValue::Plus, _)) => selectors.push(Selector::WidgetDirectAfter(parse_widget(c)?)),
-            Some(Token(TokenValue::Tilde, _)) => selectors.push(Selector::WidgetAfter(parse_widget(c)?)),
-            Some(Token(TokenValue::Colon, _)) => {
-                let (id, _) = c.take_identifier()?;
-                match id.as_str() {
-                    "nth-child-mod" => {
-                        c.take(TokenValue::ParenOpen)?;
-                        let numerator = parse_usize(c)?;
-                        c.take(TokenValue::Comma)?;
-                        let denominator = parse_usize(c)?;
-                        c.take(TokenValue::ParenClose)?;
-                        selectors.push(Selector::NthMod(numerator, denominator));
-                    }
-                    "nth-last-child-mod" => {
-                        c.take(TokenValue::ParenOpen)?;
-                        let numerator = parse_usize(c)?;
-                        c.take(TokenValue::Comma)?;
-                        let denominator = parse_usize(c)?;
-                        c.take(TokenValue::ParenClose)?;
-                        selectors.push(Selector::NthLastMod(numerator, denominator));
-                    }
-                    "nth-child" => {
-                        c.take(TokenValue::ParenOpen)?;
-                        match c.tokens.next().ok_or(Error::Eof)? {
-                            Token(TokenValue::Iden(special), pos) => match special.as_str() {
-                                "odd" => selectors.push(Selector::NthMod(1, 2)),
-                                "even" => selectors.push(Selector::NthMod(0, 2)),
-                                _ => return Err(Error::Syntax("Expected 'odd', 'even' or <number>.".into(), pos)),
-                            },
-                            Token(TokenValue::Number(number), pos) => {
-                                selectors.push(Selector::Nth(
-                                    number
-                                        .parse::<usize>()
-                                        .map_err(|err| Error::Syntax(format!("{}", err), pos))?,
-                                ));
-                            }
-                            Token(_, pos) => {
-                                return Err(Error::Syntax("Expected 'odd', 'even' or <number>.".into(), pos))
-                            }
-                        }
-                        c.take(TokenValue::ParenClose)?;
-                    }
-                    "nth-last-child" => {
-                        c.take(TokenValue::ParenOpen)?;
-                        match c.tokens.next().ok_or(Error::Eof)? {
-                            Token(TokenValue::Iden(special), pos) => match special.as_str() {
-                                "odd" => selectors.push(Selector::NthLastMod(1, 2)),
-                                "even" => selectors.push(Selector::NthLastMod(0, 2)),
-                                _ => return Err(Error::Syntax("Expected 'odd', 'even' or <number>.".into(), pos)),
-                            },
-                            Token(TokenValue::Number(number), pos) => {
-                                selectors.push(Selector::NthLast(
-                                    number
-                                        .parse::<usize>()
-                                        .map_err(|err| Error::Syntax(format!("{}", err), pos))?,
-                                ));
-                            }
-                            Token(_, pos) => {
-                                return Err(Error::Syntax("Expected 'odd', 'even' or <number>.".into(), pos))
-                            }
-                        }
-                        c.take(TokenValue::ParenClose)?;
-                    }
-                    "first-child" => selectors.push(Selector::Nth(0)),
-                    "last-child" => selectors.push(Selector::NthLast(0)),
-                    state => selectors.push(Selector::State(state.to_string())),
+        if let &Token(TokenValue::BraceOpen, _) = c.tokens.peek().ok_or(Error::Eof)? {
+            c.tokens.next();
+            loop {
+                if let Some(&Token(TokenValue::BraceClose, _)) = c.tokens.peek() {
+                    break;
+                } else {
+                    declarations.push(parse_declaration(c).await?);
                 }
             }
-            Some(Token(TokenValue::BraceOpen, _)) => {
-                loop {
-                    if let Some(&Token(TokenValue::BraceClose, _)) = c.tokens.peek() {
-                        break;
-                    } else {
-                        rules.push(parse_rule(c).await?);
-                    }
-                }
-                c.take(TokenValue::BraceClose)?;
-                return Ok((selectors, rules));
-            }
-            Some(Token(_, pos)) => return Err(Error::Syntax("Expected <selector> or `{`".into(), pos)),
-            None => return Err(Error::Eof),
+            c.take(TokenValue::BraceClose)?;
+            return Ok((selectors, declarations));
+        } else {
+            selectors.push(parse_selector(c)?);
         }
     }
 }
 
-async fn parse_rule<I: Iterator<Item = Token>, L: Loader>(
+async fn parse_declaration<I: Iterator<Item = Token>, L: Loader>(
     c: &mut LoadContext<'_, I, L>,
-) -> Result<Rule, Error<L::Error>> {
+) -> Result<Declaration, Error<L::Error>> {
     match c.tokens.next() {
         Some(Token(TokenValue::Iden(key), pos)) => {
             c.take(TokenValue::Colon)?;
             match key.as_str() {
-                "background" => Ok(Rule::Background(parse_background(c).await?)),
-                "font" => Ok(Rule::Font(parse_font(c).await?)),
-                "color" => Ok(Rule::Color(parse_color(c)?)),
-                "scrollbar-horizontal" => Ok(Rule::ScrollbarHorizontal(parse_background(c).await?)),
-                "scrollbar-vertical" => Ok(Rule::ScrollbarVertical(parse_background(c).await?)),
-                "padding" => Ok(Rule::Padding(parse_rectangle(c)?)),
-                "text-size" => Ok(Rule::TextSize(parse_float(c)?)),
-                "text-wrap" => Ok(Rule::TextWrap(parse_text_wrap(c)?)),
-                "width" => Ok(Rule::Width(parse_size(c)?)),
-                "height" => Ok(Rule::Height(parse_size(c)?)),
-                "align-horizontal" => Ok(Rule::AlignHorizontal(parse_align(c)?)),
-                "align-vertical" => Ok(Rule::AlignVertical(parse_align(c)?)),
+                "background" => Ok(Declaration::Background(parse_background(c).await?)),
+                "font" => Ok(Declaration::Font(parse_font(c).await?)),
+                "color" => Ok(Declaration::Color(parse_color(c)?)),
+                "scrollbar-horizontal" => Ok(Declaration::ScrollbarHorizontal(parse_background(c).await?)),
+                "scrollbar-vertical" => Ok(Declaration::ScrollbarVertical(parse_background(c).await?)),
+                "padding" => Ok(Declaration::Padding(parse_rectangle(c)?)),
+                "text-size" => Ok(Declaration::TextSize(parse_float(c)?)),
+                "text-wrap" => Ok(Declaration::TextWrap(parse_text_wrap(c)?)),
+                "width" => Ok(Declaration::Width(parse_size(c)?)),
+                "height" => Ok(Declaration::Height(parse_size(c)?)),
+                "align-horizontal" => Ok(Declaration::AlignHorizontal(parse_align(c)?)),
+                "align-vertical" => Ok(Declaration::AlignVertical(parse_align(c)?)),
                 unrecognized => Err(Error::Syntax(format!("Rule '{}' not recognized", unrecognized), pos)),
             }
         }
-        Some(Token(_, pos)) => Err(Error::Syntax("Expected <identifier>".into(), pos)),
+        Some(Token(_, pos)) => Err(Error::Syntax("Expected <property>".into(), pos)),
         None => Err(Error::Eof),
     }
 }
@@ -266,6 +192,87 @@ async fn parse_font<I: Iterator<Item = Token>, L: Loader>(
         }
         Some(Token(_, pos)) => Err(Error::Syntax("Expected <url>".into(), pos)),
         None => Err(Error::Eof),
+    }
+}
+
+fn parse_selector<I: Iterator<Item = Token>, L: Loader>(
+    c: &mut LoadContext<I, L>,
+) -> Result<Selector, Error<L::Error>> {
+    match c.tokens.next().ok_or(Error::Eof)? {
+        Token(TokenValue::Star, _) => Ok(Selector::Widget(SelectorWidget::Any)),
+        Token(TokenValue::Dot, _) => Ok(Selector::Class(c.take_identifier()?.0)),
+        Token(TokenValue::Iden(widget), _) => Ok(Selector::Widget(SelectorWidget::Some(widget))),
+        Token(TokenValue::Gt, _) => Ok(Selector::WidgetDirectChild(parse_widget(c)?)),
+        Token(TokenValue::Plus, _) => Ok(Selector::WidgetDirectAfter(parse_widget(c)?)),
+        Token(TokenValue::Tilde, _) => Ok(Selector::WidgetAfter(parse_widget(c)?)),
+        Token(TokenValue::Colon, _) => {
+            let (id, _pos) = c.take_identifier()?;
+            match id.as_str() {
+                "nth-child-mod" => {
+                    c.take(TokenValue::ParenOpen)?;
+                    let numerator = parse_usize(c)?;
+                    c.take(TokenValue::Comma)?;
+                    let denominator = parse_usize(c)?;
+                    c.take(TokenValue::ParenClose)?;
+                    Ok(Selector::NthMod(numerator, denominator))
+                }
+                "nth-last-child-mod" => {
+                    c.take(TokenValue::ParenOpen)?;
+                    let numerator = parse_usize(c)?;
+                    c.take(TokenValue::Comma)?;
+                    let denominator = parse_usize(c)?;
+                    c.take(TokenValue::ParenClose)?;
+                    Ok(Selector::NthLastMod(numerator, denominator))
+                }
+                "nth-child" => {
+                    c.take(TokenValue::ParenOpen)?;
+                    let result = match c.tokens.next().ok_or(Error::Eof)? {
+                        Token(TokenValue::Iden(special), pos) => match special.as_str() {
+                            "odd" => Ok(Selector::NthMod(1, 2)),
+                            "even" => Ok(Selector::NthMod(0, 2)),
+                            _ => Err(Error::Syntax("Expected 'odd', 'even' or <number>.".into(), pos)),
+                        },
+                        Token(TokenValue::Number(number), pos) => Ok(Selector::Nth(
+                            number
+                                .parse::<usize>()
+                                .map_err(|err| Error::Syntax(format!("{}", err), pos))?,
+                        )),
+                        Token(_, pos) => Err(Error::Syntax("Expected 'odd', 'even' or <number>.".into(), pos)),
+                    }?;
+                    c.take(TokenValue::ParenClose)?;
+                    Ok(result)
+                }
+                "nth-last-child" => {
+                    c.take(TokenValue::ParenOpen)?;
+                    let result = match c.tokens.next().ok_or(Error::Eof)? {
+                        Token(TokenValue::Iden(special), pos) => match special.as_str() {
+                            "odd" => Ok(Selector::NthLastMod(1, 2)),
+                            "even" => Ok(Selector::NthLastMod(0, 2)),
+                            _ => Err(Error::Syntax("Expected 'odd', 'even' or <number>.".into(), pos)),
+                        },
+                        Token(TokenValue::Number(number), pos) => Ok(Selector::NthLast(
+                            number
+                                .parse::<usize>()
+                                .map_err(|err| Error::Syntax(format!("{}", err), pos))?,
+                        )),
+                        Token(_, pos) => Err(Error::Syntax("Expected 'odd', 'even' or <number>.".into(), pos)),
+                    }?;
+                    c.take(TokenValue::ParenClose)?;
+                    Ok(result)
+                }
+                "first-child" => Ok(Selector::Nth(0)),
+                "last-child" => Ok(Selector::NthLast(0)),
+                "only-child" => Ok(Selector::OnlyChild),
+                "not" => {
+                    c.take(TokenValue::ParenOpen)?;
+                    let inner = parse_selector(c)?;
+                    c.take(TokenValue::ParenClose)?;
+                    Ok(Selector::Not(Box::new(inner)))
+                }
+                state => Ok(Selector::State(state.to_string())),
+            }
+        }
+        Token(_, pos) => Err(Error::Syntax("expected `<selector`>".into(), pos)),
     }
 }
 

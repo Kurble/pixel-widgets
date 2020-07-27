@@ -38,7 +38,7 @@ input {
     padding: 4
 }
 
-window text .title {
+window text.title {
     color: #fff
     text-size: 18
 }

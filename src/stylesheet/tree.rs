@@ -1,22 +1,22 @@
-use crate::stylesheet::{Selector, Rule, SelectorWidget, Style};
-use std::rc::Rc;
 use crate::bitset::BitSet;
+use crate::stylesheet::{Declaration, Selector, SelectorWidget, Style};
 use std::iter::FromIterator;
+use std::rc::Rc;
 
 pub(crate) struct RuleTree {
-    nodes: Vec<RuleNode>,
+    rules: Vec<Rule>,
 }
 
-pub(crate) struct RuleNode {
+pub(crate) struct Rule {
     selector: Selector,
-    rules: Vec<Rule>,
+    declarations: Vec<Declaration>,
     children: Vec<usize>,
 }
 
-pub(crate) struct NewRuleTree {
+pub(crate) struct RuleTreeBuilder {
     selector: Selector,
-    rules: Vec<Rule>,
-    children: Vec<NewRuleTree>,
+    declarations: Vec<Declaration>,
+    children: Vec<RuleTreeBuilder>,
 }
 
 #[derive(Clone)]
@@ -27,74 +27,57 @@ pub(crate) struct Query {
 }
 
 impl RuleTree {
-    pub fn iter_rules<'a>(&'a self, style: &'a BitSet) -> impl Iterator<Item = &'a Rule> {
-        style.iter().flat_map(move |node| self.nodes[node].rules.iter())
+    pub fn iter_declarations<'a>(&'a self, style: &'a BitSet) -> impl Iterator<Item = &'a Declaration> {
+        style.iter().flat_map(move |rule| self.rules[rule].declarations.iter())
     }
 
     /// Add a node from the rule tree to a bitset.
     /// This will also add all the `:` based child selectors that apply based on `state`, `n` and `last`.
-    pub fn add_to_bitset(&self, node: usize, state: &str, class: &str, n: usize, len: usize, to: &mut BitSet) {
-        to.insert(node);
-        for &child in self.nodes[node].children.iter() {
-            let add = match self.nodes[child].selector {
-                Selector::State(ref sel_state) => sel_state == state,
-                Selector::Class(ref sel_class) => sel_class == class,
-                Selector::Nth(num) => n == num,
-                Selector::NthMod(num, den) => (n % den) == num,
-                Selector::NthLast(num) => len - 1 - n == num,
-                Selector::NthLastMod(num, den) => ((len - 1 - n) % den) == num,
-                _ => false,
-            };
-            if add {
-                self.add_to_bitset(child, state, class, n, len, to);
+    pub fn add_to_bitset(&self, rule: usize, state: &str, class: &str, n: usize, len: usize, to: &mut BitSet) {
+        to.insert(rule);
+        for &child_rule in self.rules[rule].children.iter() {
+            if self.rules[child_rule]
+                .selector
+                .match_meta(state, class, n, len)
+                .unwrap_or(false)
+            {
+                self.add_to_bitset(child_rule, state, class, n, len, to);
             }
         }
     }
 
     /// Match a child widget of a widget matched to this rule tree.
-    pub fn match_child<'a>(
-        &'a self,
-        node: usize,
-        direct: bool,
-        widget: &'a str,
-    ) -> impl 'a + Iterator<Item = usize> {
-        self.nodes[node]
-            .children
-            .iter()
-            .filter_map(move |&tree| match self.nodes[tree].selector {
-                Selector::Widget(ref sel_widget) => Some(tree).filter(|_| sel_widget.matches(widget)),
-                Selector::WidgetDirectChild(ref sel_widget) => {
-                    Some(tree).filter(|_| direct && sel_widget.matches(widget))
-                }
-                _ => None,
-            })
+    pub fn match_child<'a>(&'a self, rule: usize, direct: bool, widget: &'a str) -> impl 'a + Iterator<Item = usize> {
+        self.rules[rule].children.iter().cloned().filter(move |&child_rule| {
+            self.rules[child_rule]
+                .selector
+                .match_child(direct, widget)
+                .unwrap_or(false)
+        })
     }
 
     /// Match a sibling widget of a widget matched to this rule tree.
-    pub fn match_sibling<'a>(&'a self, node: usize, direct: bool, widget: &'a str) -> impl 'a + Iterator<Item = usize> {
-        self.nodes[node]
-            .children
-            .iter()
-            .filter_map(move |&tree| match self.nodes[tree].selector {
-                Selector::WidgetDirectAfter(ref sel_widget) => {
-                    Some(tree).filter(|_| direct && sel_widget.matches(widget))
-                }
-                Selector::WidgetAfter(ref sel_widget) => Some(tree).filter(|_| sel_widget.matches(widget)),
-                _ => None,
-            })
+    pub fn match_sibling<'a>(&'a self, rule: usize, direct: bool, widget: &'a str) -> impl 'a + Iterator<Item = usize> {
+        self.rules[rule].children.iter().cloned().filter(move |&child_rule| {
+            self.rules[child_rule]
+                .selector
+                .match_sibling(direct, widget)
+                .unwrap_or(false)
+        })
     }
 
-    pub fn restyle(&self, style: &BitSet, state: &str, class: &str, n: usize, len: usize) -> BitSet {
+    /// Perform meta-selector matching again for the rules in the given bitset.
+    /// Non meta selectors will be retained no matter what.
+    pub fn rematch(&self, style: &BitSet, state: &str, class: &str, n: usize, len: usize) -> BitSet {
         let mut result = BitSet::new();
 
-        for selector in style.iter() {
-            let keep = match self.nodes[selector].selector {
-                Selector::State(ref sel_state) => sel_state == state,
-                _ => true,
-            };
-            if keep {
-                self.add_to_bitset(selector, state, class, n, len, &mut result);
-            }
+        for selector in style.iter().filter(|&selector| {
+            self.rules[selector]
+                .selector
+                .match_meta(state, class, n, len)
+                .unwrap_or(/*non meta selectors need to be retained: */ true)
+        }) {
+            self.add_to_bitset(selector, state, class, n, len, &mut result);
         }
 
         result
@@ -104,28 +87,28 @@ impl RuleTree {
 impl Default for RuleTree {
     fn default() -> Self {
         Self {
-            nodes: vec![RuleNode {
+            rules: vec![Rule {
                 selector: Selector::Widget(SelectorWidget::Any),
-                rules: vec![],
+                declarations: vec![],
                 children: vec![],
             }],
         }
     }
 }
 
-impl NewRuleTree {
+impl RuleTreeBuilder {
     pub fn new(selector: Selector) -> Self {
-        NewRuleTree {
+        RuleTreeBuilder {
             selector,
-            rules: Vec::new(),
+            declarations: Vec::new(),
             children: Vec::new(),
         }
     }
 
     /// Recursively insert some rules at the selectors path
-    pub fn insert(&mut self, selectors: impl AsRef<[Selector]>, rules: Vec<Rule>) {
+    pub fn insert(&mut self, selectors: impl AsRef<[Selector]>, rules: Vec<Declaration>) {
         match selectors.as_ref().get(0) {
-            None => self.rules.extend(rules),
+            None => self.declarations.extend(rules),
             Some(selector) => {
                 let mut index = self.children.len();
 
@@ -137,9 +120,9 @@ impl NewRuleTree {
                 }
 
                 if index == self.children.len() {
-                    self.children.push(NewRuleTree {
+                    self.children.push(RuleTreeBuilder {
                         selector: selector.clone(),
-                        rules: Vec::new(),
+                        declarations: Vec::new(),
                         children: Vec::new(),
                     });
                 }
@@ -150,24 +133,24 @@ impl NewRuleTree {
     }
 
     fn flatten(self, into: &mut RuleTree) -> usize {
-        let index = into.nodes.len();
-        into.nodes.push(RuleNode {
+        let index = into.rules.len();
+        into.rules.push(Rule {
             selector: self.selector,
-            rules: self.rules,
+            declarations: self.declarations,
             children: Vec::new(),
         });
 
         for child in self.children {
             let child = child.flatten(into);
-            into.nodes[index].children.push(child);
+            into.rules[index].children.push(child);
         }
         index
     }
 }
 
-impl Into<RuleTree> for NewRuleTree {
+impl Into<RuleTree> for RuleTreeBuilder {
     fn into(self) -> RuleTree {
-        let mut result = RuleTree { nodes: Vec::new() };
+        let mut result = RuleTree { rules: Vec::new() };
         self.flatten(&mut result);
         result
     }
@@ -197,7 +180,9 @@ impl Query {
         });
 
         for node in from_ancestors.chain(from_siblings) {
-            self.style.rule_tree.add_to_bitset(node, state, class, n, len, &mut result);
+            self.style
+                .rule_tree
+                .add_to_bitset(node, state, class, n, len, &mut result);
         }
 
         result

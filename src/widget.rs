@@ -326,7 +326,7 @@ impl<'a, Message> Node<'a, Message> {
             self.state = Some(self.widget.state());
 
             // find out if the style changed as a result of the state change
-            let new_style = self.style.as_ref().unwrap().rule_tree().restyle(
+            let new_style = self.style.as_ref().unwrap().rule_tree().rematch(
                 &self.selector_matches,
                 self.widget.state(),
                 self.class.unwrap_or(""),

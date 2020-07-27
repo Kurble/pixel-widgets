@@ -2,9 +2,8 @@
 //! Style in pixel-widgets is defined using stylesheets. These stylesheets are loaded from a file, with a format that is a
 //! syntactically a subset of css. The stylesheets are called `pwss` - *p*ixel-*w*idgets *s*tyle*s*heets.
 //! # Features
-//! - Select widgets by widget type and descendant type
-//! - Select widgets by class and descendant class
-//! - Stack multiple selectors that select the same widget
+//! - Select widgets, .classes and :states
+//! - Select child widgets, sibling widgets
 //!
 //! # Example
 //! ```ignore
@@ -14,8 +13,19 @@
 //!
 //! button {
 //!     background: #444
-//!     hover: #668
 //!     padding: 5
+//! }
+//!
+//! button:hover {
+//!     background: #666
+//! }
+//!
+//! button:pressed {
+//!     background: #222
+//! }
+//!
+//! button:hover > text {
+//!     color: #f00
 //! }
 //!
 //! text {
@@ -23,41 +33,58 @@
 //! }
 //! ```
 //!
-//! The example sets a few of the keys on some of the widgets. Just try it out with the examples in the example
+//! The example sets a few properties on some of the widgets. Just try it out with the examples in the example
 //! directory and see for yourself what the effect is.
 //!
 //! # Syntax
-//! Each pwss file contains a collection of _selectors_. Selectors are a group of _rules_ that are applied to _selected_
+//! Each pwss file contains a collection of _rules_. Rules are a group of _declarations_ that are applied to _selected_
 //! widgets.
 //!
-//! ## Selectors
+//! ## Rules
 //! A selector has the following format:
 //! ```ignore
-//! <widget...> <class...> {
-//!     <rule...>
+//! <selector> <selector> ... {
+//!     <property>: <value>
+//!     <property>: <value>
+//!     ...
 //! }
 //! ```
-//! The first line expects some widget identifiers and some class identifiers. Class identifiers can differentiated
-//! from widget identifiers by adding a period in front, as in `.class`.
+//! The first line expects some selectors. Class selectors can be differentiated
+//! from widget selectors by adding a period in front, as in `.class`, and state selectors have a ':' in front.
 //! ```ignore
 //! window column button {
 //!     background: @button.png
 //! }
 //! ```
-//! Entering multiple widgets that the selector will look for a `button` inside a `column` inside a `window`.
+//! Entering multiple selectors like in this example will look for a `button` inside a `column` inside a `window`.
 //!
-//! ## Rules
-//! The interior of a selector consists of a number of rules. These rules are what specifies style.
-//! A rule starts with a key, and each key has it's own associated format. Take a look at the table to see what keys
-//! exist.
+//! ## Selectors
+//! This table describes the supported selectors
+//! | selector | example | description |
+//! |---|---|---|
+//! | * | * | selects all widgets |
+//! | widget | text | selects all text widgets |
+//! | .class | .fancy | selects all widgets that have the class "fancy" |
+//! | .. widget | .fancy text | selects all text widgets that are a descendant of a "fancy" classed widget |
+//! | >widget | .fancy > text | selects all text widgets that are a direct child of a "fancy" classed widget |
+//! | +widget | .fancy + text | selects all widgets that follow directly after a "fancy" classed widget |
+//! | ~widget | .fancy ~ text | selects all widgets that follow after a "fancy" classed widget |
+//! | :state | button:hover | selects all buttons that are hovered by the mouse |
+//! | :nth-child(n) | text:nth-child(2) | selects text widgets that are the third child of their parent |
+//! | :nth-last-child(n) | text:nth-last-child(2) | selects text widgets that are the third child of their parent, counted from the last widget |
+//! | :nth-child(odd) | text:nth-child(odd) | selects text widgets that are an odd child of their parent |
+//! | :nth-child(even) | text:nth-child(even) | selects text widgets that are an even child of their parent |
+//! | :not(selector) | button:not(:pressed) | selects button widgets that are not pressed |
+//! | :only-child | todo | align |
+//!
+//! ## Properties
+//! The interior of a rule consists of a number of declarations. These declarations are what specifies style.
+//! A declaration starts with a property, and each property has it's own associated format.
+//! Take a look at the table to see what properties exist.
 //!
 //! | key | description | format |
 //! |---|---|---|
 //! | background | Background for the widget that full covers the layout rect | background |
-//! | hover | Background for button like widgets that are hovered | background |
-//! | pressed | Background for button like widgets that are pressed | background |
-//! | disabled | Background for button like widgets that are disabled | background |
-//! | checked | Background for toggle like widgets that are checked | background |
 //! | font | Font to use for text rendering | url |
 //! | color | Color to use for foreground drawing, including text | color |
 //! | scrollbar_horizontal | Graphics to use for horizontal scrollbars | background |
@@ -150,8 +177,8 @@ pub struct Stylesheet {
     pub align_vertical: Align,
 }
 
-/// A property value
-pub enum Rule {
+/// A property and a value
+pub enum Declaration {
     /// background
     Background(Background),
     /// font
@@ -197,10 +224,14 @@ pub enum Selector {
     Nth(usize),
     /// Match the nth child widget counted from the last child widget
     NthLast(usize),
+    /// Match widgets that are the only child of their parent
+    OnlyChild,
     /// Match widgets that have a class
     Class(String),
     /// Match widgets that are in a state
     State(String),
+    /// Invert the nested selector
+    Not(Box<Selector>),
 }
 
 /// Widget name as used in a `Selector`.
@@ -220,7 +251,7 @@ impl Style {
             rule_tree: tree::RuleTree::default(),
             default: Stylesheet {
                 background: Background::None,
-                font: cache.load_font(include_bytes!("../../default_font.ttf").to_vec()),
+                font: cache.load_font(include_bytes!("default_font.ttf").to_vec()),
                 color: Color::white(),
                 scrollbar_horizontal: Background::Color(Color::white()),
                 scrollbar_vertical: Background::Color(Color::white()),
@@ -241,7 +272,7 @@ impl Style {
             return existing.clone();
         }
         let mut computed = self.default.clone();
-        for rule in self.rule_tree.iter_rules(&style) {
+        for rule in self.rule_tree.iter_declarations(&style) {
             rule.apply(&mut computed);
         }
         let result = Rc::new(computed);
@@ -265,22 +296,60 @@ impl Style {
     }
 }
 
-impl Rule {
-    /// Apply property to a stylesheet
+impl Declaration {
+    /// Apply values to a `Stylesheet`.
     pub fn apply(&self, stylesheet: &mut Stylesheet) {
         match self {
-            Rule::Background(x) => stylesheet.background = x.clone(),
-            Rule::Font(x) => stylesheet.font = x.clone(),
-            Rule::Color(x) => stylesheet.color = x.clone(),
-            Rule::ScrollbarHorizontal(x) => stylesheet.scrollbar_horizontal = x.clone(),
-            Rule::ScrollbarVertical(x) => stylesheet.scrollbar_vertical = x.clone(),
-            Rule::Padding(x) => stylesheet.padding = x.clone(),
-            Rule::TextSize(x) => stylesheet.text_size = x.clone(),
-            Rule::TextWrap(x) => stylesheet.text_wrap = x.clone(),
-            Rule::Width(x) => stylesheet.width = x.clone(),
-            Rule::Height(x) => stylesheet.height = x.clone(),
-            Rule::AlignHorizontal(x) => stylesheet.align_horizontal = x.clone(),
-            Rule::AlignVertical(x) => stylesheet.align_vertical = x.clone(),
+            Declaration::Background(x) => stylesheet.background = x.clone(),
+            Declaration::Font(x) => stylesheet.font = x.clone(),
+            Declaration::Color(x) => stylesheet.color = x.clone(),
+            Declaration::ScrollbarHorizontal(x) => stylesheet.scrollbar_horizontal = x.clone(),
+            Declaration::ScrollbarVertical(x) => stylesheet.scrollbar_vertical = x.clone(),
+            Declaration::Padding(x) => stylesheet.padding = x.clone(),
+            Declaration::TextSize(x) => stylesheet.text_size = x.clone(),
+            Declaration::TextWrap(x) => stylesheet.text_wrap = x.clone(),
+            Declaration::Width(x) => stylesheet.width = x.clone(),
+            Declaration::Height(x) => stylesheet.height = x.clone(),
+            Declaration::AlignHorizontal(x) => stylesheet.align_horizontal = x.clone(),
+            Declaration::AlignVertical(x) => stylesheet.align_vertical = x.clone(),
+        }
+    }
+}
+
+impl Selector {
+    /// Match a sibling widget of the current rule. If this selector is not a sibling selector `None` is returned.
+    pub fn match_sibling(&self, direct: bool, widget: &str) -> Option<bool> {
+        match self {
+            &Selector::WidgetDirectAfter(ref sel_widget) => Some(direct && sel_widget.matches(widget)),
+            &Selector::WidgetAfter(ref sel_widget) => Some(sel_widget.matches(widget)),
+            &Selector::Not(ref selector) => selector.match_sibling(direct, widget).map(|b| !b),
+            &_ => None,
+        }
+    }
+
+    /// Match a child widget of the current rule. If this selector is not a child selector `None` is returned.
+    pub fn match_child(&self, direct: bool, widget: &str) -> Option<bool> {
+        match self {
+            &Selector::Widget(ref sel_widget) => Some(sel_widget.matches(widget)),
+            &Selector::WidgetDirectChild(ref sel_widget) => Some(direct && sel_widget.matches(widget)),
+            &Selector::Not(ref selector) => selector.match_child(direct, widget).map(|b| !b),
+            &_ => None,
+        }
+    }
+
+    /// Match parameters of the widget matched by the current rule.
+    /// If this selector is not a meta selector `None` is returned.
+    pub fn match_meta(&self, state: &str, class: &str, n: usize, len: usize) -> Option<bool> {
+        match self {
+            &Selector::State(ref sel_state) => Some(sel_state == state),
+            &Selector::Class(ref sel_class) => Some(sel_class == class),
+            &Selector::Nth(num) => Some(n == num),
+            &Selector::NthMod(num, den) => Some((n % den) == num),
+            &Selector::NthLast(num) => Some(len - 1 - n == num),
+            &Selector::NthLastMod(num, den) => Some(((len - 1 - n) % den) == num),
+            &Selector::OnlyChild => Some(n == 0 && len == 1),
+            &Selector::Not(ref selector) => selector.match_meta(state, class, n, len).map(|b| !b),
+            &_ => None,
         }
     }
 }

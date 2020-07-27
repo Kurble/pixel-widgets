@@ -7,6 +7,8 @@
     The styling system is now responsible for specifying these using selectors like `:hover`.
     - Added `:nth-first-child(n)`, `:nth-last-child(n)`, `:nth-first-child-mod(n, d)`, 
     `:nth-last-child-mod(n, d)` selectors. All support numbers, `odd` and `even`.
+    - Added `:first-child`, `:last-child` and `:only-child` selectors.
+    - Added `:not(<selector>)` selector.
     - Added a `:<state>` selector that checks the result of the new method `Widget::state()`.
     Useful for states such as `hover`, `pressed` or `open`.
     - Added `+ <widget>`, `> <widget>` and `~ <widget>` selectors.
