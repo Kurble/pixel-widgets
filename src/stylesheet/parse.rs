@@ -80,7 +80,7 @@ async fn parse_rule<I: Iterator<Item = Token>, L: Loader>(
 async fn parse_declaration<I: Iterator<Item = Token>, L: Loader>(
     c: &mut LoadContext<'_, I, L>,
 ) -> Result<Declaration, Error<L::Error>> {
-    match c.tokens.next() {
+    let result = match c.tokens.next() {
         Some(Token(TokenValue::Iden(key), pos)) => {
             c.take(TokenValue::Colon)?;
             match key.as_str() {
@@ -101,7 +101,9 @@ async fn parse_declaration<I: Iterator<Item = Token>, L: Loader>(
         }
         Some(Token(_, pos)) => Err(Error::Syntax("Expected <property>".into(), pos)),
         None => Err(Error::Eof),
-    }
+    }?;
+    c.take(TokenValue::Semi)?;
+    Ok(result)
 }
 
 async fn parse_background<I: Iterator<Item = Token>, L: Loader>(
@@ -309,45 +311,18 @@ fn parse_usize<I: Iterator<Item = Token>, L: Loader>(c: &mut LoadContext<I, L>) 
 fn parse_rectangle<I: Iterator<Item = Token>, L: Loader>(
     c: &mut LoadContext<I, L>,
 ) -> Result<Rectangle, Error<L::Error>> {
-    let mut result = Rectangle::zero();
-    match c.tokens.next() {
-        Some(Token(TokenValue::ParenOpen, _)) => loop {
-            match c.tokens.next() {
-                Some(Token(TokenValue::Iden(field), pos)) => {
-                    c.take(TokenValue::Colon)?;
-                    match field.as_str() {
-                        "left" => result.left = parse_float(c)?,
-                        "top" => result.top = parse_float(c)?,
-                        "right" => result.right = parse_float(c)?,
-                        "bottom" => result.bottom = parse_float(c)?,
-                        _ => Err(Error::Syntax("Expected `left`, `top`, `right` or `bottom`".into(), pos))?,
-                    }
-                }
-                Some(Token(TokenValue::ParenClose, _)) => {
-                    return Ok(result);
-                }
-                Some(Token(_, pos)) => {
-                    return Err(Error::Syntax(
-                        "Expected `left`, `top`, `right`, `bottom` or `)`".into(),
-                        pos,
-                    ))
-                }
-                None => return Err(Error::Eof),
-            }
-        },
-        Some(Token(TokenValue::Number(number), pos)) => {
-            let uniform = number
-                .parse::<f32>()
-                .map_err(|err| Error::Syntax(format!("{}", err), pos))?;
-            Ok(Rectangle {
-                left: uniform,
-                top: uniform,
-                right: uniform,
-                bottom: uniform,
-            })
-        }
-        Some(Token(_, pos)) => Err(Error::Syntax("Expected `(` or <number>".into(), pos)),
-        None => Err(Error::Eof),
+    let mut numbers = Vec::new();
+
+    while let Token(TokenValue::Number(_), _) = c.tokens.peek().ok_or(Error::Eof)? {
+        numbers.push(parse_float(c)?);
+    }
+
+    match numbers.len() {
+        0 => Ok(Rectangle::zero()),
+        1 => Ok(Rectangle { top: numbers[0], right: numbers[0], bottom: numbers[0], left: numbers[0]}),
+        2 => Ok(Rectangle { top: numbers[0], right: numbers[1], bottom: numbers[0], left: numbers[1]}),
+        3 => Ok(Rectangle { top: numbers[0], right: numbers[1], bottom: numbers[2], left: numbers[1]}),
+        _ => Ok(Rectangle { top: numbers[0], right: numbers[1], bottom: numbers[2], left: numbers[3]}),
     }
 }
 

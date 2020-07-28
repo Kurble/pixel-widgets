@@ -8,28 +8,28 @@
 //! # Example
 //! ```ignore
 //! column {
-//!     align-horizontal: center
+//!     align-horizontal: center;
 //! }
 //!
 //! button {
-//!     background: #444
-//!     padding: 5
+//!     background: #444;
+//!     padding: 5;
 //! }
 //!
 //! button:hover {
-//!     background: #666
+//!     background: #666;
 //! }
 //!
 //! button:pressed {
-//!     background: #222
+//!     background: #222;
 //! }
 //!
 //! button:hover > text {
-//!     color: #f00
+//!     color: #f00;
 //! }
 //!
 //! text {
-//!     text-size: 24
+//!     text-size: 24;
 //! }
 //! ```
 //!
@@ -44,8 +44,8 @@
 //! A selector has the following format:
 //! ```ignore
 //! <selector> <selector> ... {
-//!     <property>: <value>
-//!     <property>: <value>
+//!     <property>: <value>;
+//!     <property>: <value>;
 //!     ...
 //! }
 //! ```
@@ -53,7 +53,7 @@
 //! from widget selectors by adding a period in front, as in `.class`, and state selectors have a ':' in front.
 //! ```ignore
 //! window column button {
-//!     background: @button.png
+//!     background: @button.png;
 //! }
 //! ```
 //! Entering multiple selectors like in this example will look for a `button` inside a `column` inside a `window`.
@@ -104,8 +104,8 @@
 //! | color | `#rgb`<br>`#rgba`<br>`#rrggbb`<br>`#rrggbbaa` | Examples:<br>`#fff`<br>`#ff00ff` |
 //! | url | `@filename` | An `@` followed by an url<br>`@image.png`<br>`@font.ttf` |
 //! | number | floating point literal | A number, such as `2.0` or `42` |
-//! | background | `<url>`<br>`<color>`<br>`image(<url>, <color>)`<br>`patch(<url>, <color>)`<br>`none` | If a url ends with `.9.png` it will be resolved as a 9 patch. If your 9 slice doesn't end with `.9.png`, use `patch`. |
-//! | rectangle | `<number>`<br>`(left: <number> right: <number> top: <number> bottom: <number>)` | All fields are optional as they default to zero:<br>`(left: 2 right: 2)` |
+//! | background | `<url>`<br>`<color>`<br>`image(<url>, <color>)`<br>`patch(<url>, <color>)`<br>`none` | If a url ends with `.9.png` it will be resolved as a 9 patch.<br>If your 9 slice doesn't end with `.9.png`, use `patch`. |
+//! | rectangle | `<num>`<br>`<num> <num>`<br>`<num> <num> <num>`<br>`<num> <num> <num> <num>` | `all sides`<br>`top/bottom`, `right/left`<br>`top`, `right/left`, `bottom`<br>`top`, `right`, `bottom`, `left` |
 //! | textwrap | `no-wrap`<br>`wrap`<br>`word-wrap` | |
 //! | size | `<number>`<br>`fill(<number>)`<br>`exact(<number>)`<br>`shrink` | Just a number resolves to `exact` |
 //! | align | `begin`<br>`center`<br>`end` | |

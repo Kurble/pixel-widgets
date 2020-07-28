@@ -3,7 +3,8 @@
 #### v0.3
 - [x] not() selector
 - [x] only-child selector
-- [ ] update docs with new pwss features
+- [x] css syntax
+- [x] update docs with new pwss features
 - [ ] hot reloading
 
 #### v0.4

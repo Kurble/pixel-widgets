@@ -1,26 +1,26 @@
 column {
-    align-horizontal: center
+    align-horizontal: center;
 }
 
 button {
-    background: #444
-    padding: 5
+    background: #444;
+    padding: 5;
 }
 
 button :hover {
-    background: #668
+    background: #668;
 }
 
 button :hover > text {
-    color: #f00
+    color: #f00;
 }
 
 text {
-    text-size: 24
-    padding: 3
+    text-size: 24;
+    padding: 3;
 }
 
 text :odd {
-    background: #fff
-    color: #000
+    background: #fff;
+    color: #000;
 }

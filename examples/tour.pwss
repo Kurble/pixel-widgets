@@ -1,87 +1,87 @@
 window {
-    background: #800
+    background: #800;
 }
 
 layers {
-    width: fill(1)
-    height: fill(1)
+    width: fill(1);
+    height: fill(1);
 }
 
 scroll {
-    width: 150
-    height: 100
-    padding: (right: 5.0 bottom: 5.0)
+    width: 150;
+    height: 100;
+    padding: 0 5 5 0;
 }
 
 button {
-    background: #888
-    padding: (left: 20.0 right: 20.0 top: 5.0 bottom: 5.0)
+    background: #888;
+    padding: 5 20 5;
 }
 
 button:hover {
-    background: #aaa
+    background: #aaa;
 }
 
 button:pressed {
-    background: #222
+    background: #222;
 }
 
 button text {
-    color: #000
+    color: #000;
 }
 
 input {
-    width: fill(1)
-    background: #fff
-    color: #000
-    text-size: 24.0
-    padding: 4
+    width: fill(1);
+    background: #fff;
+    color: #000;
+    text-size: 24.0;
+    padding: 4;
 }
 
 window text.title {
-    color: #fff
-    text-size: 18
+    color: #fff;
+    text-size: 18;
 }
 
 window space .close {
-    width: 20
-    height: fill(1)
-    background: #00f
+    width: 20;
+    height: fill(1);
+    background: #00f;
 }
 
 row {
-    width: fill(1)
-    background: #0208
-    padding: 2
+    width: fill(1);
+    background: #0208;
+    padding: 2;
 }
 
 row .title {
-    width: 300
-    padding: 2
+    width: 300;
+    padding: 2;
 }
 
 column {
-    width: fill(1)
-    padding: 2
+    width: fill(1);
+    padding: 2;
 }
 
 space {
-    width: fill(1)
-    height: fill(1)
+    width: fill(1);
+    height: fill(1);
 }
 
 space .dummy {
-    width: 200
-    height: 200
+    width: 200;
+    height: 200;
 }
 
 dropdown {
-    background: #0008
-    color: #00f8
-    width: fill(1)
-    padding: 8
+    background: #0008;
+    color: #00f8;
+    width: fill(1);
+    padding: 8;
 }
 
 dropdown:open {
-    background: #002
+    background: #002;
 }
