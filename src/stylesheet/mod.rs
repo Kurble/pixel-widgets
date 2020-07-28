@@ -60,22 +60,23 @@
 //!
 //! ## Selectors
 //! This table describes the supported selectors
+//!
 //! | selector | example | description |
 //! |---|---|---|
-//! | * | * | selects all widgets |
-//! | widget | text | selects all text widgets |
-//! | .class | .fancy | selects all widgets that have the class "fancy" |
-//! | .. widget | .fancy text | selects all text widgets that are a descendant of a "fancy" classed widget |
-//! | >widget | .fancy > text | selects all text widgets that are a direct child of a "fancy" classed widget |
-//! | +widget | .fancy + text | selects all widgets that follow directly after a "fancy" classed widget |
-//! | ~widget | .fancy ~ text | selects all widgets that follow after a "fancy" classed widget |
-//! | :state | button:hover | selects all buttons that are hovered by the mouse |
-//! | :nth-child(n) | text:nth-child(2) | selects text widgets that are the third child of their parent |
-//! | :nth-last-child(n) | text:nth-last-child(2) | selects text widgets that are the third child of their parent, counted from the last widget |
-//! | :nth-child(odd) | text:nth-child(odd) | selects text widgets that are an odd child of their parent |
-//! | :nth-child(even) | text:nth-child(even) | selects text widgets that are an even child of their parent |
-//! | :not(selector) | button:not(:pressed) | selects button widgets that are not pressed |
-//! | :only-child | todo | align |
+//! | `*` | `*` | selects all widgets |
+//! | `widget` | `text` | selects all text widgets |
+//! | `.class` | `.fancy` | selects all widgets that have the class "fancy" |
+//! | `.. widget` | `.fancy text` | selects all text widgets that are a descendant of a "fancy" classed widget |
+//! | `>widget` | `.fancy > text` | selects all text widgets that are a direct child of a "fancy" classed widget |
+//! | `+widget` | `.fancy + text` | selects all widgets that follow directly after a "fancy" classed widget |
+//! | `~widget` | `.fancy ~ text` | selects all widgets that follow after a "fancy" classed widget |
+//! | `:state` | `button:hover` | selects all buttons that are hovered by the mouse |
+//! | `:nth-child(n)` | `text:nth-child(2)` | selects text widgets that are the third child of their parent |
+//! | `:nth-last-child(n)` | `text:nth-last-child(2)` | selects text widgets that are the third child of their parent, counted from the last widget |
+//! | `:nth-child(odd)` | `text:nth-child(odd)` | selects text widgets that are an odd child of their parent |
+//! | `:nth-child(even)` | `text:nth-child(even)` | selects text widgets that are an even child of their parent |
+//! | `:not(selector)` | `button:not(:pressed)` | selects button widgets that are not pressed |
+//! | `:only-child` | `column > *:only-child` | selects the only child of a column when the column has only one child |
 //!
 //! ## Properties
 //! The interior of a rule consists of a number of declarations. These declarations are what specifies style.

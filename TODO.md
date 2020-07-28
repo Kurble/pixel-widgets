@@ -7,6 +7,7 @@
 - [ ] hot reloading
 
 #### v0.4
+- [ ] margins
 - [ ] context menu widget / thing
 - [ ] drag and drop widget
 
