@@ -5,9 +5,9 @@
 - [x] only-child selector
 - [x] css syntax
 - [x] update docs with new pwss features
-- [ ] hot reloading
 
 #### v0.4
+- [ ] hot reloading
 - [ ] margins
 - [ ] context menu widget / thing
 - [ ] drag and drop widget
@@ -17,4 +17,4 @@
 - [ ] async api
 
 #### v0.6
-- [ ] dom files?
+- [ ] dom files? could utilize ron to deserialize messages

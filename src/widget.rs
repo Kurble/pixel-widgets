@@ -225,8 +225,8 @@ impl<'a, Message> Node<'a, Message> {
         query.siblings.push(query.ancestors.pop().unwrap());
     }
 
-    fn restyle_add(&mut self, query: &mut Query) {
-        let adds = query.match_widget(
+    fn add_matches(&mut self, query: &mut Query) {
+        let additions = query.match_widget(
             self.widget.widget(),
             self.class.unwrap_or(""),
             self.widget.state(),
@@ -234,20 +234,20 @@ impl<'a, Message> Node<'a, Message> {
             self.position.1,
         );
 
-        let new_style = self.selector_matches.union(&adds);
+        let new_style = self.selector_matches.union(&additions);
         if new_style != self.selector_matches {
             self.selector_matches = new_style;
             self.stylesheet.replace(self.style.as_ref().unwrap().get(&self.selector_matches));
         }
 
-        query.ancestors.push(adds);
+        query.ancestors.push(additions);
         let own_siblings = std::mem::replace(&mut query.siblings, Vec::new());
-        self.widget.visit_children(&mut |child| child.restyle_add(&mut *query));
+        self.widget.visit_children(&mut |child| child.add_matches(&mut *query));
         std::mem::replace(&mut query.siblings, own_siblings);
         query.siblings.push(query.ancestors.pop().unwrap());
     }
 
-    fn restyle_remove(&mut self, query: &mut Query) {
+    fn remove_matches(&mut self, query: &mut Query) {
         let removals = query.match_widget(
             self.widget.widget(),
             self.class.unwrap_or(""),
@@ -264,7 +264,7 @@ impl<'a, Message> Node<'a, Message> {
 
         query.ancestors.push(removals);
         let own_siblings = std::mem::replace(&mut query.siblings, Vec::new());
-        self.widget.visit_children(&mut |child| child.restyle_remove(&mut *query));
+        self.widget.visit_children(&mut |child| child.remove_matches(&mut *query));
         std::mem::replace(&mut query.siblings, own_siblings);
         query.siblings.push(query.ancestors.pop().unwrap());
     }
@@ -346,7 +346,7 @@ impl<'a, Message> Node<'a, Message> {
                         ancestors: vec![additions],
                         siblings: vec![],
                     };
-                    self.widget.visit_children(&mut |child| child.restyle_add(&mut query));
+                    self.widget.visit_children(&mut |child| child.add_matches(&mut query));
                 }
 
                 if !removals.is_empty() {
@@ -355,7 +355,7 @@ impl<'a, Message> Node<'a, Message> {
                         ancestors: vec![removals],
                         siblings: vec![],
                     };
-                    self.widget.visit_children(&mut |child| child.restyle_remove(&mut query));
+                    self.widget.visit_children(&mut |child| child.remove_matches(&mut query));
                 }
 
                 self.selector_matches = new_style;

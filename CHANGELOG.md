@@ -3,6 +3,7 @@
  ### v0.3.0
 - Added `len()` to `Widget`.
 - New style system
+    - Changed pwss syntax to resemble css more.
     - Removed some backgrounds from [`Stylesheet`](src/stylesheet/mod.rs).
     The styling system is now responsible for specifying these using selectors like `:hover`.
     - Added `:nth-first-child(n)`, `:nth-last-child(n)`, `:nth-first-child-mod(n, d)`, 
