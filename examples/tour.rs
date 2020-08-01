@@ -1,4 +1,5 @@
 use pixel_widgets::prelude::*;
+use pixel_widgets::Command;
 
 struct Tour {
     pub show_dummy: bool,
@@ -20,7 +21,7 @@ enum Message {
 impl Model for Tour {
     type Message = Message;
 
-    fn update(&mut self, message: Self::Message) {
+    fn update(&mut self, message: Self::Message) -> Vec<Command<Message>> {
         match message {
             Message::PlanetSelected(planet) => {
                 println!("{} selected from the planets", planet);
@@ -41,6 +42,8 @@ impl Model for Tour {
                 self.password = password;
             }
         }
+
+        Vec::new()
     }
 
     fn view(&mut self) -> Node<Message> {

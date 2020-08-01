@@ -1,0 +1,12 @@
+input {
+    width: 200;
+    height: 20;
+    background: #fff;
+    color: #000;
+    padding: 3;
+}
+
+button {
+    padding: 5 20;
+    background: #444;
+}

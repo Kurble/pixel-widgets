@@ -1,12 +1,14 @@
 use pixel_widgets::prelude::*;
 use std::path::PathBuf;
 use winit::window::WindowBuilder;
+use pixel_widgets::Command;
 
 struct Counter {
     pub value: i32,
     pub state: ManagedState<String>,
 }
 
+#[derive(Clone)]
 enum Message {
     UpPressed,
     DownPressed,
@@ -15,13 +17,15 @@ enum Message {
 impl Model for Counter {
     type Message = Message;
 
-    fn update(&mut self, message: Self::Message) {
+    fn update(&mut self, message: Self::Message) -> Vec<Command<Message>> {
         match message {
             Message::UpPressed => {
                 self.value += 1;
+                Vec::new()
             }
             Message::DownPressed => {
                 self.value -= 1;
+                Vec::new()
             }
         }
     }
@@ -31,10 +35,6 @@ impl Model for Counter {
         Column::new()
             .push(Button::new(state.get("up"), Text::new("Up")).on_clicked(Message::UpPressed))
             .push(Text::new(format!("Count: {}", self.value)))
-            .push(Text::new("Test 1"))
-            .push(Text::new("Test 2"))
-            .push(Text::new("Test 3"))
-            .push(Text::new("Test 4"))
             .push(Button::new(state.get("down"), Text::new("Down")).on_clicked(Message::DownPressed))
             .into_node()
     }

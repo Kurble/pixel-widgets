@@ -112,7 +112,12 @@ use crate::model_view::ModelView;
 use crate::stylesheet::Style;
 use crate::widget::{Context, Node};
 use std::rc::Rc;
+use std::task::{Poll, Waker};
+use std::sync::{Arc, Mutex};
+use futures::Stream;
+use futures::task::ArcWake;
 
+mod atlas;
 /// Backend specific code
 pub mod backend;
 mod bitset;
@@ -124,7 +129,6 @@ pub mod event;
 /// Primitives used for layouts
 pub mod layout;
 mod model_view;
-mod qtree;
 /// Simple windowing system for those who want to render _just_ widgets.
 #[cfg(feature="winit")]
 #[cfg(feature="wgpu")]
@@ -150,7 +154,7 @@ pub trait Model: 'static {
 
     /// Called when a message is fired from the view or some other source.
     /// This is where you should update your gui state.
-    fn update(&mut self, message: Self::Message);
+    fn update(&mut self, message: Self::Message) -> Vec<Command<Self::Message>>;
 
     /// Called after [`update`](#tymethod.update) or after the model has been accessed mutably from the [`Ui`](struct.Ui.html).
     /// This is where you should build all of your ui widgets based on the current gui state.
@@ -166,10 +170,20 @@ pub trait Loader: Send + Sync {
     /// A future returned when calling `load`.
     type Load: Future<Output = Result<Vec<u8>, Self::Error>> + Send + Sync;
     /// Error returned by the loader when the request failed.
-    type Error: std::error::Error;
+    type Error: std::error::Error + Send;
 
     /// Asynchronously load a resource located at the given url
     fn load(&self, url: impl AsRef<str>) -> Self::Load;
+}
+
+/// Trait for sending custom events to the event loop of the application
+pub trait EventLoop<T: Send>: Clone + Send {
+    /// The error returned when send_event fails
+    type Error;
+
+    /// Sends custom event to the event loop.
+    /// Returns an `Err` if sending failed, for example when the event loop doesn't exist anymore.
+    fn send_event(&self, event: T) -> Result<(), Self::Error>;
 }
 
 /// Entry point for pixel-widgets.
@@ -177,21 +191,32 @@ pub trait Loader: Send + Sync {
 /// `Ui` manages a [`Model`](trait.Model.html) and processes it to a [`DrawList`](draw/struct.DrawList.html) that can be rendered using your
 ///  own renderer implementation. Alternatively, you can use one of the following included wrappers:
 /// - [`WgpuUi`](backend/wgpu/struct.WgpuUi.html) Renders using [wgpu-rs](https://github.com/gfx-rs/wgpu-rs).
-pub struct Ui<I: Model> {
-    model_view: ModelView<I>,
+pub struct Ui<M: Model, E: EventLoop<Command<M::Message>>> {
+    model_view: ModelView<M>,
     style: Rc<Style>,
-    cache: self::cache::Cache,
+    cache: Arc<Mutex<self::cache::Cache>>,
     viewport: Rectangle,
     redraw: bool,
+    event_loop: E,
 }
 
-impl<I: Model> Ui<I> {
+/// Some asynchronous work that will update the ui later.
+pub enum Command<Message> {
+    /// Wait for a future to resolve
+    Await(Box<dyn Future<Output = Message> + Send>),
+    /// Handle all messages coming out of stream
+    Subscribe(Box<dyn Stream<Item = Message> + Send>),
+    /// Swap the stylesheet
+    Stylesheet(Box<dyn Future<Output = Style> + Send>),
+}
+
+impl<M: Model, E: EventLoop<Command<M::Message>>> Ui<M, E> {
     /// Constructs a new `Ui` using the default style.
     /// This is not recommended as the default style is very empty and only renders white text.
-    pub fn new(model: I, viewport: Rectangle) -> Self {
-        let mut cache = self::cache::Cache::new(512, 0);
+    pub fn new(model: M, event_loop: E, viewport: Rectangle) -> Self {
+        let cache = Arc::new(Mutex::new(self::cache::Cache::new(512, 0)));
 
-        let style = Rc::new(Style::new(&mut cache));
+        let style = Rc::new(Style::new(cache.clone()));
 
         Self {
             model_view: ModelView::new(model),
@@ -199,28 +224,39 @@ impl<I: Model> Ui<I> {
             cache,
             viewport,
             redraw: true,
+            event_loop,
         }
     }
 
     /// Constructs a new `Ui` asynchronously by first fetching a stylesheet from a
     /// [.pwss](stylesheet/index.html) data source.
     pub async fn with_stylesheet<L: Loader, U: AsRef<str>>(
-        model: I,
+        model: M,
+        event_loop: E,
         loader: L,
         url: U,
         viewport: Rectangle,
     ) -> Result<Self, stylesheet::Error<L::Error>> {
-        let mut cache = self::cache::Cache::new(512, 0);
+        let cache = Arc::new(Mutex::new(self::cache::Cache::new(512, 0)));
 
-        let style = Rc::new(Style::load(&loader, url, &mut cache).await?);
+        let style = Rc::new(Style::load(&loader, url, cache.clone()).await?);
 
         Ok(Self {
             model_view: ModelView::new(model),
             style,
             cache,
             viewport,
+            event_loop,
             redraw: true,
         })
+    }
+
+    /// Replace the current stylesheet with a new one
+    pub fn reload_stylesheet<L: 'static + Loader, U: 'static + AsRef<str> + Send>(&mut self, loader: L, url: U) {
+        let cache = self.cache.clone();
+        self.command(Command::from_future_style(async move {
+            Style::load(&loader, url, cache).await.unwrap()
+        }));
     }
 
     /// Resizes the viewport.
@@ -231,10 +267,55 @@ impl<I: Model> Ui<I> {
         self.viewport = viewport;
     }
 
+    /// Updates the model after a `Command` has resolved.
+    pub fn command(&mut self, command: Command<M::Message>) {
+        match command {
+            Command::Await(mut fut) => {
+                let ptr = fut.deref_mut() as *mut dyn Future<Output = M::Message>;
+                let pin = unsafe { std::pin::Pin::new_unchecked(ptr.as_mut().unwrap()) };
+                let waker = EventLoopWaker::new(self.event_loop.clone(), Command::Await(fut));
+                match pin.poll(&mut std::task::Context::from_waker(&waker)) {
+                    Poll::Ready(message) => {
+                        self.update(message);
+                    }
+                    _ => (),
+                }
+            }
+
+            Command::Subscribe(mut stream) => {
+                let ptr = stream.deref_mut() as *mut dyn Stream<Item = M::Message>;
+                let pin = unsafe { std::pin::Pin::new_unchecked(ptr.as_mut().unwrap()) };
+                let waker = EventLoopWaker::new(self.event_loop.clone(), Command::Subscribe(stream));
+                match pin.poll_next(&mut std::task::Context::from_waker(&waker)) {
+                    Poll::Ready(Some(message)) => {
+                        self.update(message);
+                        waker.wake();
+                    }
+                    _ => (),
+                }
+            }
+
+            Command::Stylesheet(mut fut) => {
+                let ptr = fut.deref_mut() as *mut dyn Future<Output = Style>;
+                let pin = unsafe { std::pin::Pin::new_unchecked(ptr.as_mut().unwrap()) };
+                let waker = EventLoopWaker::new(self.event_loop.clone(), Command::Stylesheet(fut));
+                match pin.poll(&mut std::task::Context::from_waker(&waker)) {
+                    Poll::Ready(style) => {
+                        self.style = Rc::new(style);
+                        self.model_view.set_dirty();
+                    }
+                    _ => (),
+                }
+            }
+        }
+    }
+
     /// Updates the model with a message.
     /// This forces the view to be rerendered.
-    pub fn update(&mut self, message: I::Message) {
-        self.model_view.model_mut().update(message);
+    pub fn update(&mut self, message: M::Message) {
+        for command in self.model_view.model_mut().update(message) {
+            self.command(command);
+        }
     }
 
     /// Handles an [`Event`](event/struct.Event.html).
@@ -254,7 +335,9 @@ impl<I: Model> Ui<I> {
         self.redraw = context.redraw_requested();
 
         for message in context {
-            self.model_view.model_mut().update(message);
+            for command in self.model_view.model_mut().update(message) {
+                self.command(command);
+            }
         }
     }
 
@@ -399,7 +482,7 @@ impl<I: Model> Ui<I> {
                         let mode = 0;
                         let offset = layers[layer].vtx.len();
 
-                        self.cache.draw_text(&text, rect, |uv, pos| {
+                        self.cache.lock().unwrap().draw_text(&text, rect, |uv, pos| {
                             let rc = Rectangle {
                                 left: pos.left,
                                 top: pos.top,
@@ -591,22 +674,43 @@ impl<I: Model> Ui<I> {
         });
 
         DrawList {
-            updates: self.cache.take_updates(),
+            updates: self.cache.lock().unwrap().take_updates(),
             vertices,
             commands,
         }
     }
 }
 
-impl<I: Model> Deref for Ui<I> {
-    type Target = I;
+struct EventLoopWaker<T: Send, E: EventLoop<T>> {
+    message: Mutex<(E, Option<T>)>,
+}
+
+impl<T: Send, E: EventLoop<T>> EventLoopWaker<T, E> {
+    fn new(event_loop: E, message: T) -> Waker {
+        futures::task::waker(Arc::new(Self {
+            message: Mutex::new((event_loop, Some(message))),
+        }))
+    }
+}
+
+impl<T: Send, E: EventLoop<T>> ArcWake for EventLoopWaker<T, E> {
+    fn wake_by_ref(arc_self: &Arc<Self>) {
+        let mut guard = arc_self.message.lock().unwrap();
+        if let Some(message) = guard.1.take() {
+            guard.0.send_event(message).ok();
+        }
+    }
+}
+
+impl<M: Model, E: EventLoop<Command<M::Message>>> Deref for Ui<M, E> {
+    type Target = M;
 
     fn deref(&self) -> &Self::Target {
         &self.model_view.model()
     }
 }
 
-impl<I: Model> DerefMut for Ui<I> {
+impl<M: Model, E: EventLoop<Command<M::Message>>> DerefMut for Ui<M, E> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.model_view.model_mut()
     }
@@ -622,7 +726,25 @@ impl Loader for std::path::PathBuf {
     }
 }
 
+impl<Message> Command<Message> {
+    /// Construct a new command from a future that generates a message.
+    /// The message will be handled as soon as it is available.
+    pub fn from_future_message<F: 'static + Future<Output=Message> + Send>(fut: F) -> Self {
+        Command::Await(Box::new(fut))
+    }
+
+    /// Construct a new command that will replace the style of the Ui after it completes.
+    pub fn from_future_style<F: 'static + Future<Output=Style> + Send>(fut: F) -> Self {
+        Command::Stylesheet(Box::new(fut))
+    }
+
+    /// Construct a new command from a stream of messages. Each message will be handled as soon as it's available.
+    pub fn from_stream<S: 'static + Stream<Item=Message> + Send>(stream: S) -> Self {
+        Command::Subscribe(Box::new(stream))
+    }
+}
+
 /// prelude module for convenience
 pub mod prelude {
-    pub use crate::{layout::Rectangle, stylesheet::Style, tracker::ManagedState, widget::*, Model, Ui};
+    pub use crate::{layout::Rectangle, stylesheet::Style, tracker::ManagedState, widget::*, Model, Command, Ui};
 }

@@ -1,6 +1,8 @@
 use crate::event::{Event, Key, Modifiers};
 
 use winit::event::{DeviceEvent, ElementState, KeyboardInput, MouseButton, MouseScrollDelta, WindowEvent};
+use winit::event_loop::{EventLoopProxy, EventLoopClosed};
+use crate::EventLoop;
 
 /// Converts a winit event to a pixel-widgets event, if such a conversion is available.
 /// Requires the "winit" feature.
@@ -125,5 +127,13 @@ fn convert_key(key: winit::event::VirtualKeyCode) -> Option<Key> {
         Vk::Home => Some(Key::Home),
         Vk::End => Some(Key::End),
         _ => None,
+    }
+}
+
+impl<T: Send> EventLoop<T> for EventLoopProxy<T> {
+    type Error = EventLoopClosed<T>;
+
+    fn send_event(&self, event: T) -> Result<(), Self::Error> {
+        EventLoopProxy::<T>::send_event(self, event)
     }
 }

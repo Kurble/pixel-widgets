@@ -19,8 +19,3 @@ text {
     text-size: 24;
     padding: 3;
 }
-
-text :odd {
-    background: #fff;
-    color: #000;
-}

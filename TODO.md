@@ -7,6 +7,7 @@
 - [x] update docs with new pwss features
 
 #### v0.4
+- [x] async api
 - [ ] hot reloading
 - [ ] margins
 - [ ] context menu widget / thing
@@ -14,7 +15,7 @@
 
 #### v0.5
 - [ ] sound / immutable messages, on_hover, on_press, etc.
-- [ ] async api
+
 
 #### v0.6
 - [ ] dom files? could utilize ron to deserialize messages

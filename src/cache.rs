@@ -8,7 +8,7 @@ use smallvec::SmallVec;
 
 use crate::draw::*;
 use crate::layout::Rectangle;
-use crate::qtree::*;
+use crate::atlas::*;
 use crate::text::Text;
 
 type GlyphCache = rusttype::gpu_cache::Cache<'static>;
@@ -23,10 +23,11 @@ pub struct Cache {
     textures_offset: usize,
     updates: Vec<Update>,
     font_id_counter: usize,
+    image_id_counter: usize,
 }
 
 enum TextureSlot {
-    Atlas(QTree<()>),
+    Atlas(Atlas<usize>),
     Big,
 }
 
@@ -34,8 +35,8 @@ impl Cache {
     pub fn new(size: usize, offset: usize) -> Cache {
         let glyphs = GlyphCache::builder().dimensions(size as u32, size as u32).build();
 
-        let mut atlas = QTree::new(size);
-        atlas.insert((), size / 2).unwrap();
+        let mut atlas = Atlas::new(size);
+        atlas.insert(0, size / 2).unwrap();
 
         let atlas_create = Update::Texture {
             id: offset,
@@ -51,6 +52,7 @@ impl Cache {
             textures_offset: offset,
             updates: vec![atlas_create],
             font_id_counter: 0,
+            image_id_counter: 1,
         }
     }
 
@@ -117,11 +119,13 @@ impl Cache {
         }
     }
 
-    fn insert_image(&mut self, image: image::RgbaImage) -> (usize, Rectangle) {
+    fn insert_image(&mut self, image: image::RgbaImage) -> (usize, usize, Rectangle) {
         let tex_id = 0;
+        let image_id = self.image_id_counter;
+        self.image_id_counter += 1;
         let (area, atlas_size) = if let TextureSlot::Atlas(ref mut atlas) = self.textures[tex_id] {
             let image_size = image.width().max(image.height()) as usize;
-            (atlas.insert((), image_size).ok(), atlas.size() as f32)
+            (atlas.insert(image_id, image_size).ok(), atlas.size() as f32)
         } else {
             (None, 0.0)
         };
@@ -142,6 +146,7 @@ impl Cache {
 
             (
                 self.textures_offset + tex_id,
+                image_id,
                 Rectangle {
                     left: area.left as f32 / atlas_size,
                     top: area.top as f32 / atlas_size,
@@ -162,7 +167,7 @@ impl Cache {
             self.updates.push(update);
             self.textures.push(TextureSlot::Big);
 
-            (tex_id, Rectangle::from_wh(1.0, 1.0))
+            (tex_id, image_id, Rectangle::from_wh(1.0, 1.0))
         }
     }
 
@@ -173,9 +178,10 @@ impl Cache {
             right: image.width() as f32,
             bottom: image.height() as f32,
         };
-        let (texture, texcoords) = self.insert_image(image);
+        let (texture, cache_id, texcoords) = self.insert_image(image);
         Image {
             texture,
+            cache_id,
             texcoords,
             size,
         }
@@ -243,11 +249,12 @@ impl Cache {
             right: image.width() as f32,
             bottom: image.height() as f32,
         };
-        let (texture, texcoords) = self.insert_image(image);
+        let (texture, cache_id, texcoords) = self.insert_image(image);
 
         Patch {
             image: Image {
                 texture,
+                cache_id,
                 texcoords,
                 size,
             },
@@ -255,6 +262,17 @@ impl Cache {
             v_stretch,
             h_content,
             v_content,
+        }
+    }
+
+    pub fn unload_image(&mut self, image: Image) {
+        if let Some(tex) = self.textures.get_mut(image.texture) {
+            match tex {
+                &mut TextureSlot::Atlas(ref mut atlas) => {
+                    atlas.remove_by_value(&image.cache_id);
+                },
+                &mut TextureSlot::Big => (),
+            }
         }
     }
 

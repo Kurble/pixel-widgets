@@ -5,22 +5,21 @@ use zerocopy::AsBytes;
 
 use wgpu::*;
 
-use crate::draw::{Command, DrawList, Update, Vertex};
+use crate::draw::{Command as DrawCommand, DrawList, Update, Vertex};
 use crate::event::Event;
 use crate::layout::Rectangle;
-use crate::stylesheet;
-use crate::{Loader, Model};
+use crate::{stylesheet, EventLoop, Loader, Model, Command};
 
 /// Wrapper for [`Ui`](../../struct.Ui.html) that adds wgpu rendering.
 /// Requires the "wgpu" feature.
-pub struct Ui<M: Model> {
-    inner: crate::Ui<M>,
+pub struct Ui<M: Model, E: EventLoop<Command<M::Message>>> {
+    inner: crate::Ui<M, E>,
     pipeline: RenderPipeline,
     bind_group_layout: BindGroupLayout,
     sampler: Sampler,
     textures: HashMap<usize, TextureEntry>,
     vertex_buffer: Option<Buffer>,
-    draw_commands: Vec<Command>,
+    draw_commands: Vec<DrawCommand>,
 }
 
 struct TextureEntry {
@@ -28,17 +27,18 @@ struct TextureEntry {
     bind_group: BindGroup,
 }
 
-impl<M: Model> Ui<M> {
+impl<M: Model, E: EventLoop<Command<M::Message>>> Ui<M, E> {
     /// Constructs a new `Ui` using the default style.
     /// This is not recommended as the default style is very empty and only renders white text.
-    pub fn new(model: M, viewport: Rectangle, format: wgpu::TextureFormat, device: &Device) -> Self {
-        Self::new_inner(crate::Ui::new(model, viewport), format, device)
+    pub fn new(model: M, event_loop: E, viewport: Rectangle, format: wgpu::TextureFormat, device: &Device) -> Self {
+        Self::new_inner(crate::Ui::new(model, event_loop, viewport), format, device)
     }
 
     /// Constructs a new `Ui` asynchronously by first fetching a stylesheet from a
     /// [.pwss](../../stylesheet/index.html) data source.
     pub async fn with_stylesheet<L: Loader, U: AsRef<str>>(
         model: M,
+        event_loop: E,
         loader: L,
         url: U,
         viewport: Rectangle,
@@ -46,13 +46,13 @@ impl<M: Model> Ui<M> {
         device: &Device,
     ) -> Result<Self, stylesheet::Error<L::Error>> {
         Ok(Self::new_inner(
-            crate::Ui::with_stylesheet(model, loader, url, viewport).await?,
+            crate::Ui::with_stylesheet(model, event_loop, loader, url, viewport).await?,
             format,
             device,
         ))
     }
 
-    fn new_inner(inner: crate::Ui<M>, format: wgpu::TextureFormat, device: &Device) -> Self {
+    fn new_inner(inner: crate::Ui<M, E>, format: wgpu::TextureFormat, device: &Device) -> Self {
         let vs_module = device.create_shader_module(
             wgpu::read_spirv(std::io::Cursor::new(&include_bytes!("wgpu_shader.vert.spv")[..]))
                 .expect("unable to load shader module")
@@ -174,6 +174,11 @@ impl<M: Model> Ui<M> {
     /// This forces the view to be rerendered.
     pub fn resize(&mut self, viewport: Rectangle) {
         self.inner.resize(viewport);
+    }
+
+    /// Updates the model after a `Command` has resolved.
+    pub fn command(&mut self, command: Command<M::Message>) {
+        self.inner.command(command);
     }
 
     /// Updates the model with a message.
@@ -337,7 +342,7 @@ impl<M: Model> Ui<M> {
 
         for command in self.draw_commands.iter() {
             match command {
-                &Command::Clip { scissor } => {
+                &DrawCommand::Clip { scissor } => {
                     render_pass.set_scissor_rect(
                         scissor.left as u32,
                         scissor.top as u32,
@@ -345,20 +350,20 @@ impl<M: Model> Ui<M> {
                         scissor.height() as u32,
                     );
                 }
-                &Command::Colored { offset, count } => {
+                &DrawCommand::Colored { offset, count } => {
                     render_pass.draw(offset as u32..(offset + count) as u32, 0..1);
                 }
-                &Command::Textured { texture, offset, count } => {
+                &DrawCommand::Textured { texture, offset, count } => {
                     render_pass.set_bind_group(0, &self.textures.get(&texture).unwrap().bind_group, &[]);
                     render_pass.draw(offset as u32..(offset + count) as u32, 0..1);
                 }
-                &Command::Nop => (),
+                &DrawCommand::Nop => (),
             }
         }
     }
 }
 
-impl<M: Model> Deref for Ui<M> {
+impl<M: Model, E: EventLoop<Command<M::Message>>> Deref for Ui<M, E> {
     type Target = M;
 
     fn deref(&self) -> &Self::Target {
@@ -366,7 +371,7 @@ impl<M: Model> Deref for Ui<M> {
     }
 }
 
-impl<M: Model> DerefMut for Ui<M> {
+impl<M: Model, E: EventLoop<Command<M::Message>>> DerefMut for Ui<M, E> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.inner.deref_mut()
     }

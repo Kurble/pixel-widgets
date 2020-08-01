@@ -5,12 +5,12 @@ use winit::{
 };
 
 use crate::prelude::*;
-use crate::Loader;
+use crate::{Command, Loader};
 
 /// Creates a window using the winit `WindowBuilder` and blocks on it's event loop.
 /// The created window will be used to manage the ui for `model`.
 pub fn run<T: 'static + Model, L: Loader, S: AsRef<str>>(model: T, loader: L, stylesheet: S, builder: WindowBuilder) {
-    let event_loop = EventLoop::<T::Message>::with_user_event();
+    let event_loop = EventLoop::<Command<T::Message>>::with_user_event();
     let window = builder.build(&event_loop).unwrap();
     futures::executor::block_on(run_loop(
         model,
@@ -26,7 +26,7 @@ async fn run_loop<T: 'static + Model>(
     model: T,
     loader: impl Loader,
     stylesheet: impl AsRef<str>,
-    event_loop: EventLoop<T::Message>,
+    event_loop: EventLoop<Command<T::Message>>,
     window: Window,
     swapchain_format: wgpu::TextureFormat,
 ) {
@@ -63,22 +63,32 @@ async fn run_loop<T: 'static + Model>(
 
     let mut viewport = Rectangle::from_wh(size.width as f32, size.height as f32);
 
-    let mut ui =
-        match crate::backend::wgpu::Ui::with_stylesheet(model, loader, stylesheet, viewport, swapchain_format, &device)
-            .await
-        {
-            Ok(ui) => ui,
-            Err(err) => {
-                println!("{}", err);
-                panic!();
-            }
-        };
+    let mut ui = match crate::backend::wgpu::Ui::with_stylesheet(
+        model,
+        event_loop.create_proxy(),
+        loader,
+        stylesheet,
+        viewport,
+        swapchain_format,
+        &device,
+    )
+    .await
+    {
+        Ok(ui) => ui,
+        Err(err) => {
+            println!("{}", err);
+            panic!();
+        }
+    };
 
     event_loop.run(move |event, _, control_flow| {
         let _ = &adapter;
 
-        *control_flow = ControlFlow::Poll;
+        *control_flow = ControlFlow::Wait;
         match event {
+            Event::UserEvent(command) => {
+                ui.command(command);
+            }
             Event::WindowEvent {
                 event: WindowEvent::Resized(size),
                 ..
@@ -111,8 +121,6 @@ async fn run_loop<T: 'static + Model>(
                 }
 
                 queue.submit(&[encoder.finish()]);
-
-                window.request_redraw();
             }
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
@@ -123,6 +131,10 @@ async fn run_loop<T: 'static + Model>(
                     ui.event(event);
                 }
             }
+        }
+
+        if ui.needs_redraw() {
+            window.request_redraw();
         }
     });
 }

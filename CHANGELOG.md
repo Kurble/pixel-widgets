@@ -1,5 +1,11 @@
 # Changelog
 
+### v0.4.0
+- `Model::update` now returns a `Vec<Command<Message>>`, which can be used to send async messages.
+- `Ui::command` added, which can be used to send an async message externally
+- Download example added
+- `Ui::reload_stylesheet` added.
+
  ### v0.3.0
 - Added `len()` to `Widget`.
 - New style system

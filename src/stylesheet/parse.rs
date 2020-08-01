@@ -1,10 +1,11 @@
 use super::tree::RuleTreeBuilder;
 use super::*;
+use std::sync::{Arc, Mutex};
 
 struct LoadContext<'a, I: Iterator<Item = Token>, L: Loader> {
     loader: &'a L,
     tokens: Peekable<I>,
-    cache: &'a mut Cache,
+    cache: Arc<Mutex<Cache>>,
     images: &'a mut HashMap<String, Image>,
     patches: &'a mut HashMap<String, Patch>,
     fonts: &'a mut HashMap<String, Font>,
@@ -28,8 +29,8 @@ impl<I: Iterator<Item = Token>, L: Loader> LoadContext<'_, I, L> {
     }
 }
 
-pub async fn parse<L: Loader>(tokens: Vec<Token>, loader: &L, cache: &mut Cache) -> Result<Style, Error<L::Error>> {
-    let mut result = Style::new(&mut *cache);
+pub async fn parse<L: Loader>(tokens: Vec<Token>, loader: &L, cache: Arc<Mutex<Cache>>) -> Result<Style, Error<L::Error>> {
+    let mut result = Style::new(cache.clone());
 
     let mut images = HashMap::new();
     let mut patches = HashMap::new();
@@ -122,7 +123,7 @@ async fn parse_background<I: Iterator<Item = Token>, L: Loader>(
                                 let image = image::load_from_memory(
                                     c.loader.load(url.clone()).await.map_err(Error::Io)?.as_ref(),
                                 )?;
-                                c.images.insert(url.clone(), c.cache.load_image(image.to_rgba()));
+                                c.images.insert(url.clone(), c.cache.lock().unwrap().load_image(image.to_rgba()));
                             }
                             Ok(c.images[&url].clone())
                         }
@@ -142,7 +143,7 @@ async fn parse_background<I: Iterator<Item = Token>, L: Loader>(
                                 let image = image::load_from_memory(
                                     c.loader.load(url.clone()).await.map_err(Error::Io)?.as_ref(),
                                 )?;
-                                c.patches.insert(url.clone(), c.cache.load_patch(image.to_rgba()));
+                                c.patches.insert(url.clone(), c.cache.lock().unwrap().load_patch(image.to_rgba()));
                             }
                             Ok(c.patches[&url].clone())
                         }
@@ -163,13 +164,13 @@ async fn parse_background<I: Iterator<Item = Token>, L: Loader>(
             if url.ends_with(".9.png") {
                 if c.patches.get(&url).is_none() {
                     let image = image::load_from_memory(c.loader.load(url.clone()).await.map_err(Error::Io)?.as_ref())?;
-                    c.patches.insert(url.clone(), c.cache.load_patch(image.to_rgba()));
+                    c.patches.insert(url.clone(), c.cache.lock().unwrap().load_patch(image.to_rgba()));
                 }
                 Ok(Background::Patch(c.patches[&url].clone(), Color::white()))
             } else {
                 if c.images.get(&url).is_none() {
                     let image = image::load_from_memory(c.loader.load(url.clone()).await.map_err(Error::Io)?.as_ref())?;
-                    c.images.insert(url.clone(), c.cache.load_image(image.to_rgba()));
+                    c.images.insert(url.clone(), c.cache.lock().unwrap().load_image(image.to_rgba()));
                 }
                 Ok(Background::Image(c.images[&url].clone(), Color::white()))
             }
@@ -187,7 +188,8 @@ async fn parse_font<I: Iterator<Item = Token>, L: Loader>(
     match c.tokens.next() {
         Some(Token(TokenValue::Path(url), _)) => {
             if c.fonts.get(&url).is_none() {
-                let font = c.cache.load_font(c.loader.load(url.as_str()).await.map_err(Error::Io)?);
+                let font = c.loader.load(url.as_str()).await.map_err(Error::Io)?;
+                let font = c.cache.lock().unwrap().load_font(font);
                 c.fonts.insert(url.clone(), font);
             }
             Ok(c.fonts[&url].clone())

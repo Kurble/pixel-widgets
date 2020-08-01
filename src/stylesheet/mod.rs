@@ -111,7 +111,6 @@
 //! | align | `begin`<br>`center`<br>`end` | |
 use std::collections::HashMap;
 use std::iter::Peekable;
-use std::rc::Rc;
 
 use crate::bitset::BitSet;
 use crate::cache::Cache;
@@ -125,8 +124,8 @@ mod parse;
 mod tokenize;
 
 use parse::*;
-use std::cell::RefCell;
 use tokenize::*;
+use std::sync::{Arc, Mutex};
 
 /// Errors that can be encountered while loading a stylesheet
 #[derive(Debug)]
@@ -143,7 +142,7 @@ pub enum Error<E: std::error::Error> {
 
 /// A style loaded from a `.pwss` file.
 pub struct Style {
-    resolved: RefCell<HashMap<BitSet, Rc<Stylesheet>>>,
+    resolved: Mutex<HashMap<BitSet, Arc<Stylesheet>>>,
     default: Stylesheet,
     rule_tree: tree::RuleTree,
 }
@@ -246,13 +245,13 @@ pub enum SelectorWidget {
 
 impl Style {
     /// Construct a new default style
-    pub fn new(cache: &mut Cache) -> Self {
+    pub fn new(cache: Arc<Mutex<Cache>>) -> Self {
         Style {
-            resolved: RefCell::new(HashMap::new()),
+            resolved: Mutex::new(HashMap::new()),
             rule_tree: tree::RuleTree::default(),
             default: Stylesheet {
                 background: Background::None,
-                font: cache.load_font(include_bytes!("default_font.ttf").to_vec()),
+                font: cache.lock().unwrap().load_font(include_bytes!("default_font.ttf").to_vec()),
                 color: Color::white(),
                 scrollbar_horizontal: Background::Color(Color::white()),
                 scrollbar_vertical: Background::Color(Color::white()),
@@ -267,8 +266,8 @@ impl Style {
         }
     }
 
-    pub(crate) fn get(&self, style: &BitSet) -> Rc<Stylesheet> {
-        let mut resolved = self.resolved.borrow_mut();
+    pub(crate) fn get(&self, style: &BitSet) -> Arc<Stylesheet> {
+        let mut resolved = self.resolved.lock().unwrap();
         if let Some(existing) = resolved.get(style) {
             return existing.clone();
         }
@@ -276,7 +275,7 @@ impl Style {
         for rule in self.rule_tree.iter_declarations(&style) {
             rule.apply(&mut computed);
         }
-        let result = Rc::new(computed);
+        let result = Arc::new(computed);
         resolved.insert(style.clone(), result.clone());
         result
     }
@@ -290,7 +289,7 @@ impl Style {
     pub async fn load<L: Loader, U: AsRef<str>>(
         loader: &L,
         url: U,
-        cache: &mut Cache,
+        cache: Arc<Mutex<Cache>>,
     ) -> Result<Self, Error<L::Error>> {
         let text = String::from_utf8(loader.load(url).await.map_err(Error::Io)?).unwrap();
         parse(tokenize(text)?, loader, cache).await

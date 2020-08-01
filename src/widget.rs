@@ -41,6 +41,7 @@ pub use self::space::Space;
 pub use self::text::Text;
 pub use self::toggle::Toggle;
 pub use self::window::Window;
+use std::sync::Arc;
 
 /// A clickable button
 pub mod button;
@@ -163,7 +164,7 @@ pub struct Node<'a, Message> {
     position: (usize, usize),
     style: Option<Rc<Style>>,
     selector_matches: BitSet,
-    stylesheet: Option<Rc<Stylesheet>>,
+    stylesheet: Option<Arc<Stylesheet>>,
     class: Option<&'a str>,
     state: Option<&'static str>,
 }
