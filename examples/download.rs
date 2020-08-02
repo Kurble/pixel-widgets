@@ -77,7 +77,7 @@ async fn main() {
         .with_title("Downloader")
         .with_inner_size(winit::dpi::LogicalSize::new(320, 240));
 
-    let loader = pixel_widgets::loader::FsLoader::new("./examples".into());
+    let loader = pixel_widgets::loader::FsLoader::new("./examples".into()).unwrap();
 
     pixel_widgets::sandbox::run(model, loader, "download.pwss", window).await;
 }

@@ -250,8 +250,8 @@ impl<M: Model, E: EventLoop<Command<M::Message>>, L: Loader> Ui<M, E, L> {
         let loader = loader.clone();
         let url = url.as_ref().to_string();
         result.command(Command::from_future_style(async move {
-            loader.wait(&url).await;
-            Style::load(loader, url, cache).await
+            loader.wait(&url).await.map_err(|e| stylesheet::Error::Io(Box::new(e)))?;
+            Ok(Style::load(loader, url, cache).await?)
         }));
 
         Ok(result)
@@ -324,8 +324,8 @@ impl<M: Model, E: EventLoop<Command<M::Message>>, L: Loader> Ui<M, E, L> {
                             let cache = self.cache.clone();
                             let url = url.clone();
                             self.command(Command::from_future_style(async move {
-                                loader.wait(&url).await;
-                                Style::load(loader, url, cache).await
+                                loader.wait(&url).await.map_err(|e| stylesheet::Error::Io(Box::new(e)))?;
+                                Ok(Style::load(loader, url, cache).await?)
                             }));
                         }
                     }
