@@ -8,12 +8,13 @@ use wgpu::*;
 use crate::draw::{Command as DrawCommand, DrawList, Update, Vertex};
 use crate::event::Event;
 use crate::layout::Rectangle;
-use crate::{stylesheet, EventLoop, Loader, Model, Command};
+use crate::loader::Loader;
+use crate::{stylesheet, EventLoop, Model, Command};
 
 /// Wrapper for [`Ui`](../../struct.Ui.html) that adds wgpu rendering.
 /// Requires the "wgpu" feature.
-pub struct Ui<M: Model, E: EventLoop<Command<M::Message>>> {
-    inner: crate::Ui<M, E>,
+pub struct Ui<M: Model, E: EventLoop<Command<M::Message>>, L: Loader> {
+    inner: crate::Ui<M, E, L>,
     pipeline: RenderPipeline,
     bind_group_layout: BindGroupLayout,
     sampler: Sampler,
@@ -27,16 +28,16 @@ struct TextureEntry {
     bind_group: BindGroup,
 }
 
-impl<M: Model, E: EventLoop<Command<M::Message>>> Ui<M, E> {
+impl<M: Model, E: EventLoop<Command<M::Message>>, L: Loader> Ui<M, E, L> {
     /// Constructs a new `Ui` using the default style.
     /// This is not recommended as the default style is very empty and only renders white text.
-    pub fn new(model: M, event_loop: E, viewport: Rectangle, format: wgpu::TextureFormat, device: &Device) -> Self {
-        Self::new_inner(crate::Ui::new(model, event_loop, viewport), format, device)
+    pub fn new(model: M, event_loop: E, loader: L, viewport: Rectangle, format: wgpu::TextureFormat, device: &Device) -> Self {
+        Self::new_inner(crate::Ui::new(model, event_loop, loader, viewport), format, device)
     }
 
     /// Constructs a new `Ui` asynchronously by first fetching a stylesheet from a
     /// [.pwss](../../stylesheet/index.html) data source.
-    pub async fn with_stylesheet<L: Loader, U: AsRef<str>>(
+    pub async fn with_stylesheet<U: AsRef<str>>(
         model: M,
         event_loop: E,
         loader: L,
@@ -44,7 +45,7 @@ impl<M: Model, E: EventLoop<Command<M::Message>>> Ui<M, E> {
         viewport: Rectangle,
         format: wgpu::TextureFormat,
         device: &Device,
-    ) -> Result<Self, stylesheet::Error<L::Error>> {
+    ) -> Result<Self, stylesheet::Error> {
         Ok(Self::new_inner(
             crate::Ui::with_stylesheet(model, event_loop, loader, url, viewport).await?,
             format,
@@ -52,7 +53,7 @@ impl<M: Model, E: EventLoop<Command<M::Message>>> Ui<M, E> {
         ))
     }
 
-    fn new_inner(inner: crate::Ui<M, E>, format: wgpu::TextureFormat, device: &Device) -> Self {
+    fn new_inner(inner: crate::Ui<M, E, L>, format: wgpu::TextureFormat, device: &Device) -> Self {
         let vs_module = device.create_shader_module(
             wgpu::read_spirv(std::io::Cursor::new(&include_bytes!("wgpu_shader.vert.spv")[..]))
                 .expect("unable to load shader module")
@@ -363,7 +364,7 @@ impl<M: Model, E: EventLoop<Command<M::Message>>> Ui<M, E> {
     }
 }
 
-impl<M: Model, E: EventLoop<Command<M::Message>>> Deref for Ui<M, E> {
+impl<M: Model, E: EventLoop<Command<M::Message>>, L: Loader> Deref for Ui<M, E, L> {
     type Target = M;
 
     fn deref(&self) -> &Self::Target {
@@ -371,7 +372,7 @@ impl<M: Model, E: EventLoop<Command<M::Message>>> Deref for Ui<M, E> {
     }
 }
 
-impl<M: Model, E: EventLoop<Command<M::Message>>> DerefMut for Ui<M, E> {
+impl<M: Model, E: EventLoop<Command<M::Message>>, L: Loader> DerefMut for Ui<M, E, L> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.inner.deref_mut()
     }

@@ -34,7 +34,7 @@ pub enum TokenValue {
 #[derive(Debug, Clone)]
 pub struct Token(pub TokenValue, pub TokenPos);
 
-pub fn tokenize<E: std::error::Error>(text: String) -> Result<Vec<Token>, Error<E>> {
+pub fn tokenize(text: String) -> Result<Vec<Token>, Error> {
     let mut line = 1;
     let mut col = 0;
 
@@ -44,46 +44,50 @@ pub fn tokenize<E: std::error::Error>(text: String) -> Result<Vec<Token>, Error<
     for chr in text.chars() {
         col += 1;
 
-        let extended = current.as_mut().map(|current| current.extend(chr)).unwrap_or(false);
+        let extended = current.as_mut().map(|current| current.extend(chr)).unwrap_or(ExtendResult::NotAccepted);
+        match extended {
+            ExtendResult::Accepted => (),
+            ExtendResult::Finished => {
+                tokens.extend(current.take());
+            }
+            ExtendResult::NotAccepted => {
+                tokens.extend(current.take());
+                let pos = TokenPos {
+                    col_start: col,
+                    col_end: col,
+                    line,
+                };
 
-        if !extended {
-            tokens.extend(current.take());
-
-            let pos = TokenPos {
-                col_start: col,
-                col_end: col,
-                line,
-            };
-
-            current = match chr {
-                '\n' => {
-                    line += 1;
-                    col = 0;
-                    None
-                }
-                chr if chr.is_whitespace() => None,
-                chr if chr.is_alphabetic() || chr == '_' || chr == '-' => {
-                    Some(Token(TokenValue::Iden(chr.to_string()), pos))
-                }
-                chr if chr.is_numeric() => Some(Token(TokenValue::Number(chr.to_string()), pos)),
-                '#' => Some(Token(TokenValue::Color(String::new()), pos)),
-                '@' => Some(Token(TokenValue::Path(String::new()), pos)),
-                '(' => Some(Token(TokenValue::ParenOpen, pos)),
-                ')' => Some(Token(TokenValue::ParenClose, pos)),
-                '{' => Some(Token(TokenValue::BraceOpen, pos)),
-                '}' => Some(Token(TokenValue::BraceClose, pos)),
-                ':' => Some(Token(TokenValue::Colon, pos)),
-                ';' => Some(Token(TokenValue::Semi, pos)),
-                '.' => Some(Token(TokenValue::Dot, pos)),
-                ',' => Some(Token(TokenValue::Comma, pos)),
-                '>' => Some(Token(TokenValue::Gt, pos)),
-                '+' => Some(Token(TokenValue::Plus, pos)),
-                '~' => Some(Token(TokenValue::Tilde, pos)),
-                '*' => Some(Token(TokenValue::Star, pos)),
-                chr => {
-                    return Err(Error::Syntax(format!("Unexpected character '{}'", chr), pos));
-                }
-            };
+                current = match chr {
+                    '\n' => {
+                        line += 1;
+                        col = 0;
+                        None
+                    }
+                    chr if chr.is_whitespace() => None,
+                    chr if chr.is_alphabetic() || chr == '_' || chr == '-' => {
+                        Some(Token(TokenValue::Iden(chr.to_string()), pos))
+                    }
+                    chr if chr.is_numeric() => Some(Token(TokenValue::Number(chr.to_string()), pos)),
+                    '#' => Some(Token(TokenValue::Color(String::new()), pos)),
+                    '"' => Some(Token(TokenValue::Path(String::new()), pos)),
+                    '(' => Some(Token(TokenValue::ParenOpen, pos)),
+                    ')' => Some(Token(TokenValue::ParenClose, pos)),
+                    '{' => Some(Token(TokenValue::BraceOpen, pos)),
+                    '}' => Some(Token(TokenValue::BraceClose, pos)),
+                    ':' => Some(Token(TokenValue::Colon, pos)),
+                    ';' => Some(Token(TokenValue::Semi, pos)),
+                    '.' => Some(Token(TokenValue::Dot, pos)),
+                    ',' => Some(Token(TokenValue::Comma, pos)),
+                    '>' => Some(Token(TokenValue::Gt, pos)),
+                    '+' => Some(Token(TokenValue::Plus, pos)),
+                    '~' => Some(Token(TokenValue::Tilde, pos)),
+                    '*' => Some(Token(TokenValue::Star, pos)),
+                    chr => {
+                        return Err(Error::Syntax(format!("Unexpected character '{}'", chr), pos));
+                    }
+                };
+            }
         }
     }
 
@@ -92,46 +96,54 @@ pub fn tokenize<E: std::error::Error>(text: String) -> Result<Vec<Token>, Error<
     Ok(tokens)
 }
 
+enum ExtendResult {
+    Accepted,
+    Finished,
+    NotAccepted,
+}
+
 impl Token {
-    fn extend(&mut self, ch: char) -> bool {
+    fn extend(&mut self, ch: char) -> ExtendResult {
         match self {
             Token(TokenValue::Iden(ref mut s), ref mut pos) => {
                 if ch.is_alphanumeric() || ch == '_' || ch == '-' {
                     pos.col_end += 1;
                     s.push(ch);
-                    true
+                    ExtendResult::Accepted
                 } else {
-                    false
+                    ExtendResult::NotAccepted
                 }
             }
             Token(TokenValue::Color(ref mut p), ref mut pos) => {
                 if ch.is_ascii_hexdigit() {
                     pos.col_end += 1;
                     p.push(ch);
-                    true
+                    ExtendResult::Accepted
                 } else {
-                    false
+                    ExtendResult::NotAccepted
                 }
             }
             Token(TokenValue::Path(ref mut p), ref mut pos) => {
                 if URL_CHARACTERS.chars().find(|&c| c == ch).is_some() {
                     pos.col_end += 1;
                     p.push(ch);
-                    true
+                    ExtendResult::Accepted
+                } else if ch == '"' {
+                    ExtendResult::Finished
                 } else {
-                    false
+                    ExtendResult::NotAccepted
                 }
             }
             Token(TokenValue::Number(ref mut n), ref mut pos) => {
                 if NUMBER_CHARACTERS.chars().find(|&c| c == ch).is_some() {
                     pos.col_end += 1;
                     n.push(ch);
-                    true
+                    ExtendResult::Accepted
                 } else {
-                    false
+                    ExtendResult::NotAccepted
                 }
             }
-            _ => false,
+            _ => ExtendResult::NotAccepted,
         }
     }
 }

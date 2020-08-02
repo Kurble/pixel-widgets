@@ -5,21 +5,21 @@ use winit::{
 };
 
 use crate::prelude::*;
-use crate::{Command, Loader};
+use crate::loader::Loader;
 
 /// Creates a window using the winit `WindowBuilder` and blocks on it's event loop.
 /// The created window will be used to manage the ui for `model`.
-pub fn run<T: 'static + Model, L: Loader, S: AsRef<str>>(model: T, loader: L, stylesheet: S, builder: WindowBuilder) {
+pub async fn run<T: 'static + Model, L: Loader, S: AsRef<str>>(model: T, loader: L, stylesheet: S, builder: WindowBuilder) {
     let event_loop = EventLoop::<Command<T::Message>>::with_user_event();
     let window = builder.build(&event_loop).unwrap();
-    futures::executor::block_on(run_loop(
+    run_loop(
         model,
         loader,
         stylesheet,
         event_loop,
         window,
         wgpu::TextureFormat::Bgra8UnormSrgb,
-    ));
+    ).await;
 }
 
 async fn run_loop<T: 'static + Model>(

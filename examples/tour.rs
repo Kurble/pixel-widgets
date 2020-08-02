@@ -109,7 +109,8 @@ impl Model for Tour {
     }
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let model = Tour {
         show_dummy: false,
         show_login: false,
@@ -122,5 +123,5 @@ fn main() {
         .with_title("Tour")
         .with_inner_size(winit::dpi::LogicalSize::new(960, 480));
 
-    pixel_widgets::sandbox::run(model, std::path::PathBuf::from("./examples"), "tour.pwss", window);
+    pixel_widgets::sandbox::run(model, std::path::PathBuf::from("./examples"), "tour.pwss", window).await;
 }

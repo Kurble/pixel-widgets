@@ -1,5 +1,4 @@
 use pixel_widgets::prelude::*;
-use std::path::PathBuf;
 use winit::window::WindowBuilder;
 use pixel_widgets::Command;
 use futures::{SinkExt, FutureExt};
@@ -78,5 +77,7 @@ async fn main() {
         .with_title("Downloader")
         .with_inner_size(winit::dpi::LogicalSize::new(320, 240));
 
-    pixel_widgets::sandbox::run(model, PathBuf::from("./examples"), "download.pwss", window);
+    let loader = pixel_widgets::loader::FsLoader::new("./examples".into());
+
+    pixel_widgets::sandbox::run(model, loader, "download.pwss", window).await;
 }

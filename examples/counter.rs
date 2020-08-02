@@ -40,7 +40,8 @@ impl Model for Counter {
     }
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let model = Counter {
         value: 0,
         state: ManagedState::default(),
@@ -50,5 +51,5 @@ fn main() {
         .with_title("Counter")
         .with_inner_size(winit::dpi::LogicalSize::new(240, 240));
 
-    pixel_widgets::sandbox::run(model, PathBuf::from("./examples"), "counter.pwss", window);
+    pixel_widgets::sandbox::run(model, PathBuf::from("./examples"), "counter.pwss", window).await;
 }

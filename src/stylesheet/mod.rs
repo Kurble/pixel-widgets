@@ -102,7 +102,7 @@
 //! | Type | Syntax | Notes |
 //! |---|---|---|
 //! | color | `#rgb`<br>`#rgba`<br>`#rrggbb`<br>`#rrggbbaa` | Examples:<br>`#fff`<br>`#ff00ff` |
-//! | url | `@filename` | An `@` followed by an url<br>`@image.png`<br>`@font.ttf` |
+//! | url | `"filename"` | An url in between quotes<br>`"image.png"`<br>`"font.ttf"` |
 //! | number | floating point literal | A number, such as `2.0` or `42` |
 //! | background | `<url>`<br>`<color>`<br>`image(<url>, <color>)`<br>`patch(<url>, <color>)`<br>`none` | If a url ends with `.9.png` it will be resolved as a 9 patch.<br>If your 9 slice doesn't end with `.9.png`, use `patch`. |
 //! | rectangle | `<num>`<br>`<num> <num>`<br>`<num> <num> <num>`<br>`<num> <num> <num> <num>` | `all sides`<br>`top/bottom`, `right/left`<br>`top`, `right/left`, `bottom`<br>`top`, `right`, `bottom`, `left` |
@@ -117,7 +117,7 @@ use crate::cache::Cache;
 use crate::draw::{Background, Color, Image, Patch};
 use crate::layout::{Align, Rectangle, Size};
 use crate::text::{Font, TextWrap};
-use crate::Loader;
+use crate::loader::Loader;
 
 pub(crate) mod tree;
 mod parse;
@@ -129,7 +129,7 @@ use std::sync::{Arc, Mutex};
 
 /// Errors that can be encountered while loading a stylesheet
 #[derive(Debug)]
-pub enum Error<E: std::error::Error> {
+pub enum Error {
     /// Syntax error
     Syntax(String, TokenPos),
     /// Unexpected end of file error
@@ -137,7 +137,7 @@ pub enum Error<E: std::error::Error> {
     /// Image loading error
     Image(image::ImageError),
     /// File input/output error
-    Io(E),
+    Io(Box<dyn std::error::Error + Send>),
 }
 
 /// A style loaded from a `.pwss` file.
@@ -287,11 +287,11 @@ impl Style {
     /// Asynchronously load a stylesheet from a .pwss file. See the [module documentation](index.html) on how to write
     /// .pwss files.
     pub async fn load<L: Loader, U: AsRef<str>>(
-        loader: &L,
+        loader: Arc<L>,
         url: U,
         cache: Arc<Mutex<Cache>>,
-    ) -> Result<Self, Error<L::Error>> {
-        let text = String::from_utf8(loader.load(url).await.map_err(Error::Io)?).unwrap();
+    ) -> Result<Self, Error> {
+        let text = String::from_utf8(loader.load(url).await.map_err(|e| Error::Io(Box::new(e)))?).unwrap();
         parse(tokenize(text)?, loader, cache).await
     }
 }
@@ -363,13 +363,13 @@ impl SelectorWidget {
     }
 }
 
-impl<E: std::error::Error> From<image::ImageError> for Error<E> {
+impl From<image::ImageError> for Error {
     fn from(error: image::ImageError) -> Self {
         Error::Image(error)
     }
 }
 
-impl<E: std::error::Error> std::fmt::Display for Error<E> {
+impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Error::Syntax(error, pos) => write!(f, "Syntax error: {} at line {}:{}", error, pos.line, pos.col_start),
@@ -380,4 +380,4 @@ impl<E: std::error::Error> std::fmt::Display for Error<E> {
     }
 }
 
-impl<E: std::error::Error> std::error::Error for Error<E> {}
+impl std::error::Error for Error {}

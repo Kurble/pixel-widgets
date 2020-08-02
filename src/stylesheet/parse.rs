@@ -3,7 +3,7 @@ use super::*;
 use std::sync::{Arc, Mutex};
 
 struct LoadContext<'a, I: Iterator<Item = Token>, L: Loader> {
-    loader: &'a L,
+    loader: Arc<L>,
     tokens: Peekable<I>,
     cache: Arc<Mutex<Cache>>,
     images: &'a mut HashMap<String, Image>,
@@ -12,7 +12,7 @@ struct LoadContext<'a, I: Iterator<Item = Token>, L: Loader> {
 }
 
 impl<I: Iterator<Item = Token>, L: Loader> LoadContext<'_, I, L> {
-    pub fn take(&mut self, token: TokenValue) -> Result<Token, Error<L::Error>> {
+    pub fn take(&mut self, token: TokenValue) -> Result<Token, Error> {
         let Token(value, pos) = self.tokens.next().ok_or(Error::Eof)?;
         if token == value {
             Ok(Token(value, pos))
@@ -21,7 +21,7 @@ impl<I: Iterator<Item = Token>, L: Loader> LoadContext<'_, I, L> {
         }
     }
 
-    pub fn take_identifier(&mut self) -> Result<(String, TokenPos), Error<L::Error>> {
+    pub fn take_identifier(&mut self) -> Result<(String, TokenPos), Error> {
         match self.tokens.next().ok_or(Error::Eof)? {
             Token(TokenValue::Iden(id), pos) => Ok((id, pos)),
             Token(_, pos) => Err(Error::Syntax("Expected 'Identifier'".into(), pos)),
@@ -29,7 +29,7 @@ impl<I: Iterator<Item = Token>, L: Loader> LoadContext<'_, I, L> {
     }
 }
 
-pub async fn parse<L: Loader>(tokens: Vec<Token>, loader: &L, cache: Arc<Mutex<Cache>>) -> Result<Style, Error<L::Error>> {
+pub async fn parse<L: Loader>(tokens: Vec<Token>, loader: Arc<L>, cache: Arc<Mutex<Cache>>) -> Result<Style, Error> {
     let mut result = Style::new(cache.clone());
 
     let mut images = HashMap::new();
@@ -57,7 +57,7 @@ pub async fn parse<L: Loader>(tokens: Vec<Token>, loader: &L, cache: Arc<Mutex<C
 
 async fn parse_rule<I: Iterator<Item = Token>, L: Loader>(
     c: &mut LoadContext<'_, I, L>,
-) -> Result<(Vec<Selector>, Vec<Declaration>), Error<L::Error>> {
+) -> Result<(Vec<Selector>, Vec<Declaration>), Error> {
     let mut selectors = Vec::new();
     let mut declarations = Vec::new();
     loop {
@@ -80,7 +80,7 @@ async fn parse_rule<I: Iterator<Item = Token>, L: Loader>(
 
 async fn parse_declaration<I: Iterator<Item = Token>, L: Loader>(
     c: &mut LoadContext<'_, I, L>,
-) -> Result<Declaration, Error<L::Error>> {
+) -> Result<Declaration, Error> {
     let result = match c.tokens.next() {
         Some(Token(TokenValue::Iden(key), pos)) => {
             c.take(TokenValue::Colon)?;
@@ -109,7 +109,7 @@ async fn parse_declaration<I: Iterator<Item = Token>, L: Loader>(
 
 async fn parse_background<I: Iterator<Item = Token>, L: Loader>(
     c: &mut LoadContext<'_, I, L>,
-) -> Result<Background, Error<L::Error>> {
+) -> Result<Background, Error> {
     match c.tokens.peek().cloned().ok_or(Error::Eof)? {
         Token(TokenValue::Iden(ty), pos) => {
             c.tokens.next();
@@ -121,7 +121,7 @@ async fn parse_background<I: Iterator<Item = Token>, L: Loader>(
                         Some(Token(TokenValue::Path(url), _)) => {
                             if c.images.get(&url).is_none() {
                                 let image = image::load_from_memory(
-                                    c.loader.load(url.clone()).await.map_err(Error::Io)?.as_ref(),
+                                    c.loader.load(url.clone()).await.map_err(|e| Error::Io(Box::new(e)))?.as_ref(),
                                 )?;
                                 c.images.insert(url.clone(), c.cache.lock().unwrap().load_image(image.to_rgba()));
                             }
@@ -141,7 +141,7 @@ async fn parse_background<I: Iterator<Item = Token>, L: Loader>(
                         Some(Token(TokenValue::Path(url), _)) => {
                             if c.patches.get(&url).is_none() {
                                 let image = image::load_from_memory(
-                                    c.loader.load(url.clone()).await.map_err(Error::Io)?.as_ref(),
+                                    c.loader.load(url.clone()).await.map_err(|e| Error::Io(Box::new(e)))?.as_ref(),
                                 )?;
                                 c.patches.insert(url.clone(), c.cache.lock().unwrap().load_patch(image.to_rgba()));
                             }
@@ -163,13 +163,13 @@ async fn parse_background<I: Iterator<Item = Token>, L: Loader>(
             c.tokens.next();
             if url.ends_with(".9.png") {
                 if c.patches.get(&url).is_none() {
-                    let image = image::load_from_memory(c.loader.load(url.clone()).await.map_err(Error::Io)?.as_ref())?;
+                    let image = image::load_from_memory(c.loader.load(url.clone()).await.map_err(|e| Error::Io(Box::new(e)))?.as_ref())?;
                     c.patches.insert(url.clone(), c.cache.lock().unwrap().load_patch(image.to_rgba()));
                 }
                 Ok(Background::Patch(c.patches[&url].clone(), Color::white()))
             } else {
                 if c.images.get(&url).is_none() {
-                    let image = image::load_from_memory(c.loader.load(url.clone()).await.map_err(Error::Io)?.as_ref())?;
+                    let image = image::load_from_memory(c.loader.load(url.clone()).await.map_err(|e| Error::Io(Box::new(e)))?.as_ref())?;
                     c.images.insert(url.clone(), c.cache.lock().unwrap().load_image(image.to_rgba()));
                 }
                 Ok(Background::Image(c.images[&url].clone(), Color::white()))
@@ -184,11 +184,11 @@ async fn parse_background<I: Iterator<Item = Token>, L: Loader>(
 
 async fn parse_font<I: Iterator<Item = Token>, L: Loader>(
     c: &mut LoadContext<'_, I, L>,
-) -> Result<Font, Error<L::Error>> {
+) -> Result<Font, Error> {
     match c.tokens.next() {
         Some(Token(TokenValue::Path(url), _)) => {
             if c.fonts.get(&url).is_none() {
-                let font = c.loader.load(url.as_str()).await.map_err(Error::Io)?;
+                let font = c.loader.load(url.as_str()).await.map_err(|e| Error::Io(Box::new(e)))?;
                 let font = c.cache.lock().unwrap().load_font(font);
                 c.fonts.insert(url.clone(), font);
             }
@@ -201,7 +201,7 @@ async fn parse_font<I: Iterator<Item = Token>, L: Loader>(
 
 fn parse_selector<I: Iterator<Item = Token>, L: Loader>(
     c: &mut LoadContext<I, L>,
-) -> Result<Selector, Error<L::Error>> {
+) -> Result<Selector, Error> {
     match c.tokens.next().ok_or(Error::Eof)? {
         Token(TokenValue::Star, _) => Ok(Selector::Widget(SelectorWidget::Any)),
         Token(TokenValue::Dot, _) => Ok(Selector::Class(c.take_identifier()?.0)),
@@ -276,13 +276,13 @@ fn parse_selector<I: Iterator<Item = Token>, L: Loader>(
                 state => Ok(Selector::State(state.to_string())),
             }
         }
-        Token(_, pos) => Err(Error::Syntax("expected `<selector`>".into(), pos)),
+        Token(_, pos) => Err(Error::Syntax("expected `<selector>`".into(), pos)),
     }
 }
 
 fn parse_widget<I: Iterator<Item = Token>, L: Loader>(
     c: &mut LoadContext<I, L>,
-) -> Result<SelectorWidget, Error<L::Error>> {
+) -> Result<SelectorWidget, Error> {
     match c.tokens.next().ok_or(Error::Eof)? {
         Token(TokenValue::Star, _) => Ok(SelectorWidget::Any),
         Token(TokenValue::Iden(widget), _) => Ok(SelectorWidget::Some(widget)),
@@ -290,7 +290,7 @@ fn parse_widget<I: Iterator<Item = Token>, L: Loader>(
     }
 }
 
-fn parse_float<I: Iterator<Item = Token>, L: Loader>(c: &mut LoadContext<I, L>) -> Result<f32, Error<L::Error>> {
+fn parse_float<I: Iterator<Item = Token>, L: Loader>(c: &mut LoadContext<I, L>) -> Result<f32, Error> {
     match c.tokens.next() {
         Some(Token(TokenValue::Number(number), pos)) => number
             .parse::<f32>()
@@ -300,7 +300,7 @@ fn parse_float<I: Iterator<Item = Token>, L: Loader>(c: &mut LoadContext<I, L>) 
     }
 }
 
-fn parse_usize<I: Iterator<Item = Token>, L: Loader>(c: &mut LoadContext<I, L>) -> Result<usize, Error<L::Error>> {
+fn parse_usize<I: Iterator<Item = Token>, L: Loader>(c: &mut LoadContext<I, L>) -> Result<usize, Error> {
     match c.tokens.next() {
         Some(Token(TokenValue::Number(number), pos)) => number
             .parse::<usize>()
@@ -312,7 +312,7 @@ fn parse_usize<I: Iterator<Item = Token>, L: Loader>(c: &mut LoadContext<I, L>) 
 
 fn parse_rectangle<I: Iterator<Item = Token>, L: Loader>(
     c: &mut LoadContext<I, L>,
-) -> Result<Rectangle, Error<L::Error>> {
+) -> Result<Rectangle, Error> {
     let mut numbers = Vec::new();
 
     while let Token(TokenValue::Number(_), _) = c.tokens.peek().ok_or(Error::Eof)? {
@@ -330,7 +330,7 @@ fn parse_rectangle<I: Iterator<Item = Token>, L: Loader>(
 
 fn parse_text_wrap<I: Iterator<Item = Token>, L: Loader>(
     c: &mut LoadContext<I, L>,
-) -> Result<TextWrap, Error<L::Error>> {
+) -> Result<TextWrap, Error> {
     match c.tokens.next() {
         Some(Token(TokenValue::Iden(ty), pos)) => match ty.to_lowercase().as_str() {
             "no-wrap" => Ok(TextWrap::NoWrap),
@@ -343,7 +343,7 @@ fn parse_text_wrap<I: Iterator<Item = Token>, L: Loader>(
     }
 }
 
-fn parse_align<I: Iterator<Item = Token>, L: Loader>(c: &mut LoadContext<I, L>) -> Result<Align, Error<L::Error>> {
+fn parse_align<I: Iterator<Item = Token>, L: Loader>(c: &mut LoadContext<I, L>) -> Result<Align, Error> {
     match c.tokens.next() {
         Some(Token(TokenValue::Iden(ty), pos)) => match ty.to_lowercase().as_str() {
             "begin" | "left" | "top" => Ok(Align::Begin),
@@ -356,7 +356,7 @@ fn parse_align<I: Iterator<Item = Token>, L: Loader>(c: &mut LoadContext<I, L>) 
     }
 }
 
-fn parse_size<I: Iterator<Item = Token>, L: Loader>(c: &mut LoadContext<I, L>) -> Result<Size, Error<L::Error>> {
+fn parse_size<I: Iterator<Item = Token>, L: Loader>(c: &mut LoadContext<I, L>) -> Result<Size, Error> {
     match c.tokens.next() {
         Some(Token(TokenValue::Iden(ty), pos)) => match ty.to_lowercase().as_str() {
             "shrink" => Ok(Size::Shrink),
@@ -383,7 +383,7 @@ fn parse_size<I: Iterator<Item = Token>, L: Loader>(c: &mut LoadContext<I, L>) -
     }
 }
 
-fn parse_color<I: Iterator<Item = Token>, L: Loader>(c: &mut LoadContext<I, L>) -> Result<Color, Error<L::Error>> {
+fn parse_color<I: Iterator<Item = Token>, L: Loader>(c: &mut LoadContext<I, L>) -> Result<Color, Error> {
     match c.tokens.next().ok_or(Error::Eof)? {
         Token(TokenValue::Color(string), pos) => {
             let int = u32::from_str_radix(string.as_str(), 16).map_err(|err| Error::Syntax(format!("{}", err), pos))?;

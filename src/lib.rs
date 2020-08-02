@@ -111,6 +111,7 @@ use crate::layout::Rectangle;
 use crate::model_view::ModelView;
 use crate::stylesheet::Style;
 use crate::widget::{Context, Node};
+use crate::loader::Loader;
 use std::rc::Rc;
 use std::task::{Poll, Waker};
 use std::sync::{Arc, Mutex};
@@ -128,6 +129,8 @@ pub mod draw;
 pub mod event;
 /// Primitives used for layouts
 pub mod layout;
+/// Asynchronous resource loading
+pub mod loader;
 mod model_view;
 /// Simple windowing system for those who want to render _just_ widgets.
 #[cfg(feature="winit")]
@@ -162,20 +165,6 @@ pub trait Model: 'static {
     fn view(&mut self) -> Node<Self::Message>;
 }
 
-/// A way to load URLs from a data source.
-///
-/// Included implementations:
-/// - `PathBuf`, loads data from disk using the `PathBuf` as working directory.
-pub trait Loader: Send + Sync {
-    /// A future returned when calling `load`.
-    type Load: Future<Output = Result<Vec<u8>, Self::Error>> + Send + Sync;
-    /// Error returned by the loader when the request failed.
-    type Error: std::error::Error + Send;
-
-    /// Asynchronously load a resource located at the given url
-    fn load(&self, url: impl AsRef<str>) -> Self::Load;
-}
-
 /// Trait for sending custom events to the event loop of the application
 pub trait EventLoop<T: Send>: Clone + Send {
     /// The error returned when send_event fails
@@ -191,13 +180,15 @@ pub trait EventLoop<T: Send>: Clone + Send {
 /// `Ui` manages a [`Model`](trait.Model.html) and processes it to a [`DrawList`](draw/struct.DrawList.html) that can be rendered using your
 ///  own renderer implementation. Alternatively, you can use one of the following included wrappers:
 /// - [`WgpuUi`](backend/wgpu/struct.WgpuUi.html) Renders using [wgpu-rs](https://github.com/gfx-rs/wgpu-rs).
-pub struct Ui<M: Model, E: EventLoop<Command<M::Message>>> {
+pub struct Ui<M: Model, E: EventLoop<Command<M::Message>>, L: Loader> {
     model_view: ModelView<M>,
     style: Rc<Style>,
     cache: Arc<Mutex<self::cache::Cache>>,
     viewport: Rectangle,
     redraw: bool,
     event_loop: E,
+    loader: Arc<L>,
+    hot_reload_style: Option<String>,
 }
 
 /// Some asynchronous work that will update the ui later.
@@ -207,13 +198,13 @@ pub enum Command<Message> {
     /// Handle all messages coming out of stream
     Subscribe(Box<dyn Stream<Item = Message> + Send>),
     /// Swap the stylesheet
-    Stylesheet(Box<dyn Future<Output = Style> + Send>),
+    Stylesheet(Box<dyn Future<Output = Result<Style, stylesheet::Error>> + Send>),
 }
 
-impl<M: Model, E: EventLoop<Command<M::Message>>> Ui<M, E> {
+impl<M: Model, E: EventLoop<Command<M::Message>>, L: Loader> Ui<M, E, L> {
     /// Constructs a new `Ui` using the default style.
     /// This is not recommended as the default style is very empty and only renders white text.
-    pub fn new(model: M, event_loop: E, viewport: Rectangle) -> Self {
+    pub fn new(model: M, event_loop: E, loader: L, viewport: Rectangle) -> Self {
         let cache = Arc::new(Mutex::new(self::cache::Cache::new(512, 0)));
 
         let style = Rc::new(Style::new(cache.clone()));
@@ -225,37 +216,54 @@ impl<M: Model, E: EventLoop<Command<M::Message>>> Ui<M, E> {
             viewport,
             redraw: true,
             event_loop,
+            hot_reload_style: None,
+            loader: Arc::new(loader),
         }
     }
 
     /// Constructs a new `Ui` asynchronously by first fetching a stylesheet from a
     /// [.pwss](stylesheet/index.html) data source.
-    pub async fn with_stylesheet<L: Loader, U: AsRef<str>>(
+    pub async fn with_stylesheet<U: AsRef<str>>(
         model: M,
         event_loop: E,
         loader: L,
         url: U,
         viewport: Rectangle,
-    ) -> Result<Self, stylesheet::Error<L::Error>> {
+    ) -> Result<Self, stylesheet::Error> {
         let cache = Arc::new(Mutex::new(self::cache::Cache::new(512, 0)));
 
-        let style = Rc::new(Style::load(&loader, url, cache.clone()).await?);
+        let loader = Arc::new(loader);
 
-        Ok(Self {
+        let style = Rc::new(Style::load(loader.clone(), url.as_ref(), cache.clone()).await?);
+
+        let mut result = Self {
             model_view: ModelView::new(model),
             style,
-            cache,
+            cache: cache.clone(),
             viewport,
             event_loop,
             redraw: true,
-        })
+            hot_reload_style: Some(url.as_ref().to_string()),
+            loader: loader.clone(),
+        };
+
+        let loader = loader.clone();
+        let url = url.as_ref().to_string();
+        result.command(Command::from_future_style(async move {
+            loader.wait(&url).await;
+            Style::load(loader, url, cache).await
+        }));
+
+        Ok(result)
     }
 
     /// Replace the current stylesheet with a new one
-    pub fn reload_stylesheet<L: 'static + Loader, U: 'static + AsRef<str> + Send>(&mut self, loader: L, url: U) {
+    pub fn reload_stylesheet<U: 'static + AsRef<str> + Send>(&mut self, url: U) {
         let cache = self.cache.clone();
+        let loader = self.loader.clone();
+        self.hot_reload_style = Some(url.as_ref().to_string());
         self.command(Command::from_future_style(async move {
-            Style::load(&loader, url, cache).await.unwrap()
+            Style::load(loader, url, cache).await
         }));
     }
 
@@ -296,13 +304,30 @@ impl<M: Model, E: EventLoop<Command<M::Message>>> Ui<M, E> {
             }
 
             Command::Stylesheet(mut fut) => {
-                let ptr = fut.deref_mut() as *mut dyn Future<Output = Style>;
+                let ptr = fut.deref_mut() as *mut dyn Future<Output = Result<Style, stylesheet::Error>>;
                 let pin = unsafe { std::pin::Pin::new_unchecked(ptr.as_mut().unwrap()) };
                 let waker = EventLoopWaker::new(self.event_loop.clone(), Command::Stylesheet(fut));
                 match pin.poll(&mut std::task::Context::from_waker(&waker)) {
                     Poll::Ready(style) => {
-                        self.style = Rc::new(style);
-                        self.model_view.set_dirty();
+                        match style {
+                            Ok(style) => {
+                                self.style = Rc::new(style);
+                                self.model_view.set_dirty();
+                            }
+                            Err(error) => {
+                                eprintln!("Unable to load stylesheet: {}", error);
+                            }
+                        }
+
+                        if let Some(url) = self.hot_reload_style.clone() {
+                            let loader = self.loader.clone();
+                            let cache = self.cache.clone();
+                            let url = url.clone();
+                            self.command(Command::from_future_style(async move {
+                                loader.wait(&url).await;
+                                Style::load(loader, url, cache).await
+                            }));
+                        }
                     }
                     _ => (),
                 }
@@ -702,7 +727,7 @@ impl<T: Send, E: EventLoop<T>> ArcWake for EventLoopWaker<T, E> {
     }
 }
 
-impl<M: Model, E: EventLoop<Command<M::Message>>> Deref for Ui<M, E> {
+impl<M: Model, E: EventLoop<Command<M::Message>>, L: Loader> Deref for Ui<M, E, L> {
     type Target = M;
 
     fn deref(&self) -> &Self::Target {
@@ -710,19 +735,9 @@ impl<M: Model, E: EventLoop<Command<M::Message>>> Deref for Ui<M, E> {
     }
 }
 
-impl<M: Model, E: EventLoop<Command<M::Message>>> DerefMut for Ui<M, E> {
+impl<M: Model, E: EventLoop<Command<M::Message>>, L: Loader> DerefMut for Ui<M, E, L> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.model_view.model_mut()
-    }
-}
-
-impl Loader for std::path::PathBuf {
-    type Load = futures::future::Ready<Result<Vec<u8>, Self::Error>>;
-    type Error = std::io::Error;
-
-    fn load(&self, url: impl AsRef<str>) -> Self::Load {
-        let path = self.join(std::path::Path::new(url.as_ref()));
-        futures::future::ready(std::fs::read(path))
     }
 }
 
@@ -734,7 +749,7 @@ impl<Message> Command<Message> {
     }
 
     /// Construct a new command that will replace the style of the Ui after it completes.
-    pub fn from_future_style<F: 'static + Future<Output=Style> + Send>(fut: F) -> Self {
+    pub fn from_future_style<F: 'static + Future<Output=Result<Style, stylesheet::Error>> + Send>(fut: F) -> Self {
         Command::Stylesheet(Box::new(fut))
     }
 
