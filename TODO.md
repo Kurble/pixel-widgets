@@ -8,8 +8,8 @@
 
 #### v0.4
 - [x] async api
-- [ ] hot reloading
-- [ ] margins
+- [x] hot reloading
+- [x] margins
 - [ ] context menu widget / thing
 - [ ] drag and drop widget
 

@@ -91,6 +91,15 @@
 //! | scrollbar_horizontal | Graphics to use for horizontal scrollbars | background |
 //! | scrollbar_vertical | Graphics to use for vertical scrollbars | background |
 //! | padding | Amount of padding to use on each side of the content | rectangle |
+//! | padding-left | Amount of padding to use on the left side of the content | number |
+//! | padding-right | Amount of padding to use on the right side of the content | number |
+//! | padding-top | Amount of padding to use on the top side of the content | number |
+//! | padding-bottom | Amount of padding to use on the bottom side of the content | number |
+//! | margin | Amount of margin to use on each side of the widget | rectangle |
+//! | margin-left | Amount of margin to use on the left side of the widget | number |
+//! | margin-right | Amount of margin to use on the right side of the widget | number |
+//! | margin-top | Amount of margin to use on the top side of the widget | number |
+//! | margin-bottom | Amount of margin to use on the bottom side of the widget | number |
 //! | text_size | Size of text | number |
 //! | text_wrap | Wrapping strategy for text | textwrap |
 //! | width | widget width | size |
@@ -163,6 +172,8 @@ pub struct Stylesheet {
     pub scrollbar_vertical: Background,
     /// Amount of padding to use on each side of the content
     pub padding: Rectangle,
+    /// Size of the margin on each side of the widget
+    pub margin: Rectangle,
     /// Size of text
     pub text_size: f32,
     /// Wrapping strategy for text
@@ -191,6 +202,24 @@ pub enum Declaration {
     ScrollbarVertical(Background),
     /// padding
     Padding(Rectangle),
+    /// padding left
+    PaddingLeft(f32),
+    /// Padding right
+    PaddingRight(f32),
+    /// Padding top
+    PaddingTop(f32),
+    /// Padding bottom
+    PaddingBottom(f32),
+    /// margin
+    Margin(Rectangle),
+    /// padding left
+    MarginLeft(f32),
+    /// Padding right
+    MarginRight(f32),
+    /// Padding top
+    MarginTop(f32),
+    /// Padding bottom
+    MarginBottom(f32),
     /// text-size
     TextSize(f32),
     /// text-wrap
@@ -256,6 +285,7 @@ impl Style {
                 scrollbar_horizontal: Background::Color(Color::white()),
                 scrollbar_vertical: Background::Color(Color::white()),
                 padding: Rectangle::zero(),
+                margin: Rectangle::zero(),
                 text_size: 16.0,
                 text_wrap: TextWrap::NoWrap,
                 width: Size::Shrink,
@@ -300,18 +330,27 @@ impl Declaration {
     /// Apply values to a `Stylesheet`.
     pub fn apply(&self, stylesheet: &mut Stylesheet) {
         match self {
-            Declaration::Background(x) => stylesheet.background = x.clone(),
-            Declaration::Font(x) => stylesheet.font = x.clone(),
-            Declaration::Color(x) => stylesheet.color = x.clone(),
-            Declaration::ScrollbarHorizontal(x) => stylesheet.scrollbar_horizontal = x.clone(),
-            Declaration::ScrollbarVertical(x) => stylesheet.scrollbar_vertical = x.clone(),
-            Declaration::Padding(x) => stylesheet.padding = x.clone(),
-            Declaration::TextSize(x) => stylesheet.text_size = x.clone(),
-            Declaration::TextWrap(x) => stylesheet.text_wrap = x.clone(),
-            Declaration::Width(x) => stylesheet.width = x.clone(),
-            Declaration::Height(x) => stylesheet.height = x.clone(),
-            Declaration::AlignHorizontal(x) => stylesheet.align_horizontal = x.clone(),
-            Declaration::AlignVertical(x) => stylesheet.align_vertical = x.clone(),
+            &Declaration::Background(ref x) => stylesheet.background = x.clone(),
+            &Declaration::Font(ref x) => stylesheet.font = x.clone(),
+            &Declaration::Color(ref x) => stylesheet.color = x.clone(),
+            &Declaration::ScrollbarHorizontal(ref x) => stylesheet.scrollbar_horizontal = x.clone(),
+            &Declaration::ScrollbarVertical(ref x) => stylesheet.scrollbar_vertical = x.clone(),
+            &Declaration::Padding(ref x) => stylesheet.padding = x.clone(),
+            &Declaration::PaddingLeft(x) => stylesheet.padding.left = x,
+            &Declaration::PaddingRight(x) => stylesheet.padding.right = x,
+            &Declaration::PaddingTop(x) => stylesheet.padding.top = x,
+            &Declaration::PaddingBottom(x) => stylesheet.padding.bottom = x,
+            &Declaration::Margin(ref x) => stylesheet.margin = x.clone(),
+            &Declaration::MarginLeft(x) => stylesheet.margin.left = x,
+            &Declaration::MarginRight(x) => stylesheet.margin.right = x,
+            &Declaration::MarginTop(x) => stylesheet.margin.top = x,
+            &Declaration::MarginBottom(x) => stylesheet.margin.bottom = x,
+            &Declaration::TextSize(x) => stylesheet.text_size = x.clone(),
+            &Declaration::TextWrap(ref x) => stylesheet.text_wrap = x.clone(),
+            &Declaration::Width(ref x) => stylesheet.width = x.clone(),
+            &Declaration::Height(ref x) => stylesheet.height = x.clone(),
+            &Declaration::AlignHorizontal(ref x) => stylesheet.align_horizontal = x.clone(),
+            &Declaration::AlignVertical(ref x) => stylesheet.align_vertical = x.clone(),
         }
     }
 }

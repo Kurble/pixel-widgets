@@ -275,8 +275,17 @@ impl<'a, Message> Node<'a, Message> {
     /// which will later be resolved to actual dimensions.
     pub fn size(&self) -> (Size, Size) {
         if self.size.get().is_none() {
-            let stylesheet = self.stylesheet.as_ref().unwrap().deref();
-            self.size.replace(Some(self.widget.size(stylesheet)));
+            let style = self.stylesheet.as_ref().unwrap().deref();
+            let mut size = self.widget.size(style);
+            size.0 = match size.0 {
+                Size::Exact(size) => Size::Exact(size + style.margin.left + style.margin.right),
+                other => other,
+            };
+            size.1 = match size.1 {
+                Size::Exact(size) => Size::Exact(size + style.margin.top + style.margin.bottom),
+                other => other,
+            };
+            self.size.replace(Some(size));
         }
         self.size.get().unwrap()
     }
@@ -294,6 +303,7 @@ impl<'a, Message> Node<'a, Message> {
     /// - `y`: y mouse coordinate being queried
     pub fn hit(&self, layout: Rectangle, clip: Rectangle, x: f32, y: f32) -> bool {
         let stylesheet = self.stylesheet.as_ref().unwrap().deref();
+        let layout = layout.after_padding(stylesheet.margin);
         self.widget.hit(layout, clip, stylesheet, x, y)
     }
 
@@ -320,6 +330,8 @@ impl<'a, Message> Node<'a, Message> {
     /// - `context`: context for submitting messages and requesting redraws of the ui.
     pub fn event(&mut self, layout: Rectangle, clip: Rectangle, event: Event, context: &mut Context<Message>) {
         let stylesheet = self.stylesheet.as_ref().unwrap().deref();
+        let layout = layout.after_padding(stylesheet.margin);
+
         self.widget.event(layout, clip, stylesheet, event, context);
         self.focused.replace(Some(self.widget.focused()));
 
@@ -372,6 +384,8 @@ impl<'a, Message> Node<'a, Message> {
     /// - `clip`: a clipping rect for use with [`Primitive::PushClip`](../draw/enum.Primitive.html#variant.PushClip).
     pub fn draw(&mut self, layout: Rectangle, clip: Rectangle) -> Vec<Primitive<'a>> {
         let stylesheet = self.stylesheet.as_ref().unwrap().deref();
+        let layout = layout.after_padding(stylesheet.margin);
+
         self.widget.draw(layout, clip, stylesheet)
     }
 }
