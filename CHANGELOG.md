@@ -5,6 +5,8 @@
 - `Ui::command` added, which can be used to send an async message externally
 - Download example added
 - `Ui::reload_stylesheet` added.
+- Loader system has been refactored
+- Margins added to stylesheet system. Margins automatically handled for all widgets.
 
  ### v0.3.0
 - Added `len()` to `Widget`.

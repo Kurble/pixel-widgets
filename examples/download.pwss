@@ -1,3 +1,7 @@
+column {
+    padding: 2;
+}
+
 input {
     width: 300;
     background: #fff;
@@ -7,5 +11,10 @@ input {
 
 button {
     padding: 5 20;
+    margin: 5 0;
     background: #404;
+}
+
+button:hover {
+    background: #808;
 }
