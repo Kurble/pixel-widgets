@@ -85,11 +85,9 @@
 //!
 //! | key | description | format |
 //! |---|---|---|
+//! | width | widget width | size |
+//! | height | widget height | size |
 //! | background | Background for the widget that full covers the layout rect | background |
-//! | font | Font to use for text rendering | url |
-//! | color | Color to use for foreground drawing, including text | color |
-//! | scrollbar_horizontal | Graphics to use for horizontal scrollbars | background |
-//! | scrollbar_vertical | Graphics to use for vertical scrollbars | background |
 //! | padding | Amount of padding to use on each side of the content | rectangle |
 //! | padding-left | Amount of padding to use on the left side of the content | number |
 //! | padding-right | Amount of padding to use on the right side of the content | number |
@@ -100,10 +98,10 @@
 //! | margin-right | Amount of margin to use on the right side of the widget | number |
 //! | margin-top | Amount of margin to use on the top side of the widget | number |
 //! | margin-bottom | Amount of margin to use on the bottom side of the widget | number |
+//! | font | Font to use for text rendering | url |
+//! | color | Color to use for foreground drawing, including text | color |
 //! | text_size | Size of text | number |
 //! | text_wrap | Wrapping strategy for text | textwrap |
-//! | width | widget width | size |
-//! | height | widget height | size |
 //! | align_horizontal | how to align children horizontally | align |
 //! | align_vertical | how to align children vertically | align |
 //!
@@ -160,28 +158,24 @@ pub struct Style {
 /// Contains the final versions of all possible rules.
 #[derive(Clone)]
 pub struct Stylesheet {
-    /// Background for the widget that full covers the layout rect
-    pub background: Background,
-    /// Font to use for text rendering
-    pub font: Font,
-    /// Color to use for foreground drawing, including text
-    pub color: Color,
-    /// Graphics to use for horizontal scrollbars
-    pub scrollbar_horizontal: Background,
-    /// Graphics to use for vertical scrollbars
-    pub scrollbar_vertical: Background,
-    /// Amount of padding to use on each side of the content
-    pub padding: Rectangle,
-    /// Size of the margin on each side of the widget
-    pub margin: Rectangle,
-    /// Size of text
-    pub text_size: f32,
-    /// Wrapping strategy for text
-    pub text_wrap: TextWrap,
     /// Widget width
     pub width: Size,
     /// Widget height
     pub height: Size,
+    /// Background for the widget that full covers the layout rect
+    pub background: Background,
+    /// Amount of padding to use on each side of the content
+    pub padding: Rectangle,
+    /// Size of the margin on each side of the widget
+    pub margin: Rectangle,
+    /// Color to use for foreground drawing, including text
+    pub color: Color,
+    /// Font to use for text rendering
+    pub font: Font,
+    /// Size of text
+    pub text_size: f32,
+    /// Wrapping strategy for text
+    pub text_wrap: TextWrap,
     /// How to align children horizontally
     pub align_horizontal: Align,
     /// How to align children vertically
@@ -196,10 +190,6 @@ pub enum Declaration {
     Font(Font),
     /// color
     Color(Color),
-    /// scrollbar-horizontal
-    ScrollbarHorizontal(Background),
-    /// scrollbar-vertical
-    ScrollbarVertical(Background),
     /// padding
     Padding(Rectangle),
     /// padding left
@@ -282,8 +272,6 @@ impl Style {
                 background: Background::None,
                 font: cache.lock().unwrap().load_font(include_bytes!("default_font.ttf").to_vec()),
                 color: Color::white(),
-                scrollbar_horizontal: Background::Color(Color::white()),
-                scrollbar_vertical: Background::Color(Color::white()),
                 padding: Rectangle::zero(),
                 margin: Rectangle::zero(),
                 text_size: 16.0,
@@ -333,8 +321,6 @@ impl Declaration {
             &Declaration::Background(ref x) => stylesheet.background = x.clone(),
             &Declaration::Font(ref x) => stylesheet.font = x.clone(),
             &Declaration::Color(ref x) => stylesheet.color = x.clone(),
-            &Declaration::ScrollbarHorizontal(ref x) => stylesheet.scrollbar_horizontal = x.clone(),
-            &Declaration::ScrollbarVertical(ref x) => stylesheet.scrollbar_vertical = x.clone(),
             &Declaration::Padding(ref x) => stylesheet.padding = x.clone(),
             &Declaration::PaddingLeft(x) => stylesheet.padding.left = x,
             &Declaration::PaddingRight(x) => stylesheet.padding.right = x,

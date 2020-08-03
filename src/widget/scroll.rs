@@ -1,5 +1,5 @@
 use crate::draw::*;
-use crate::widget::{Context, Widget, IntoNode, Node};
+use crate::widget::{Context, Widget, IntoNode, Node, Dummy};
 use crate::event::{Event, Key};
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
@@ -8,6 +8,8 @@ use crate::stylesheet::Stylesheet;
 pub struct Scroll<'a, T> {
     state: &'a mut State,
     content: Node<'a, T>,
+    scrollbar_h: Node<'a, T>,
+    scrollbar_v: Node<'a, T>,
 }
 
 /// State for [`Scroll`](struct.Scroll.html)
@@ -34,6 +36,8 @@ impl<'a, T: 'a> Scroll<'a, T> {
         Self {
             state,
             content: content.into_node(),
+            scrollbar_h: Dummy::new("scrollbar-horizontal").into_node(),
+            scrollbar_v: Dummy::new("scrollbar-vertical").into_node(),
         }
     }
 
@@ -105,6 +109,8 @@ impl<'a, T: 'a> Widget<'a, T> for Scroll<'a, T> {
 
     fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut Node<'a, T>)) {
         visitor(&mut self.content);
+        visitor(&mut self.scrollbar_h);
+        visitor(&mut self.scrollbar_v);
     }
 
     fn size(&self, style: &Stylesheet) -> (Size, Size) {
@@ -225,10 +231,10 @@ impl<'a, T: 'a> Widget<'a, T> for Scroll<'a, T> {
             result.push(Primitive::PopClip);
         }
         if content_layout.width() > layout.width() {
-            result.extend(style.scrollbar_horizontal.render(hbar));
+            result.extend(self.scrollbar_h.draw(hbar, clip));
         }
         if content_layout.height() > layout.height() {
-            result.extend(style.scrollbar_vertical.render(vbar));
+            result.extend(self.scrollbar_v.draw(vbar, clip));
         }
         result
     }

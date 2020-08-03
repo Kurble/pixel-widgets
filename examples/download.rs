@@ -3,7 +3,6 @@ use winit::window::WindowBuilder;
 use pixel_widgets::Command;
 use futures::{SinkExt, FutureExt};
 
-#[derive(Default)]
 struct Download {
     pub state: ManagedState<String>,
     pub url: String,
@@ -61,8 +60,13 @@ impl Model for Download {
 
     fn view(&mut self) -> Node<Message> {
         let mut state = self.state.tracker();
+        let url = self.url.clone();
         Column::new()
-            .push(Input::new(state.get("url"), "url", Message::UrlChanged))
+            .push(Input::new(state.get_or_default_with("url", || {
+                let mut state = pixel_widgets::widget::input::State::default();
+                state.set_value(url);
+                state
+            }), "download link", Message::UrlChanged))
             .push(Button::new(state.get("download"), Text::new("Download")).on_clicked(Message::DownloadPressed))
             .push(Text::new(format!("Downloaded: {} / {} bytes", self.progress, self.size)))
             .into_node()
@@ -71,7 +75,12 @@ impl Model for Download {
 
 #[tokio::main]
 async fn main() {
-    let model = Download::default();
+    let model = Download {
+        state: Default::default(),
+        progress: 0,
+        size: 0,
+        url: "http://speedtest.ftp.otenet.gr/files/test10Mb.db".into(),
+    };
 
     let window = WindowBuilder::new()
         .with_title("Downloader")

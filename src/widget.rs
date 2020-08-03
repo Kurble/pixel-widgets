@@ -33,6 +33,7 @@ use crate::stylesheet::tree::Query;
 pub use self::button::Button;
 pub use self::column::Column;
 pub use self::dropdown::Dropdown;
+pub use self::dummy::Dummy;
 pub use self::input::Input;
 pub use self::layers::Layers;
 pub use self::row::Row;
@@ -49,6 +50,8 @@ pub mod button;
 pub mod column;
 /// Pick an item from a dropdown box
 pub mod dropdown;
+/// Dummy widget that has a custom widget name
+pub mod dummy;
 /// Editable text input
 pub mod input;
 /// Stack child widgets on top of each other, while only the topmost receives events.

@@ -10,8 +10,11 @@
 - [x] async api
 - [x] hot reloading
 - [x] margins
+- [ ] progress bar widget
 - [ ] context menu widget / thing
+    - let the user just create a widget, and it will always be focused.
 - [ ] drag and drop widget
+    - share a context between all drag/drop sources / targets
 
 #### v0.5
 - [ ] sound / immutable messages, on_hover, on_press, etc.

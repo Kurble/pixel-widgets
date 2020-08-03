@@ -1,9 +1,11 @@
 column {
+    width: fill(1);
     padding: 2;
+    align-horizontal: center;
 }
 
 input {
-    width: 300;
+    width: fill(1);
     background: #fff;
     color: #000;
     padding: 3;
