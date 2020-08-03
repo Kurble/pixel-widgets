@@ -1,13 +1,14 @@
 column {
     width: fill(1);
+    height: fill(1);
     padding: 2;
     align-horizontal: center;
 }
 
 input {
     width: fill(1);
-    background: #fff;
-    color: #000;
+    background: #111;
+    color: #b0b;
     padding: 3;
 }
 
@@ -19,4 +20,16 @@ button {
 
 button:hover {
     background: #808;
+}
+
+progress {
+    width: fill(1);
+    height: 40;
+    padding: 5;
+    margin: 5 0;
+    background: #111;
+}
+
+progress > progress-fill {
+    background: #646;
 }

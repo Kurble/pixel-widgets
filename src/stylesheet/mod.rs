@@ -102,6 +102,7 @@
 //! | color | Color to use for foreground drawing, including text | color |
 //! | text_size | Size of text | number |
 //! | text_wrap | Wrapping strategy for text | textwrap |
+//! | layout-direction | Layout direction for widgets that support it | direction |
 //! | align_horizontal | how to align children horizontally | align |
 //! | align_vertical | how to align children vertically | align |
 //!
@@ -115,6 +116,7 @@
 //! | rectangle | `<num>`<br>`<num> <num>`<br>`<num> <num> <num>`<br>`<num> <num> <num> <num>` | `all sides`<br>`top/bottom`, `right/left`<br>`top`, `right/left`, `bottom`<br>`top`, `right`, `bottom`, `left` |
 //! | textwrap | `no-wrap`<br>`wrap`<br>`word-wrap` | |
 //! | size | `<number>`<br>`fill(<number>)`<br>`exact(<number>)`<br>`shrink` | Just a number resolves to `exact` |
+//! | direction | `top-to-bottom`<br>`left-to-right`<br>`right-to-left`<br>`bottom-to-top` | |
 //! | align | `begin`<br>`center`<br>`end` | |
 use std::collections::HashMap;
 use std::iter::Peekable;
@@ -122,7 +124,7 @@ use std::iter::Peekable;
 use crate::bitset::BitSet;
 use crate::cache::Cache;
 use crate::draw::{Background, Color, Image, Patch};
-use crate::layout::{Align, Rectangle, Size};
+use crate::layout::{Align, Rectangle, Size, Direction};
 use crate::text::{Font, TextWrap};
 use crate::loader::Loader;
 
@@ -176,6 +178,8 @@ pub struct Stylesheet {
     pub text_size: f32,
     /// Wrapping strategy for text
     pub text_wrap: TextWrap,
+    /// Layout direction for widgets that support it (atm not text unfortunately..)
+    pub direction: Direction,
     /// How to align children horizontally
     pub align_horizontal: Align,
     /// How to align children vertically
@@ -218,6 +222,8 @@ pub enum Declaration {
     Width(Size),
     /// height
     Height(Size),
+    /// layout-direction
+    LayoutDirection(Direction),
     /// align-horizontal
     AlignHorizontal(Align),
     /// align-vertical
@@ -278,6 +284,7 @@ impl Style {
                 text_wrap: TextWrap::NoWrap,
                 width: Size::Shrink,
                 height: Size::Shrink,
+                direction: Direction::LeftToRight,
                 align_horizontal: Align::Begin,
                 align_vertical: Align::Begin,
             },
@@ -335,6 +342,7 @@ impl Declaration {
             &Declaration::TextWrap(ref x) => stylesheet.text_wrap = x.clone(),
             &Declaration::Width(ref x) => stylesheet.width = x.clone(),
             &Declaration::Height(ref x) => stylesheet.height = x.clone(),
+            &Declaration::LayoutDirection(x) => stylesheet.direction = x,
             &Declaration::AlignHorizontal(ref x) => stylesheet.align_horizontal = x.clone(),
             &Declaration::AlignVertical(ref x) => stylesheet.align_vertical = x.clone(),
         }

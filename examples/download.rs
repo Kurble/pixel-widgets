@@ -69,6 +69,7 @@ impl Model for Download {
             }), "download link", Message::UrlChanged))
             .push(Button::new(state.get("download"), Text::new("Download")).on_clicked(Message::DownloadPressed))
             .push(Text::new(format!("Downloaded: {} / {} bytes", self.progress, self.size)))
+            .push(Progress::new(self.progress as f32 / self.size as f32))
             .into_node()
     }
 }

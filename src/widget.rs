@@ -36,6 +36,7 @@ pub use self::dropdown::Dropdown;
 pub use self::dummy::Dummy;
 pub use self::input::Input;
 pub use self::layers::Layers;
+pub use self::progress::Progress;
 pub use self::row::Row;
 pub use self::scroll::Scroll;
 pub use self::space::Space;
@@ -56,6 +57,8 @@ pub mod dummy;
 pub mod input;
 /// Stack child widgets on top of each other, while only the topmost receives events.
 pub mod layers;
+/// A bar that fills up according to a value.
+pub mod progress;
 /// Layout child widgets horizontally
 pub mod row;
 /// View a small section of larger widget, with scrollbars.

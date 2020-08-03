@@ -10,7 +10,7 @@
 - [x] async api
 - [x] hot reloading
 - [x] margins
-- [ ] progress bar widget
+- [x] progress bar widget
 - [ ] context menu widget / thing
     - let the user just create a widget, and it will always be focused.
 - [ ] drag and drop widget

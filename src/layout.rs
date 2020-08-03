@@ -19,6 +19,16 @@ pub enum Align {
     End,
 }
 
+/// Layout direction
+#[allow(missing_docs)]
+#[derive(Clone, Copy)]
+pub enum Direction {
+    TopToBottom,
+    LeftToRight,
+    RightToLeft,
+    BottomToTop,
+}
+
 /// A rectangle
 #[allow(missing_docs)]
 #[derive(Debug, Clone, Copy)]

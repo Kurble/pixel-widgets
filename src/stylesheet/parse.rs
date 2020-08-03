@@ -102,6 +102,7 @@ async fn parse_declaration<I: Iterator<Item = Token>, L: Loader>(
                 "text-wrap" => Ok(Declaration::TextWrap(parse_text_wrap(c)?)),
                 "width" => Ok(Declaration::Width(parse_size(c)?)),
                 "height" => Ok(Declaration::Height(parse_size(c)?)),
+                "layout-direction" => Ok(Declaration::LayoutDirection(parse_direction(c)?)),
                 "align-horizontal" => Ok(Declaration::AlignHorizontal(parse_align(c)?)),
                 "align-vertical" => Ok(Declaration::AlignVertical(parse_align(c)?)),
                 unrecognized => Err(Error::Syntax(format!("Rule '{}' not recognized", unrecognized), pos)),
@@ -346,6 +347,20 @@ fn parse_text_wrap<I: Iterator<Item = Token>, L: Loader>(
             _ => Err(Error::Syntax("Expected `no-wrap`, `word-wrap` or `wrap`".into(), pos)),
         },
         Some(Token(_, pos)) => Err(Error::Syntax("Expected `no-wrap`, `word-wrap` or `wrap`".into(), pos)),
+        None => Err(Error::Eof),
+    }
+}
+
+fn parse_direction<I: Iterator<Item = Token>, L: Loader>(c: &mut LoadContext<I, L>) -> Result<Direction, Error> {
+    match c.tokens.next() {
+        Some(Token(TokenValue::Iden(ty), pos)) => match ty.to_lowercase().as_str() {
+            "top-to-bottom" => Ok(Direction::TopToBottom),
+            "left-to-right" => Ok(Direction::LeftToRight),
+            "right-to-left" => Ok(Direction::RightToLeft),
+            "bottom-to-top" => Ok(Direction::BottomToTop),
+            _ => Err(Error::Syntax("Expected `top-to-bottom`, `left-to-right`, `right-to-left` or `bottom-to-top`".into(), pos)),
+        },
+        Some(Token(_, pos)) => Err(Error::Syntax("Expected `top-to-bottom`, `left-to-right`, `right-to-left` or `bottom-to-top`".into(), pos)),
         None => Err(Error::Eof),
     }
 }
