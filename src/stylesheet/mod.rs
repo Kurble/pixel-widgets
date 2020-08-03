@@ -184,6 +184,8 @@ pub struct Stylesheet {
     pub align_horizontal: Align,
     /// How to align children vertically
     pub align_vertical: Align,
+    /// Flags
+    pub flags: Vec<String>,
 }
 
 /// A property and a value
@@ -228,6 +230,10 @@ pub enum Declaration {
     AlignHorizontal(Align),
     /// align-vertical
     AlignVertical(Align),
+    /// flag: true;
+    AddFlag(String),
+    /// flag: false;
+    RemoveFlag(String),
 }
 
 /// A stylesheet selector, which widgets have to match against.
@@ -287,6 +293,7 @@ impl Style {
                 direction: Direction::LeftToRight,
                 align_horizontal: Align::Begin,
                 align_vertical: Align::Begin,
+                flags: Vec::new(),
             },
         }
     }
@@ -321,6 +328,13 @@ impl Style {
     }
 }
 
+impl Stylesheet {
+    /// Returns whether a flag is set in this stylesheet
+    pub fn contains(&self, flag: &str) -> bool {
+        self.flags.binary_search_by_key(&flag, |s| s.as_str()).is_ok()
+    }
+}
+
 impl Declaration {
     /// Apply values to a `Stylesheet`.
     pub fn apply(&self, stylesheet: &mut Stylesheet) {
@@ -345,6 +359,18 @@ impl Declaration {
             &Declaration::LayoutDirection(x) => stylesheet.direction = x,
             &Declaration::AlignHorizontal(ref x) => stylesheet.align_horizontal = x.clone(),
             &Declaration::AlignVertical(ref x) => stylesheet.align_vertical = x.clone(),
+            &Declaration::AddFlag(ref x) => match stylesheet.flags.binary_search(x) {
+                Err(insert_at) => {
+                    stylesheet.flags.insert(insert_at, x.clone());
+                },
+                Ok(_) => (),
+            }
+            &Declaration::RemoveFlag(ref x) => match stylesheet.flags.binary_search(x) {
+                Ok(exists) => {
+                    stylesheet.flags.remove(exists);
+                },
+                Err(_) => (),
+            }
         }
     }
 }

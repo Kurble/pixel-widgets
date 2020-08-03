@@ -28,8 +28,9 @@ progress {
     padding: 5;
     margin: 5 0;
     background: #111;
+    clip-bar: true;
 }
 
-progress > progress-fill {
-    background: #646;
+progress > bar {
+    background: #868;
 }

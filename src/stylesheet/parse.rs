@@ -82,7 +82,7 @@ async fn parse_declaration<I: Iterator<Item = Token>, L: Loader>(
     c: &mut LoadContext<'_, I, L>,
 ) -> Result<Declaration, Error> {
     let result = match c.tokens.next() {
-        Some(Token(TokenValue::Iden(key), pos)) => {
+        Some(Token(TokenValue::Iden(key), _)) => {
             c.take(TokenValue::Colon)?;
             match key.as_str() {
                 "background" => Ok(Declaration::Background(parse_background(c).await?)),
@@ -105,7 +105,14 @@ async fn parse_declaration<I: Iterator<Item = Token>, L: Loader>(
                 "layout-direction" => Ok(Declaration::LayoutDirection(parse_direction(c)?)),
                 "align-horizontal" => Ok(Declaration::AlignHorizontal(parse_align(c)?)),
                 "align-vertical" => Ok(Declaration::AlignVertical(parse_align(c)?)),
-                unrecognized => Err(Error::Syntax(format!("Rule '{}' not recognized", unrecognized), pos)),
+                flag => {
+                    let (id, pos) = c.take_identifier()?;
+                    match id.as_str() {
+                        "true" => Ok(Declaration::AddFlag(flag.to_string())),
+                        "false" => Ok(Declaration::RemoveFlag(flag.to_string())),
+                        _ => Err(Error::Syntax("Flag values must be either `true` or `false`".into(), pos))
+                    }
+                }
             }
         }
         Some(Token(_, pos)) => Err(Error::Syntax("Expected <property>".into(), pos)),

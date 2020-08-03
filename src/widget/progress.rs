@@ -4,6 +4,10 @@ use crate::layout::{Size, Rectangle, Direction};
 use crate::stylesheet::Stylesheet;
 
 /// A progress bar that fill up according to some progress
+/// The bar part of the progress bar can be styled by selecting the child widget `bar` of the `progress` widget.
+/// Progress accepts the `clip-bar` flag for it's style. When the `clip-bar` flag is set, the bar is always rendered
+/// at full size and then clipped according to the progress. When `clip-bar` is not set, the bar itself is rendered
+/// with a size that matches the progress.
 pub struct Progress<'a, T> {
     progress: f32,
     fill: Node<'a, T>,
@@ -14,7 +18,7 @@ impl<'a, T: 'a> Progress<'a, T> {
     pub fn new(progress: f32) -> Self {
         Self {
             progress,
-            fill: Dummy::new("progress-fill").into_node()
+            fill: Dummy::new("bar").into_node()
         }
     }
 }
@@ -56,7 +60,19 @@ impl<'a, T: 'a> Widget<'a, T> for Progress<'a, T> {
                 ..fill
             },
         };
-        result.extend(self.fill.draw(fill, clip));
+
+        if self.progress > 0.0 {
+            if style.contains("clip-bar") {
+                if let Some(clip) = clip.intersect(&fill) {
+                    result.push(Primitive::PushClip(clip));
+                    result.extend(self.fill.draw(layout.after_padding(style.padding), clip));
+                    result.push(Primitive::PopClip);
+                }
+            } else {
+                result.extend(self.fill.draw(fill, clip));
+            }
+        }
+
         result
     }
 }

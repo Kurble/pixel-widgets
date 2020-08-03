@@ -10,6 +10,7 @@
 - Added `widget::input::State::set_value`
 - Removed scrollbars from stylesheet in favor of the new `Dummy` widget.
 - Added `Progress` widget.
+- Added support for flags to stylesheets.
 
  ### v0.3.0
 - Added `len()` to `Widget`.
