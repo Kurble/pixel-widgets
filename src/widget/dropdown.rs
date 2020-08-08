@@ -1,8 +1,10 @@
+use smallvec::smallvec;
+
 use crate::draw::Primitive;
 use crate::event::{Event, Key};
 use crate::layout::{Rectangle, Size};
-use crate::stylesheet::Stylesheet;
-use crate::widget::{Context, IntoNode, Node, Widget};
+use crate::stylesheet::{Stylesheet, StyleState};
+use crate::widget::{Context, IntoNode, Node, Widget, StateVec};
 
 /// Pick an item from a dropdown box
 pub struct Dropdown<'a, T> {
@@ -61,11 +63,11 @@ impl<'a, T: 'a> Widget<'a, T> for Dropdown<'a, T> {
         "dropdown"
     }
 
-    fn state(&self) -> &'static str {
+    fn state(&self) -> StateVec {
         match self.state.inner {
-            InnerState::Open { .. } | InnerState::Pressed { .. } => "open",
-            InnerState::Idle if self.state.hovered => "hover",
-            InnerState::Idle => "",
+            InnerState::Open { .. } | InnerState::Pressed { .. } => smallvec![StyleState::Open],
+            InnerState::Idle if self.state.hovered => smallvec![StyleState::Hover],
+            InnerState::Idle => StateVec::new(),
         }
     }
 

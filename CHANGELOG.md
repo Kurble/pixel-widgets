@@ -11,6 +11,10 @@
 - Removed scrollbars from stylesheet in favor of the new `Dummy` widget.
 - Added `Progress` widget.
 - Added support for flags to stylesheets.
+- Added `Menu` widget.
+- Added `on_right_click` callback to `Node`.
+- Modified `Widget::state` to return a `SmallVec` of states, to support multiple states at once, 
+like a `Toggle` than be `checked` and `hover` at the same time.
 
  ### v0.3.0
 - Added `len()` to `Widget`.

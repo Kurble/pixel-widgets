@@ -1,5 +1,5 @@
 use crate::bitset::BitSet;
-use crate::stylesheet::{Declaration, Selector, SelectorWidget, Style};
+use crate::stylesheet::{Declaration, Selector, SelectorWidget, StyleState, Style};
 use std::iter::FromIterator;
 use std::rc::Rc;
 
@@ -33,7 +33,15 @@ impl RuleTree {
 
     /// Add a node from the rule tree to a bitset.
     /// This will also add all the `:` based child selectors that apply based on `state`, `n` and `last`.
-    pub fn add_to_bitset(&self, rule: usize, state: &str, class: &str, n: usize, len: usize, to: &mut BitSet) {
+    pub fn add_to_bitset<S: AsRef<str>>(
+        &self,
+        rule: usize,
+        state: &[StyleState<S>],
+        class: &str,
+        n: usize,
+        len: usize,
+        to: &mut BitSet,
+    ) {
         to.insert(rule);
         for &child_rule in self.rules[rule].children.iter() {
             if self.rules[child_rule]
@@ -68,7 +76,14 @@ impl RuleTree {
 
     /// Perform meta-selector matching again for the rules in the given bitset.
     /// Non meta selectors will be retained no matter what.
-    pub fn rematch(&self, style: &BitSet, state: &str, class: &str, n: usize, len: usize) -> BitSet {
+    pub fn rematch<S: AsRef<str>>(
+        &self,
+        style: &BitSet,
+        state: &[StyleState<S>],
+        class: &str,
+        n: usize,
+        len: usize,
+    ) -> BitSet {
         let mut result = BitSet::new();
 
         for selector in style.iter().filter(|&selector| {
@@ -165,7 +180,14 @@ impl Query {
         }
     }
 
-    pub fn match_widget(&self, widget: &str, class: &str, state: &str, n: usize, len: usize) -> BitSet {
+    pub fn match_widget<S: AsRef<str>>(
+        &self,
+        widget: &str,
+        class: &str,
+        state: &[StyleState<S>],
+        n: usize,
+        len: usize,
+    ) -> BitSet {
         let mut result = BitSet::new();
 
         let from_ancestors = self.ancestors.iter().rev().enumerate().flat_map(move |(i, matches)| {

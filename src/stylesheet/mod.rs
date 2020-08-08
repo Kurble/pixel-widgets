@@ -237,7 +237,7 @@ pub enum Declaration {
 }
 
 /// A stylesheet selector, which widgets have to match against.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq)]
 pub enum Selector {
     /// Match a widget
     Widget(SelectorWidget),
@@ -260,7 +260,7 @@ pub enum Selector {
     /// Match widgets that have a class
     Class(String),
     /// Match widgets that are in a state
-    State(String),
+    State(StyleState<String>),
     /// Invert the nested selector
     Not(Box<Selector>),
 }
@@ -272,6 +272,25 @@ pub enum SelectorWidget {
     Any,
     /// Match specific widgets
     Some(String),
+}
+
+/// Widget states
+#[derive(Clone)]
+pub enum StyleState<S: AsRef<str>> {
+    /// When the mouse is over the widget
+    Hover,
+    /// When the mouse is clicking on the widget
+    Pressed,
+    /// When the widget is in a checked state (checkbox, radio button)
+    Checked,
+    /// When a widget is disabled
+    Disabled,
+    /// When a widget in an expanded state
+    Open,
+    /// When a widget is in a collapsed state
+    Closed,
+    /// Custom state for custom widgets
+    Custom(S),
 }
 
 impl Style {
@@ -398,9 +417,9 @@ impl Selector {
 
     /// Match parameters of the widget matched by the current rule.
     /// If this selector is not a meta selector `None` is returned.
-    pub fn match_meta(&self, state: &str, class: &str, n: usize, len: usize) -> Option<bool> {
+    pub fn match_meta<S: AsRef<str>>(&self, state: &[StyleState<S>], class: &str, n: usize, len: usize) -> Option<bool> {
         match self {
-            &Selector::State(ref sel_state) => Some(sel_state == state),
+            &Selector::State(ref sel_state) => Some(state.iter().find(|&state| state.eq(sel_state)).is_some()),
             &Selector::Class(ref sel_class) => Some(sel_class == class),
             &Selector::Nth(num) => Some(n == num),
             &Selector::NthMod(num, den) => Some((n % den) == num),
@@ -418,6 +437,22 @@ impl SelectorWidget {
         match self {
             Self::Any => true,
             Self::Some(ref select) => select == widget,
+        }
+    }
+}
+
+impl<A: AsRef<str>, B: AsRef<str>> PartialEq<StyleState<B>> for StyleState<A> {
+    fn eq(&self, other: &StyleState<B>) -> bool {
+        match (self, other) {
+            (StyleState::Hover, StyleState::Hover) => true,
+            (StyleState::Pressed, StyleState::Pressed) => true,
+            (StyleState::Checked, StyleState::Checked) => true,
+            (StyleState::Disabled, StyleState::Disabled) => true,
+            (StyleState::Open, StyleState::Open) => true,
+            (StyleState::Closed, StyleState::Closed) => true,
+            (StyleState::Custom(a), StyleState::Custom(b)) => a.as_ref().eq(b.as_ref()),
+
+            _ => false,
         }
     }
 }

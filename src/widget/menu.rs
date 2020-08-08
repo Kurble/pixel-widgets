@@ -201,10 +201,6 @@ impl<'a, T: 'a, S: AsRef<[MenuItem<'a, T>]> + AsMut<[MenuItem<'a, T>]>> Widget<'
         "menu"
     }
 
-    fn state(&self) -> &'static str {
-        ""
-    }
-
     fn len(&self) -> usize {
         self.items.as_ref().len()
     }

@@ -11,8 +11,7 @@
 - [x] hot reloading
 - [x] margins
 - [x] progress bar widget
-- [ ] context menu widget / thing
-    - let the user just create a widget, and it will always be focused.
+- [x] context menu widget / thing
 - [ ] drag and drop widget
     - share a context between all drag/drop sources / targets
 

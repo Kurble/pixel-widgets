@@ -1,10 +1,11 @@
 use std::mem::replace;
+use smallvec::smallvec;
 
 use crate::draw::*;
-use crate::widget::{Context, Widget, IntoNode, Node};
+use crate::widget::{Context, Widget, IntoNode, Node, StateVec};
 use crate::event::{Event, Key};
 use crate::layout::{Rectangle, Size};
-use crate::stylesheet::Stylesheet;
+use crate::stylesheet::{Stylesheet, StyleState};
 
 /// A clickable button
 pub struct Button<'a, T> {
@@ -44,12 +45,12 @@ impl<'a, T: 'a> Widget<'a, T> for Button<'a, T> {
         "button"
     }
 
-    fn state(&self) -> &'static str {
+    fn state(&self) -> StateVec {
         match self.state {
-            State::Idle => "",
-            State::Hover => "hover",
-            State::Pressed => "pressed",
-            State::Disabled => "disabled",
+            State::Idle => StateVec::new(),
+            State::Hover => smallvec![StyleState::Hover],
+            State::Pressed => smallvec![StyleState::Pressed],
+            State::Disabled => smallvec![StyleState::Disabled],
         }
     }
 

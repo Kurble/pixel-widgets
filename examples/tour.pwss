@@ -97,5 +97,5 @@ menu {
 }
 
 menu > * {
-    margin: 2;
+    margin: 10 2;
 }

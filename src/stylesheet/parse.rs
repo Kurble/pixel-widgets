@@ -288,7 +288,13 @@ fn parse_selector<I: Iterator<Item = Token>, L: Loader>(
                     c.take(TokenValue::ParenClose)?;
                     Ok(Selector::Not(Box::new(inner)))
                 }
-                state => Ok(Selector::State(state.to_string())),
+                "hover" => Ok(Selector::State(StyleState::Hover)),
+                "pressed" => Ok(Selector::State(StyleState::Pressed)),
+                "checked" => Ok(Selector::State(StyleState::Checked)),
+                "disabled" => Ok(Selector::State(StyleState::Disabled)),
+                "open" => Ok(Selector::State(StyleState::Open)),
+                "closed" => Ok(Selector::State(StyleState::Closed)),
+                state => Ok(Selector::State(StyleState::Custom(state.to_string()))),
             }
         }
         Token(_, pos) => Err(Error::Syntax("expected `<selector>`".into(), pos)),

@@ -1,9 +1,12 @@
+use std::mem::replace;
+
+use smallvec::smallvec;
+
 use crate::draw::*;
-use crate::widget::{Context, Widget, IntoNode, Node};
 use crate::event::{Event, Key};
 use crate::layout::{Rectangle, Size};
-use crate::stylesheet::Stylesheet;
-use std::mem::replace;
+use crate::stylesheet::{Stylesheet, StyleState};
+use crate::widget::{Context, IntoNode, Node, StateVec, Widget};
 
 /// State for [`Toggle`](struct.Toggle.html)
 #[allow(missing_docs)]
@@ -37,17 +40,19 @@ impl<'a, T, F: Fn(bool) -> T> Widget<'a, T> for Toggle<'a, T, F> {
         "toggle"
     }
 
-    fn state(&self) -> &'static str {
+    fn state(&self) -> StateVec {
+        let mut state = match self.state {
+            State::Idle => StateVec::new(),
+            State::Hover => smallvec![StyleState::Hover],
+            State::Pressed => smallvec![StyleState::Pressed],
+            State::Disabled => smallvec![StyleState::Disabled],
+        };
+
         if self.checked {
-            "checked"
-        } else {
-            match self.state {
-                State::Idle => "",
-                State::Hover => "hover",
-                State::Pressed => "pressed",
-                State::Disabled => "disabled",
-            }
+            state.push(StyleState::Checked);
         }
+
+        state
     }
 
     fn len(&self) -> usize { 0 }

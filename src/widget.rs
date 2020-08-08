@@ -45,6 +45,7 @@ pub use self::text::Text;
 pub use self::toggle::Toggle;
 pub use self::window::Window;
 use std::sync::Arc;
+use smallvec::SmallVec;
 
 /// A clickable button
 pub mod button;
@@ -80,9 +81,10 @@ pub trait Widget<'a, Message> {
     /// The name of this widget, used to identify widgets of this type in stylesheets.
     fn widget(&self) -> &'static str;
 
-    /// The state of this widget, used for computing the style. Usually an empty string, "hover", "pressed", etc.
-    fn state(&self) -> &'static str {
-        ""
+    /// The state of this widget, used for computing the style.
+    /// If `None` is returned, `Node` will automatically compute a state, such as "hover" and "pressed".
+    fn state(&self) -> StateVec {
+        StateVec::new()
     }
 
     /// Should return the amount of children this widget has. Must be consistent with
@@ -165,6 +167,9 @@ pub trait IntoNode<'a, Message: 'a>: 'a + Sized {
     }
 }
 
+/// Storage for style states
+pub type StateVec = SmallVec<[StyleState<&'static str>; 3]>;
+
 /// Generic ui widget.
 pub struct Node<'a, Message> {
     widget: Box<dyn Widget<'a, Message> + 'a>,
@@ -176,7 +181,7 @@ pub struct Node<'a, Message> {
     selector_matches: BitSet,
     stylesheet: Option<Arc<Stylesheet>>,
     class: Option<&'a str>,
-    state: Option<&'static str>,
+    state: StateVec,
 }
 
 /// Context for posting messages and requesting redraws of the ui.
@@ -199,7 +204,7 @@ impl<'a, Message> Node<'a, Message> {
             selector_matches: BitSet::new(),
             stylesheet: None,
             class: None,
-            state: None,
+            state: SmallVec::new(),
         }
     }
 
@@ -215,20 +220,25 @@ impl<'a, Message> Node<'a, Message> {
         self
     }
 
+    fn state(&self) -> StateVec {
+        let result = self.widget.state();
+        result
+    }
+
     pub(crate) fn style(&mut self, query: &mut Query) {
         // remember style
         self.style = Some(query.style.clone());
 
         // resolve own stylesheet
+        self.state = self.state();
         self.selector_matches = query.match_widget(
             self.widget.widget(),
             self.class.unwrap_or(""),
-            self.widget.state(),
+            self.state.as_slice(),
             self.position.0,
             self.position.1,
         );
         self.stylesheet.replace(query.style.get(&self.selector_matches));
-        self.state = Some(self.widget.state());
 
         // resolve children style
         query.ancestors.push(self.selector_matches.clone());
@@ -248,7 +258,7 @@ impl<'a, Message> Node<'a, Message> {
         let additions = query.match_widget(
             self.widget.widget(),
             self.class.unwrap_or(""),
-            self.widget.state(),
+            self.state.as_slice(),
             self.position.0,
             self.position.1,
         );
@@ -270,7 +280,7 @@ impl<'a, Message> Node<'a, Message> {
         let removals = query.match_widget(
             self.widget.widget(),
             self.class.unwrap_or(""),
-            self.widget.state(),
+            self.state.as_slice(),
             self.position.0,
             self.position.1,
         );
@@ -361,13 +371,14 @@ impl<'a, Message> Node<'a, Message> {
         self.widget.event(layout, clip, stylesheet, event, context);
         self.focused.replace(Some(self.widget.focused()));
 
-        if Some(self.widget.state()) != self.state {
-            self.state = Some(self.widget.state());
+        let next_state = self.state();
+        if next_state != self.state {
+            self.state = next_state;
 
             // find out if the style changed as a result of the state change
             let new_style = self.style.as_ref().unwrap().rule_tree().rematch(
                 &self.selector_matches,
-                self.widget.state(),
+                self.state.as_slice(),
                 self.class.unwrap_or(""),
                 self.position.0,
                 self.position.1,
