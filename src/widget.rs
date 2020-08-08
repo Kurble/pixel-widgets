@@ -25,7 +25,7 @@ use std::rc::Rc;
 
 use crate::bitset::BitSet;
 use crate::draw::Primitive;
-use crate::event::Event;
+use crate::event::{Event, Key};
 use crate::layout::*;
 use crate::stylesheet::*;
 use crate::stylesheet::tree::Query;
@@ -36,6 +36,7 @@ pub use self::dropdown::Dropdown;
 pub use self::dummy::Dummy;
 pub use self::input::Input;
 pub use self::layers::Layers;
+pub use self::menu::Menu;
 pub use self::progress::Progress;
 pub use self::row::Row;
 pub use self::scroll::Scroll;
@@ -57,6 +58,8 @@ pub mod dummy;
 pub mod input;
 /// Stack child widgets on top of each other, while only the topmost receives events.
 pub mod layers;
+/// A context menu with nestable items
+pub mod menu;
 /// A bar that fills up according to a value.
 pub mod progress;
 /// Layout child widgets horizontally
@@ -165,6 +168,7 @@ pub trait IntoNode<'a, Message: 'a>: 'a + Sized {
 /// Generic ui widget.
 pub struct Node<'a, Message> {
     widget: Box<dyn Widget<'a, Message> + 'a>,
+    on_right_click: Option<Box<dyn 'a + Fn(f32, f32) -> Message>>,
     size: Cell<Option<(Size, Size)>>,
     focused: Cell<Option<bool>>,
     position: (usize, usize),
@@ -177,6 +181,7 @@ pub struct Node<'a, Message> {
 
 /// Context for posting messages and requesting redraws of the ui.
 pub struct Context<Message> {
+    cursor: (f32, f32),
     redraw: bool,
     messages: Vec<Message>,
 }
@@ -186,6 +191,7 @@ impl<'a, Message> Node<'a, Message> {
     pub fn new<T: 'a + Widget<'a, Message>>(widget: T) -> Self {
         Node {
             widget: Box::new(widget),
+            on_right_click: None,
             size: Cell::new(None),
             focused: Cell::new(None),
             position: (0, 1),
@@ -200,6 +206,12 @@ impl<'a, Message> Node<'a, Message> {
     /// Sets the style class
     pub fn class(mut self, class: &'a str) -> Self {
         self.class = Some(class);
+        self
+    }
+
+    /// Sets a message callback for when this node is right clicked
+    pub fn on_right_click(mut self, f: impl 'a + Fn(f32, f32) -> Message) -> Self {
+        self.on_right_click = Some(Box::new(f));
         self
     }
 
@@ -338,6 +350,14 @@ impl<'a, Message> Node<'a, Message> {
         let stylesheet = self.stylesheet.as_ref().unwrap().deref();
         let layout = layout.after_padding(stylesheet.margin);
 
+        match event {
+            Event::Press(Key::RightMouseButton) if self.on_right_click.is_some() => {
+                let (x, y) = context.cursor();
+                context.push((self.on_right_click.as_ref().unwrap())(x, y));
+            }
+            _ => (),
+        }
+
         self.widget.event(layout, clip, stylesheet, event, context);
         self.focused.replace(Some(self.widget.focused()));
 
@@ -403,8 +423,9 @@ impl<'a, Message: 'a> IntoNode<'a, Message> for Node<'a, Message> {
 }
 
 impl<Message> Context<Message> {
-    pub(crate) fn new(redraw: bool) -> Self {
+    pub(crate) fn new(redraw: bool, cursor: (f32, f32)) -> Self {
         Self {
+            cursor,
             redraw,
             messages: Vec::new(),
         }
@@ -428,6 +449,11 @@ impl<Message> Context<Message> {
     /// Returns the redraw flag.
     pub fn redraw_requested(&self) -> bool {
         self.redraw
+    }
+
+    /// Returns the cursor position
+    pub fn cursor(&self) -> (f32, f32) {
+        self.cursor
     }
 }
 

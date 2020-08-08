@@ -26,7 +26,7 @@ progress {
     width: fill(1);
     height: 40;
     padding: 5;
-    margin: 5 0;
+    margin: 5;
     background: #111;
     clip-bar: true;
 }

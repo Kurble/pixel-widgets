@@ -186,6 +186,7 @@ pub struct Ui<M: Model, E: EventLoop<Command<M::Message>>, L: Loader> {
     cache: Arc<Mutex<self::cache::Cache>>,
     viewport: Rectangle,
     redraw: bool,
+    cursor: (f32, f32),
     event_loop: E,
     loader: Arc<L>,
     hot_reload_style: Option<String>,
@@ -215,6 +216,7 @@ impl<M: Model, E: EventLoop<Command<M::Message>>, L: Loader> Ui<M, E, L> {
             cache,
             viewport,
             redraw: true,
+            cursor: (0.0, 0.0),
             event_loop,
             hot_reload_style: None,
             loader: Arc::new(loader),
@@ -243,6 +245,7 @@ impl<M: Model, E: EventLoop<Command<M::Message>>, L: Loader> Ui<M, E, L> {
             viewport,
             event_loop,
             redraw: true,
+            cursor: (0.0, 0.0),
             hot_reload_style: Some(url.as_ref().to_string()),
             loader: loader.clone(),
         };
@@ -345,7 +348,11 @@ impl<M: Model, E: EventLoop<Command<M::Message>>, L: Loader> Ui<M, E, L> {
 
     /// Handles an [`Event`](event/struct.Event.html).
     pub fn event(&mut self, event: Event) {
-        let mut context = Context::new(self.redraw);
+        if let Event::Cursor(x, y) = event {
+            self.cursor = (x, y);
+        }
+
+        let mut context = Context::new(self.redraw, self.cursor);
 
         {
             let view = self.model_view.view(self.style.clone());

@@ -17,7 +17,6 @@ struct Layer<'a, T, Id> {
 }
 
 /// State for [`Layers`](struct.Layers.html)
-#[derive(Default)]
 pub struct State<Id> {
     cursor_x: f32,
     cursor_y: f32,
@@ -180,5 +179,16 @@ impl<'a, T, Id> Drop for Layers<'a, T, Id> {
     fn drop(&mut self) {
         self.state.order.clear();
         self.state.order.extend(self.layers.drain(..).map(|layer| layer.id));
+    }
+}
+
+impl<Id> Default for State<Id> {
+    fn default() -> Self {
+        Self {
+            cursor_x: 0.0,
+            cursor_y: 0.0,
+            order: Vec::new(),
+            background_focused: true,
+        }
     }
 }

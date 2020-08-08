@@ -1,4 +1,5 @@
 use pixel_widgets::prelude::*;
+use pixel_widgets::widget::menu::MenuItem;
 use pixel_widgets::Command;
 
 struct Tour {
@@ -6,11 +7,13 @@ struct Tour {
     pub show_login: bool,
     pub name: String,
     pub password: String,
+    pub context: pixel_widgets::widget::menu::State,
     pub state: ManagedState<String>,
 }
 
 enum Message {
     LoginPressed,
+    ShowContext(f32, f32),
     ShowDummy,
     ShowLogin,
     NameChanged(String),
@@ -32,6 +35,9 @@ impl Model for Tour {
             Message::ShowLogin => {
                 self.show_login = true;
             }
+            Message::ShowContext(x, y) => {
+                self.context.open(x, y);
+            }
             Message::LoginPressed => {
                 println!("login pressed!");
             }
@@ -49,17 +55,49 @@ impl Model for Tour {
     fn view(&mut self) -> Node<Message> {
         let mut state = self.state.tracker();
 
-        let background = Column::new()
-            .push(Space)
-            .push(Row::new()
+        let background = Column::new().push(Space).push(
+            Row::new()
                 .push(Space)
                 .push(Button::new(state.get("dummy"), Text::new("Open dummy")).on_clicked(Message::ShowDummy))
                 .push(Button::new(state.get("login"), Text::new("Open login")).on_clicked(Message::ShowLogin))
-            );
+                .into_node()
+                .on_right_click(|x, y| Message::ShowContext(x, y)),
+        );
 
         let mut layers = Layers::<Message, &'static str>::with_background(state.get("layers"), background);
 
-        let options = ["Mercury", "Venus", "Earth", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto"];
+        let options = [
+            "Mercury", "Venus", "Earth", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto",
+        ];
+
+        layers = layers.push(
+            "menu",
+            Menu::new(&mut self.context)
+                .extend(vec![
+                    MenuItem::Item {
+                        content: Text::new("Open Dummy").into_node(),
+                        on_select: Some(Message::ShowDummy),
+                    },
+                    MenuItem::Item {
+                        content: Text::new("Open Login").into_node(),
+                        on_select: Some(Message::ShowLogin),
+                    },
+                    MenuItem::Menu {
+                        content: Text::new("Planets").into_node(),
+                        items: options
+                            .iter()
+                            .map(|option| MenuItem::Item {
+                                content: Text::new(option.to_string()).into_node(),
+                                on_select: Some(Message::PlanetSelected(option)),
+                            })
+                            .collect(),
+                    },
+                    MenuItem::Item {
+                        content: Text::new("Option D").into_node(),
+                        on_select: None,
+                    },
+                ])
+        );
 
         if self.show_dummy {
             layers = layers.push(
@@ -73,8 +111,12 @@ impl Model for Tour {
                         .class("title"),
                     Column::new()
                         .push(Text::new("Select a planet from the dropdown list: "))
-                        .push(Dropdown::new(state.get("dd"))
-                            .extend(options.iter().map(|&option| (Text::new(option), Message::PlanetSelected(option))))
+                        .push(
+                            Dropdown::new(state.get("dd")).extend(
+                                options
+                                    .iter()
+                                    .map(|&option| (Text::new(option), Message::PlanetSelected(option))),
+                            ),
                         ),
                 ),
             );
@@ -99,7 +141,9 @@ impl Model for Tour {
                                 "password",
                                 Message::PasswordChanged,
                             ))
-                            .push(Button::new(state.get("login"), Text::new("Login")).on_clicked(Message::LoginPressed)),
+                            .push(
+                                Button::new(state.get("login"), Text::new("Login")).on_clicked(Message::LoginPressed),
+                            ),
                     ),
                 ),
             );
@@ -116,6 +160,7 @@ async fn main() {
         show_login: false,
         name: String::new(),
         password: String::new(),
+        context: Default::default(),
         state: ManagedState::default(),
     };
 
@@ -123,5 +168,7 @@ async fn main() {
         .with_title("Tour")
         .with_inner_size(winit::dpi::LogicalSize::new(960, 480));
 
-    pixel_widgets::sandbox::run(model, std::path::PathBuf::from("./examples"), "tour.pwss", window).await;
+    let loader = pixel_widgets::loader::FsLoader::new("./examples".into()).unwrap();
+
+    pixel_widgets::sandbox::run(model, loader, "tour.pwss", window).await;
 }

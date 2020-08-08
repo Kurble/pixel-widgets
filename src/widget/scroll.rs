@@ -5,6 +5,8 @@ use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
 
 /// View a small section of larger widget, with scrollbars.
+/// The scrollbars are only rendered if the content is larger than the view in that direction.
+/// The scrollbars can be styled using the `scrollbar-horizontal` and `scrollbar-vertical` child widgets of this widget.
 pub struct Scroll<'a, T> {
     state: &'a mut State,
     content: Node<'a, T>,

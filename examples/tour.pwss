@@ -1,3 +1,7 @@
+* {
+    margin: 2;
+}
+
 window {
     background: #800;
 }
@@ -84,4 +88,14 @@ dropdown {
 
 dropdown:open {
     background: #002;
+}
+
+menu {
+    background: #111;
+    padding: 5;
+    color: #fff3;
+}
+
+menu > * {
+    margin: 2;
 }
