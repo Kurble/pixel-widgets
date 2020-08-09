@@ -25,10 +25,10 @@ use std::rc::Rc;
 
 use crate::bitset::BitSet;
 use crate::draw::Primitive;
-use crate::event::{Event, Key};
+use crate::event::{Event, Key, NodeEvent};
 use crate::layout::*;
-use crate::stylesheet::*;
 use crate::stylesheet::tree::Query;
+use crate::stylesheet::*;
 
 pub use self::button::Button;
 pub use self::column::Column;
@@ -44,8 +44,8 @@ pub use self::space::Space;
 pub use self::text::Text;
 pub use self::toggle::Toggle;
 pub use self::window::Window;
-use std::sync::Arc;
 use smallvec::SmallVec;
+use std::sync::Arc;
 
 /// A clickable button
 pub mod button;
@@ -165,6 +165,15 @@ pub trait IntoNode<'a, Message: 'a>: 'a + Sized {
     fn class(self, class: &'a str) -> Node<'a, Message> {
         self.into_node().class(class)
     }
+
+    /// Convenience function that converts to a node and then sets a handler for when a node event occurs.
+    fn on_event(
+        self,
+        event: NodeEvent,
+        f: impl 'a + Fn(&mut Context<Message>),
+    ) -> Node<'a, Message> {
+        self.into_node().on_event(event, f)
+    }
 }
 
 /// Storage for style states
@@ -173,7 +182,9 @@ pub type StateVec = SmallVec<[StyleState<&'static str>; 3]>;
 /// Generic ui widget.
 pub struct Node<'a, Message> {
     widget: Box<dyn Widget<'a, Message> + 'a>,
-    on_right_click: Option<Box<dyn 'a + Fn(f32, f32) -> Message>>,
+    event_handlers: Vec<(NodeEvent, Box<dyn 'a + Fn(&mut Context<Message>)>)>,
+    clicks: Vec<Key>,
+    hovered: bool,
     size: Cell<Option<(Size, Size)>>,
     focused: Cell<Option<bool>>,
     position: (usize, usize),
@@ -196,7 +207,9 @@ impl<'a, Message> Node<'a, Message> {
     pub fn new<T: 'a + Widget<'a, Message>>(widget: T) -> Self {
         Node {
             widget: Box::new(widget),
-            on_right_click: None,
+            event_handlers: Vec::new(),
+            clicks: Vec::new(),
+            hovered: false,
             size: Cell::new(None),
             focused: Cell::new(None),
             position: (0, 1),
@@ -214,14 +227,20 @@ impl<'a, Message> Node<'a, Message> {
         self
     }
 
-    /// Sets a message callback for when this node is right clicked
-    pub fn on_right_click(mut self, f: impl 'a + Fn(f32, f32) -> Message) -> Self {
-        self.on_right_click = Some(Box::new(f));
+    /// Sets a handler for when a node event occurs
+    pub fn on_event(mut self, event: NodeEvent, f: impl 'a + Fn(&mut Context<Message>)) -> Self {
+        self.event_handlers.push((event, Box::new(f)));
         self
     }
 
     fn state(&self) -> StateVec {
-        let result = self.widget.state();
+        let mut result = self.widget.state();
+        if self.hovered {
+            result.push(StyleState::Hover);
+        }
+        if self.clicks.len() > 0 {
+            result.push(StyleState::Pressed);
+        }
         result
     }
 
@@ -266,7 +285,8 @@ impl<'a, Message> Node<'a, Message> {
         let new_style = self.selector_matches.union(&additions);
         if new_style != self.selector_matches {
             self.selector_matches = new_style;
-            self.stylesheet.replace(self.style.as_ref().unwrap().get(&self.selector_matches));
+            self.stylesheet
+                .replace(self.style.as_ref().unwrap().get(&self.selector_matches));
         }
 
         query.ancestors.push(additions);
@@ -288,12 +308,14 @@ impl<'a, Message> Node<'a, Message> {
         let new_style = self.selector_matches.difference(&removals);
         if new_style != self.selector_matches {
             self.selector_matches = new_style;
-            self.stylesheet.replace(self.style.as_ref().unwrap().get(&self.selector_matches));
+            self.stylesheet
+                .replace(self.style.as_ref().unwrap().get(&self.selector_matches));
         }
 
         query.ancestors.push(removals);
         let own_siblings = std::mem::replace(&mut query.siblings, Vec::new());
-        self.widget.visit_children(&mut |child| child.remove_matches(&mut *query));
+        self.widget
+            .visit_children(&mut |child| child.remove_matches(&mut *query));
         std::mem::replace(&mut query.siblings, own_siblings);
         query.siblings.push(query.ancestors.pop().unwrap());
     }
@@ -347,6 +369,14 @@ impl<'a, Message> Node<'a, Message> {
         self.focused.get().unwrap()
     }
 
+    fn dispatch(&mut self, event: NodeEvent, context: &mut Context<Message>) {
+        for (handler_event, handler) in self.event_handlers.iter_mut() {
+            if *handler_event == event {
+                (handler)(context);
+            }
+        }
+    }
+
     /// Handle an event.
     ///
     /// Arguments:
@@ -357,16 +387,38 @@ impl<'a, Message> Node<'a, Message> {
     /// - `event`: the event that needs to be handled
     /// - `context`: context for submitting messages and requesting redraws of the ui.
     pub fn event(&mut self, layout: Rectangle, clip: Rectangle, event: Event, context: &mut Context<Message>) {
-        let stylesheet = self.stylesheet.as_ref().unwrap().deref();
-        let layout = layout.after_padding(stylesheet.margin);
-
+        // generate higher level events
         match event {
-            Event::Press(Key::RightMouseButton) if self.on_right_click.is_some() => {
-                let (x, y) = context.cursor();
-                context.push((self.on_right_click.as_ref().unwrap())(x, y));
+            Event::Cursor(x, y) => {
+                let hovered = self.hit(layout, clip, x, y);
+                if hovered != self.hovered {
+                    self.hovered = hovered;
+                    if hovered {
+                        self.dispatch(NodeEvent::MouseEnter, context);
+                    } else {
+                        self.dispatch(NodeEvent::MouseLeave, context);
+                        self.clicks.clear();
+                    }
+                }
             }
+            Event::Press(button) if self.hovered => {
+                self.dispatch(NodeEvent::MouseDown(button), context);
+                self.clicks.push(button);
+            }
+            Event::Release(button) if self.hovered => {
+                self.dispatch(NodeEvent::MouseUp(button), context);
+                let len = self.clicks.len();
+                self.clicks.retain(|click| click != &button);
+                if len != self.clicks.len() {
+                    self.dispatch(NodeEvent::MouseClick(button), context);
+                }
+            }
+
             _ => (),
         }
+
+        let stylesheet = self.stylesheet.as_ref().unwrap().deref();
+        let layout = layout.after_padding(stylesheet.margin);
 
         self.widget.event(layout, clip, stylesheet, event, context);
         self.focused.replace(Some(self.widget.focused()));
@@ -386,6 +438,8 @@ impl<'a, Message> Node<'a, Message> {
 
             // apply the style change to self and any children that have styles living down the same rule tree paths.
             if new_style != self.selector_matches {
+                context.redraw();
+
                 let difference = new_style.difference(&self.selector_matches);
                 let additions = difference.intersection(&new_style);
                 let removals = difference.intersection(&self.selector_matches);
@@ -405,11 +459,13 @@ impl<'a, Message> Node<'a, Message> {
                         ancestors: vec![removals],
                         siblings: vec![],
                     };
-                    self.widget.visit_children(&mut |child| child.remove_matches(&mut query));
+                    self.widget
+                        .visit_children(&mut |child| child.remove_matches(&mut query));
                 }
 
                 self.selector_matches = new_style;
-                self.stylesheet.replace(self.style.as_ref().unwrap().get(&self.selector_matches));
+                self.stylesheet
+                    .replace(self.style.as_ref().unwrap().get(&self.selector_matches));
             }
         }
     }
