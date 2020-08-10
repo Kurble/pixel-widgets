@@ -32,6 +32,7 @@ pub struct Drop<T, Message, OnAccept, OnDrop> {
 }
 
 impl<'a, T> Drag<'a, T> {
+    /// Construct a new `Drag` widget, with some data that is to be dragged through the context.
     pub fn new(state: &'a mut DragState, context: DragDropContext<T>, data: T) -> Self {
         Self {
             state,
@@ -46,6 +47,7 @@ where
     OnAccept: Fn(&mut T, &mut Context<Message>) -> bool,
     OnDrop: Fn(T) -> Message,
 {
+    /// Construct a new `Drop` widget
     pub fn new(context: DragDropContext<T>, accept: OnAccept, drop: OnDrop) -> Self {
         Self {
             context,

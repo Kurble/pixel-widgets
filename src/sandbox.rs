@@ -61,14 +61,12 @@ async fn run_loop<T: 'static + Model>(
 
     let mut swap_chain = device.create_swap_chain(&surface, &sc_desc);
 
-    let mut viewport = Rectangle::from_wh(size.width as f32, size.height as f32);
-
     let mut ui = match crate::backend::wgpu::Ui::with_stylesheet(
         model,
         event_loop.create_proxy(),
         loader,
         stylesheet,
-        viewport,
+        Rectangle::from_wh(size.width as f32, size.height as f32),
         swapchain_format,
         &device,
     )
@@ -97,8 +95,7 @@ async fn run_loop<T: 'static + Model>(
                 sc_desc.width = size.width;
                 sc_desc.height = size.height;
                 swap_chain = device.create_swap_chain(&surface, &sc_desc);
-                viewport = Rectangle::from_wh(size.width as f32, size.height as f32);
-                ui.resize(viewport);
+                ui.resize(Rectangle::from_wh(size.width as f32, size.height as f32));
             }
             Event::RedrawRequested(_) => {
                 let frame = swap_chain
@@ -111,7 +108,7 @@ async fn run_loop<T: 'static + Model>(
                             attachment: &frame.view,
                             resolve_target: None,
                             load_op: wgpu::LoadOp::Clear,
-                            store_op: wgpu::StoreOp::Clear,
+                            store_op: wgpu::StoreOp::Store,
                             clear_color: wgpu::Color::BLACK,
                         }],
                         depth_stencil_attachment: None,

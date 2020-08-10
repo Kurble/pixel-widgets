@@ -272,7 +272,7 @@ impl<'a, Message> Node<'a, Message> {
             child.style(&mut *query);
             i += 1;
         });
-        std::mem::replace(&mut query.siblings, own_siblings);
+        query.siblings = own_siblings;
         query.siblings.push(query.ancestors.pop().unwrap());
     }
 
@@ -295,7 +295,7 @@ impl<'a, Message> Node<'a, Message> {
         query.ancestors.push(additions);
         let own_siblings = std::mem::replace(&mut query.siblings, Vec::new());
         self.widget.visit_children(&mut |child| child.add_matches(&mut *query));
-        std::mem::replace(&mut query.siblings, own_siblings);
+        query.siblings = own_siblings;
         query.siblings.push(query.ancestors.pop().unwrap());
     }
 
@@ -319,7 +319,7 @@ impl<'a, Message> Node<'a, Message> {
         let own_siblings = std::mem::replace(&mut query.siblings, Vec::new());
         self.widget
             .visit_children(&mut |child| child.remove_matches(&mut *query));
-        std::mem::replace(&mut query.siblings, own_siblings);
+        query.siblings = own_siblings;
         query.siblings.push(query.ancestors.pop().unwrap());
     }
 
