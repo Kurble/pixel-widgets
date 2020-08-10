@@ -32,6 +32,7 @@ use crate::stylesheet::*;
 
 pub use self::button::Button;
 pub use self::column::Column;
+pub use self::drag_drop::{Drag, Drop};
 pub use self::dropdown::Dropdown;
 pub use self::dummy::Dummy;
 pub use self::input::Input;
@@ -51,6 +52,8 @@ use std::sync::Arc;
 pub mod button;
 /// Layout child widgets vertically
 pub mod column;
+/// Drag and drop zones
+pub mod drag_drop;
 /// Pick an item from a dropdown box
 pub mod dropdown;
 /// Dummy widget that has a custom widget name

@@ -56,15 +56,17 @@ impl Model for Tour {
     fn view(&mut self) -> Node<Message> {
         let mut state = self.state.tracker();
 
-        let background = Column::new().push(Space).push(
-            Row::new()
-                .push(Space)
-                .push(Button::new(state.get("dummy"), Text::new("Open dummy")).on_clicked(Message::ShowDummy))
-                .push(Button::new(state.get("login"), Text::new("Open login")).on_clicked(Message::ShowLogin))
-                .on_event(NodeEvent::MouseClick(Key::RightMouseButton), |ctx| {
-                    ctx.push(Message::ShowContext(ctx.cursor().0, ctx.cursor().1))
-                }),
-        );
+        let background = Column::new()
+            .push(Space)
+            .push(
+                Row::new()
+                    .push(Space)
+                    .push(Button::new(state.get("dummy"), Text::new("Open dummy")).on_clicked(Message::ShowDummy))
+                    .push(Button::new(state.get("login"), Text::new("Open login")).on_clicked(Message::ShowLogin)),
+            )
+            .on_event(NodeEvent::MouseClick(Key::RightMouseButton), |ctx| {
+                ctx.push(Message::ShowContext(ctx.cursor().0, ctx.cursor().1))
+            });
 
         let mut layers = Layers::<Message, &'static str>::with_background(state.get("layers"), background);
 
