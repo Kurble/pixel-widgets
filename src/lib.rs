@@ -103,20 +103,21 @@
 
 use std::future::Future;
 use std::ops::{Deref, DerefMut};
+use std::rc::Rc;
+use std::sync::{Arc, Mutex};
+use std::task::{Poll, Waker};
 
-use draw::DrawList;
+use futures::Stream;
+use futures::task::ArcWake;
 
+use crate::draw::DrawList;
 use crate::event::Event;
+use crate::graphics::Graphics;
 use crate::layout::Rectangle;
+use crate::loader::Loader;
 use crate::model_view::ModelView;
 use crate::stylesheet::Style;
 use crate::widget::{Context, Node};
-use crate::loader::Loader;
-use std::rc::Rc;
-use std::task::{Poll, Waker};
-use std::sync::{Arc, Mutex};
-use futures::Stream;
-use futures::task::ArcWake;
 
 mod atlas;
 /// Backend specific code
@@ -127,6 +128,8 @@ mod cache;
 pub mod draw;
 /// User input events
 pub mod event;
+/// Graphics loader
+pub mod graphics;
 /// Primitives used for layouts
 pub mod layout;
 /// Asynchronous resource loading
@@ -225,39 +228,20 @@ impl<M: Model, E: EventLoop<Command<M::Message>>, L: Loader> Ui<M, E, L> {
 
     /// Constructs a new `Ui` asynchronously by first fetching a stylesheet from a
     /// [.pwss](stylesheet/index.html) data source.
-    pub async fn with_stylesheet<U: AsRef<str>>(
-        model: M,
-        event_loop: E,
-        loader: L,
-        url: U,
-        viewport: Rectangle,
-    ) -> Result<Self, stylesheet::Error> {
-        let cache = Arc::new(Mutex::new(self::cache::Cache::new(512, 0)));
+    pub async fn set_stylesheet<U: AsRef<str>>(&mut self, url: U) -> Result<(), stylesheet::Error> {
+        let style = Style::load(self.loader.clone(), url.as_ref(), self.cache.clone()).await?;
+        self.style = Rc::new(style);
+        self.hot_reload_style = Some(url.as_ref().to_string());
 
-        let loader = Arc::new(loader);
-
-        let style = Rc::new(Style::load(loader.clone(), url.as_ref(), cache.clone()).await?);
-
-        let mut result = Self {
-            model_view: ModelView::new(model),
-            style,
-            cache: cache.clone(),
-            viewport,
-            event_loop,
-            redraw: true,
-            cursor: (0.0, 0.0),
-            hot_reload_style: Some(url.as_ref().to_string()),
-            loader: loader.clone(),
-        };
-
-        let loader = loader.clone();
+        let loader = self.loader.clone();
+        let cache = self.cache.clone();
         let url = url.as_ref().to_string();
-        result.command(Command::from_future_style(async move {
+        self.command(Command::from_future_style(async move {
             loader.wait(&url).await.map_err(|e| stylesheet::Error::Io(Box::new(e)))?;
             Ok(Style::load(loader, url, cache).await?)
         }));
 
-        Ok(result)
+        Ok(())
     }
 
     /// Replace the current stylesheet with a new one
@@ -268,6 +252,14 @@ impl<M: Model, E: EventLoop<Command<M::Message>>, L: Loader> Ui<M, E, L> {
         self.command(Command::from_future_style(async move {
             Style::load(loader, url, cache).await
         }));
+    }
+
+    /// Get a `Graphics` loader
+    pub fn graphics(&self) -> Graphics<L> {
+        Graphics {
+            cache: self.cache.clone(),
+            loader: self.loader.clone(),
+        }
     }
 
     /// Resizes the viewport.
@@ -768,5 +760,8 @@ impl<Message> Command<Message> {
 
 /// prelude module for convenience
 pub mod prelude {
-    pub use crate::{layout::Rectangle, stylesheet::Style, tracker::ManagedState, widget::*, Model, Command, Ui};
+    pub use crate::{Command, layout::Rectangle, Model, stylesheet::Style, tracker::ManagedState, Ui, widget::*};
+    #[cfg(feature="winit")]
+    #[cfg(feature="wgpu")]
+    pub use crate::sandbox::Sandbox;
 }

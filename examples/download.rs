@@ -89,5 +89,5 @@ async fn main() {
 
     let loader = pixel_widgets::loader::FsLoader::new("./examples".into()).unwrap();
 
-    pixel_widgets::sandbox::run(model, loader, "download.pwss", window).await;
+    pixel_widgets::sandbox::run(model, loader, "download.pwss", window, None).await;
 }

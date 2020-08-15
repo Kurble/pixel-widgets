@@ -294,6 +294,8 @@ fn parse_selector<I: Iterator<Item = Token>, L: Loader>(
                 "disabled" => Ok(Selector::State(StyleState::Disabled)),
                 "open" => Ok(Selector::State(StyleState::Open)),
                 "closed" => Ok(Selector::State(StyleState::Closed)),
+                "drag" => Ok(Selector::State(StyleState::Drag)),
+                "drop" => Ok(Selector::State(StyleState::Drop)),
                 state => Ok(Selector::State(StyleState::Custom(state.to_string()))),
             }
         }

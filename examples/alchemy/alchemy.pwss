@@ -1,0 +1,22 @@
+* .game {
+    width: fill(1);
+    height: fill(1);
+    background: #000;
+}
+
+* .game > * {
+    margin: 16;
+}
+
+* .game > space {
+    width: fill(1);
+    height: fill(1);
+    background: #111;
+    margin: 16;
+}
+
+* .game image {
+    width: 64;
+    height: 64;
+    margin: 16;
+}

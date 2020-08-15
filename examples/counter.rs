@@ -51,5 +51,7 @@ async fn main() {
         .with_title("Counter")
         .with_inner_size(winit::dpi::LogicalSize::new(240, 240));
 
-    pixel_widgets::sandbox::run(model, PathBuf::from("./examples"), "counter.pwss", window).await;
+    let loader = pixel_widgets::loader::FsLoader::new("./examples".into()).unwrap();
+
+    pixel_widgets::sandbox::run(model, loader, "counter.pwss", window, None).await;
 }

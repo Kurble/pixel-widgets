@@ -173,5 +173,11 @@ async fn main() {
 
     let loader = pixel_widgets::loader::FsLoader::new("./examples".into()).unwrap();
 
-    pixel_widgets::sandbox::run(model, loader, "tour.pwss", window).await;
+    let mut sandbox = Sandbox::new(model, loader, window).await;
+
+    sandbox.ui.set_stylesheet("tour.pwss")
+        .await
+        .expect("Unable to load stylesheet");
+
+    sandbox.run().await;
 }

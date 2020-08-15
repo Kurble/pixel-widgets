@@ -28,6 +28,8 @@ notify = "5.0.0-pre.3"
 [dev-dependencies]
 tokio = { version = "0.2.22", features = ["full"] }
 reqwest = "0.10.7"
+ron = "0.6.0"
+serde = { version = "1", features = ["derive"] }
 
 [package.metadata.docs.rs]
 # NOTE: clipboard feature is causing build failures

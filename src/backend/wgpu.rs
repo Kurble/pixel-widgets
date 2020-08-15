@@ -6,10 +6,9 @@ use zerocopy::AsBytes;
 use wgpu::*;
 
 use crate::draw::{Command as DrawCommand, DrawList, Update, Vertex};
-use crate::event::Event;
 use crate::layout::Rectangle;
 use crate::loader::Loader;
-use crate::{stylesheet, EventLoop, Model, Command};
+use crate::{Command, EventLoop, Model};
 
 /// Wrapper for [`Ui`](../../struct.Ui.html) that adds wgpu rendering.
 /// Requires the "wgpu" feature.
@@ -31,26 +30,15 @@ struct TextureEntry {
 impl<M: Model, E: EventLoop<Command<M::Message>>, L: Loader> Ui<M, E, L> {
     /// Constructs a new `Ui` using the default style.
     /// This is not recommended as the default style is very empty and only renders white text.
-    pub fn new(model: M, event_loop: E, loader: L, viewport: Rectangle, format: wgpu::TextureFormat, device: &Device) -> Self {
-        Self::new_inner(crate::Ui::new(model, event_loop, loader, viewport), format, device)
-    }
-
-    /// Constructs a new `Ui` asynchronously by first fetching a stylesheet from a
-    /// [.pwss](../../stylesheet/index.html) data source.
-    pub async fn with_stylesheet<U: AsRef<str>>(
+    pub fn new(
         model: M,
         event_loop: E,
         loader: L,
-        url: U,
         viewport: Rectangle,
         format: wgpu::TextureFormat,
         device: &Device,
-    ) -> Result<Self, stylesheet::Error> {
-        Ok(Self::new_inner(
-            crate::Ui::with_stylesheet(model, event_loop, loader, url, viewport).await?,
-            format,
-            device,
-        ))
+    ) -> Self {
+        Self::new_inner(crate::Ui::new(model, event_loop, loader, viewport), format, device)
     }
 
     fn new_inner(inner: crate::Ui<M, E, L>, format: wgpu::TextureFormat, device: &Device) -> Self {
@@ -171,34 +159,6 @@ impl<M: Model, E: EventLoop<Command<M::Message>>, L: Loader> Ui<M, E, L> {
         }
     }
 
-    /// Resizes the viewport.
-    /// This forces the view to be rerendered.
-    pub fn resize(&mut self, viewport: Rectangle) {
-        self.inner.resize(viewport);
-    }
-
-    /// Updates the model after a `Command` has resolved.
-    pub fn command(&mut self, command: Command<M::Message>) {
-        self.inner.command(command);
-    }
-
-    /// Updates the model with a message.
-    /// This forces the view to be rerendered.
-    pub fn update(&mut self, message: M::Message) {
-        self.inner.update(message);
-    }
-
-    /// Handles an [`Event`](../../event/struct.Event.html).
-    pub fn event(&mut self, event: Event) {
-        self.inner.event(event);
-    }
-
-    /// Returns true if the ui needs to be redrawn. If the ui doesn't need to be redrawn the
-    /// [`Command`s](../../draw/struct.Command.html) from the last [`draw`](#method.draw) may be used again.
-    pub fn needs_redraw(&self) -> bool {
-        self.inner.needs_redraw()
-    }
-
     /// Generate a [`DrawList`](draw/struct.DrawList.html) for the view.
     pub fn draw<'a>(&'a mut self, device: &Device, queue: &Queue, render_pass: &mut RenderPass<'a>) {
         if self.inner.needs_redraw() {
@@ -217,7 +177,7 @@ impl<M: Model, E: EventLoop<Command<M::Message>>, L: Loader> Ui<M, E, L> {
                     .into_iter()
                     .fold(cmd, |mut cmd, update| {
                         match update {
-                            Update::Texture { id, size, data, atlas } => {
+                            Update::Texture { id, size, data, atlas: _ } => {
                                 let texture = device.create_texture(&wgpu::TextureDescriptor {
                                     label: None,
                                     size: wgpu::Extent3d {
@@ -230,11 +190,7 @@ impl<M: Model, E: EventLoop<Command<M::Message>>, L: Loader> Ui<M, E, L> {
                                     sample_count: 1,
                                     dimension: wgpu::TextureDimension::D2,
                                     format: wgpu::TextureFormat::Rgba8Unorm,
-                                    usage: if atlas {
-                                        wgpu::TextureUsage::SAMPLED | wgpu::TextureUsage::COPY_DST
-                                    } else {
-                                        wgpu::TextureUsage::SAMPLED
-                                    },
+                                    usage: wgpu::TextureUsage::SAMPLED | wgpu::TextureUsage::COPY_DST,
                                 });
 
                                 if data.len() > 0 {
@@ -365,15 +321,15 @@ impl<M: Model, E: EventLoop<Command<M::Message>>, L: Loader> Ui<M, E, L> {
 }
 
 impl<M: Model, E: EventLoop<Command<M::Message>>, L: Loader> Deref for Ui<M, E, L> {
-    type Target = M;
+    type Target = crate::Ui<M, E, L>;
 
     fn deref(&self) -> &Self::Target {
-        self.inner.deref()
+        &self.inner
     }
 }
 
 impl<M: Model, E: EventLoop<Command<M::Message>>, L: Loader> DerefMut for Ui<M, E, L> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        self.inner.deref_mut()
+        &mut self.inner
     }
 }

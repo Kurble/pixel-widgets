@@ -2,7 +2,6 @@ use std::any::Any;
 use std::borrow::Borrow;
 
 /// An [`Widget`](../widget/trait.Widget.html) state tracker.
-#[derive(Default)]
 pub struct ManagedState<Id: Eq + Clone> {
     state: Vec<Tracked<Id>>,
 }
@@ -26,6 +25,14 @@ impl<Id: Eq + Clone> ManagedState<Id> {
         ManagedStateTracker {
             tracker: self,
             index: 0,
+        }
+    }
+}
+
+impl<Id: Eq + Clone> Default for ManagedState<Id> {
+    fn default() -> Self {
+        Self {
+            state: Vec::new(),
         }
     }
 }

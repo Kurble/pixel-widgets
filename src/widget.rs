@@ -35,6 +35,8 @@ pub use self::column::Column;
 pub use self::drag_drop::{Drag, Drop};
 pub use self::dropdown::Dropdown;
 pub use self::dummy::Dummy;
+pub use self::frame::Frame;
+pub use self::image::Image;
 pub use self::input::Input;
 pub use self::layers::Layers;
 pub use self::menu::Menu;
@@ -58,8 +60,12 @@ pub mod drag_drop;
 pub mod dropdown;
 /// Dummy widget that has a custom widget name
 pub mod dummy;
+/// A widget that wraps around a content widget
+pub mod frame;
 /// Editable text input
 pub mod input;
+/// Just an image
+pub mod image;
 /// Stack child widgets on top of each other, while only the topmost receives events.
 pub mod layers;
 /// A context menu with nestable items
@@ -146,6 +152,20 @@ pub trait Widget<'a, Message> {
         _clip: Rectangle,
         _style: &Stylesheet,
         _event: Event,
+        _context: &mut Context<Message>,
+    ) {
+    }
+
+    /// Handle a node event. If an event changes the graphical appearance of an `Widget`,
+    /// [`redraw`](struct.Context.html#method.redraw) should be called to let the [`Ui`](../struct.Ui.html) know that
+    /// the ui should be redrawn.
+    ///
+    /// Arguments:
+    /// - `event`: the event that needs to be handled
+    /// - `context`: context for submitting messages and requesting redraws of the ui.
+    fn node_event(
+        &mut self,
+        _event: NodeEvent,
         _context: &mut Context<Message>,
     ) {
     }
@@ -373,6 +393,8 @@ impl<'a, Message> Node<'a, Message> {
     }
 
     fn dispatch(&mut self, event: NodeEvent, context: &mut Context<Message>) {
+        self.widget.node_event(event, context);
+
         for (handler_event, handler) in self.event_handlers.iter_mut() {
             if *handler_event == event {
                 (handler)(context);

@@ -1,3 +1,5 @@
+use std::sync::Weak;
+
 pub enum Atlas<T> {
     Split(Area, Box<[Atlas<T>; 4]>),
     Vacant(Area),
@@ -94,33 +96,30 @@ impl<T> Atlas<T> {
     }
 }
 
-impl<T: Eq> Atlas<T> {
-    pub fn remove_by_value(&mut self, value: &T) -> Option<T> {
-        match self {
-            &mut Atlas::Vacant(_) => None,
-            &mut Atlas::Split(_, ref mut children) => {
-                for child in children.iter_mut() {
-                    if let Some(val) = child.remove_by_value(value) {
-                        return Some(val);
-                    }
-                }
-                None
-            }
-            occupied => {
-                let is = match occupied {
-                    Atlas::Occupied(_, val) => val == value,
-                    _ => false
-                };
-                if is {
-                    if let Atlas::Occupied(_, val) = std::mem::replace(occupied, Atlas::Vacant(occupied.area())) {
-                        Some(val)
-                    } else {
-                        None
-                    }
+impl<T> Atlas<Weak<T>> {
+    pub fn remove_expired(&mut self) -> bool {
+        let (area, empty) = match self {
+            &mut Atlas::Split(ref area, ref mut children) => (
+                area.clone(),
+                children
+                    .iter_mut()
+                    .fold(true, |empty, child| child.remove_expired() && empty),
+            ),
+            &mut Atlas::Vacant(ref area) => (area.clone(), true),
+            &mut Atlas::Occupied(ref area, ref content) => {
+                if content.strong_count() == 0 {
+                    (area.clone(), true)
                 } else {
-                    None
+                    (area.clone(), false)
                 }
             }
+        };
+
+        if empty {
+            *self = Atlas::Vacant(area);
+            true
+        } else {
+            false
         }
     }
 }

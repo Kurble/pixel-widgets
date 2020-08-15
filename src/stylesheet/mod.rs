@@ -289,6 +289,10 @@ pub enum StyleState<S: AsRef<str>> {
     Open,
     /// When a widget is in a collapsed state
     Closed,
+    /// When a drag widget is being dragged
+    Drag,
+    /// When a drop widget accepts a dragged widget before it's dropped
+    Drop,
     /// Custom state for custom widgets
     Custom(S),
 }

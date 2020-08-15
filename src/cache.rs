@@ -1,4 +1,5 @@
 use std::mem;
+use std::sync::{Arc, Weak};
 
 use image;
 use image::{Rgba, RgbaImage};
@@ -6,17 +7,17 @@ use rusttype;
 use rusttype::{point, vector};
 use smallvec::SmallVec;
 
+use crate::atlas::*;
 use crate::draw::*;
 use crate::layout::Rectangle;
-use crate::atlas::*;
 use crate::text::Text;
 
 type GlyphCache = rusttype::gpu_cache::Cache<'static>;
 pub type Font = rusttype::Font<'static>;
 pub type FontId = usize;
 
-#[allow(dead_code)]
 pub struct Cache {
+    #[allow(unused)]
     size: usize,
     glyphs: GlyphCache,
     textures: Vec<TextureSlot>,
@@ -27,7 +28,7 @@ pub struct Cache {
 }
 
 enum TextureSlot {
-    Atlas(Atlas<usize>),
+    Atlas(Atlas<Weak<usize>>),
     Big,
 }
 
@@ -35,22 +36,34 @@ impl Cache {
     pub fn new(size: usize, offset: usize) -> Cache {
         let glyphs = GlyphCache::builder().dimensions(size as u32, size as u32).build();
 
-        let mut atlas = Atlas::new(size);
-        atlas.insert(0, size / 2).unwrap();
-
-        let atlas_create = Update::Texture {
-            id: offset,
-            size: [size as u32, size as u32],
-            data: Vec::new(),
-            atlas: true,
-        };
+        let atlas = Atlas::new(size);
 
         Cache {
-            size: size,
-            glyphs: glyphs,
-            textures: vec![TextureSlot::Atlas(atlas)],
+            size,
+            glyphs,
+            textures: vec![
+                // glyph cache
+                TextureSlot::Big,
+                // atlas for textures
+                TextureSlot::Atlas(atlas)
+            ],
             textures_offset: offset,
-            updates: vec![atlas_create],
+            updates: vec![
+                // glyph cache
+                Update::Texture {
+                    id: offset,
+                    size: [size as u32, size as u32],
+                    data: Vec::new(),
+                    atlas: true,
+                },
+                // atlas for textures
+                Update::Texture {
+                    id: offset + 1,
+                    size: [size as u32, size as u32],
+                    data: Vec::new(),
+                    atlas: true,
+                },
+            ],
             font_id_counter: 0,
             image_id_counter: 1,
         }
@@ -116,58 +129,6 @@ impl Cache {
                         },
                     );
                 });
-        }
-    }
-
-    fn insert_image(&mut self, image: image::RgbaImage) -> (usize, usize, Rectangle) {
-        let tex_id = 0;
-        let image_id = self.image_id_counter;
-        self.image_id_counter += 1;
-        let (area, atlas_size) = if let TextureSlot::Atlas(ref mut atlas) = self.textures[tex_id] {
-            let image_size = image.width().max(image.height()) as usize;
-            (atlas.insert(image_id, image_size).ok(), atlas.size() as f32)
-        } else {
-            (None, 0.0)
-        };
-
-        if area.is_some() {
-            let mut area = area.unwrap();
-
-            area.right = area.left + image.width() as usize;
-            area.bottom = area.top + image.height() as usize;
-
-            let update = Update::TextureSubresource {
-                id: tex_id + self.textures_offset,
-                offset: [area.left as u32, area.top as u32],
-                size: [image.width(), image.height()],
-                data: image.to_vec(),
-            };
-            self.updates.push(update);
-
-            (
-                self.textures_offset + tex_id,
-                image_id,
-                Rectangle {
-                    left: area.left as f32 / atlas_size,
-                    top: area.top as f32 / atlas_size,
-                    right: area.right as f32 / atlas_size,
-                    bottom: area.bottom as f32 / atlas_size,
-                },
-            )
-        } else {
-            let tex_id = self.textures_offset + self.textures.len();
-
-            let update = Update::Texture {
-                id: tex_id,
-                size: [image.width(), image.height()],
-                data: image.to_vec(),
-                atlas: false,
-            };
-
-            self.updates.push(update);
-            self.textures.push(TextureSlot::Big);
-
-            (tex_id, image_id, Rectangle::from_wh(1.0, 1.0))
         }
     }
 
@@ -265,17 +226,6 @@ impl Cache {
         }
     }
 
-    pub fn unload_image(&mut self, image: Image) {
-        if let Some(tex) = self.textures.get_mut(image.texture) {
-            match tex {
-                &mut TextureSlot::Atlas(ref mut atlas) => {
-                    atlas.remove_by_value(&image.cache_id);
-                },
-                &mut TextureSlot::Big => (),
-            }
-        }
-    }
-
     pub fn load_font<D: Into<Vec<u8>>>(&mut self, data: D) -> crate::text::Font {
         let inner = Font::try_from_vec(data.into()).expect("error loading font");
 
@@ -286,6 +236,67 @@ impl Cache {
             inner,
             id,
             tex_slot: self.textures_offset,
+        }
+    }
+
+    fn insert_image(&mut self, image: image::RgbaImage) -> (usize, Arc<usize>, Rectangle) {
+        for slot in self.textures.iter_mut() {
+            if let &mut TextureSlot::Atlas(ref mut atlas) = slot {
+                atlas.remove_expired();
+            }
+        }
+
+        let image_id = Arc::new(self.image_id_counter);
+        self.image_id_counter += 1;
+
+        let slot = self.textures.iter_mut().enumerate().filter_map(|(index, slot)| {
+            match slot {
+                &mut TextureSlot::Atlas(ref mut atlas) => {
+                    let image_size = image.width().max(image.height()) as usize;
+                    atlas.insert(Arc::downgrade(&image_id), image_size).ok().map(|area| {
+                        (area, atlas.size() as f32, index)
+                    })
+                }
+                &mut TextureSlot::Big => None,
+            }
+        }).next();
+
+        if let Some((mut area, atlas_size, tex_id)) = slot {
+            area.right = area.left + image.width() as usize;
+            area.bottom = area.top + image.height() as usize;
+
+            let update = Update::TextureSubresource {
+                id: tex_id + self.textures_offset,
+                offset: [area.left as u32, area.top as u32],
+                size: [image.width(), image.height()],
+                data: image.to_vec(),
+            };
+            self.updates.push(update);
+
+            (
+                self.textures_offset + tex_id,
+                image_id,
+                Rectangle {
+                    left: area.left as f32 / atlas_size,
+                    top: area.top as f32 / atlas_size,
+                    right: area.right as f32 / atlas_size,
+                    bottom: area.bottom as f32 / atlas_size,
+                },
+            )
+        } else {
+            let tex_id = self.textures_offset + self.textures.len();
+
+            let update = Update::Texture {
+                id: tex_id,
+                size: [image.width(), image.height()],
+                data: image.to_vec(),
+                atlas: false,
+            };
+
+            self.updates.push(update);
+            self.textures.push(TextureSlot::Big);
+
+            (tex_id, image_id, Rectangle::from_wh(1.0, 1.0))
         }
     }
 }
