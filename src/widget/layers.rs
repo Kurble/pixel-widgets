@@ -51,6 +51,15 @@ impl<'a, T: 'a, Id: 'a + Eq + Clone> Layers<'a, T, Id> {
         });
         self
     }
+
+    /// Adds child widgets using an iterator
+    pub fn extend<I: IntoIterator<Item = (Id, N)>, N: IntoNode<'a, T> + 'a>(mut self, iter: I) -> Self {
+        self.layers.extend(iter.into_iter().map(|(id, layer)| Layer {
+            node: layer.into_node(),
+            id,
+        }));
+        self
+    }
 }
 
 impl<'a, T: 'a, Id: 'a> Widget<'a, T> for Layers<'a, T, Id> {

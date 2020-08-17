@@ -1,3 +1,9 @@
+space {
+    width: fill(1);
+    height: fill(1);
+    background: #111;
+}
+
 * .game {
     width: fill(1);
     height: fill(1);
@@ -8,14 +14,16 @@
     margin: 16;
 }
 
-* .game > space {
+* .game > layers {
     width: fill(1);
     height: fill(1);
-    background: #111;
-    margin: 16;
 }
 
-* .game image {
+drop:hover * {
+    background: #222;
+}
+
+image {
     width: 64;
     height: 64;
     margin: 16;

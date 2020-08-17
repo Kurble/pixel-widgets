@@ -40,6 +40,7 @@ pub use self::image::Image;
 pub use self::input::Input;
 pub use self::layers::Layers;
 pub use self::menu::Menu;
+pub use self::panel::Panel;
 pub use self::progress::Progress;
 pub use self::row::Row;
 pub use self::scroll::Scroll;
@@ -70,6 +71,8 @@ pub mod image;
 pub mod layers;
 /// A context menu with nestable items
 pub mod menu;
+/// A panel with a fixed size and location within it's parent
+pub mod panel;
 /// A bar that fills up according to a value.
 pub mod progress;
 /// Layout child widgets horizontally

@@ -1,10 +1,11 @@
-use pixel_widgets::prelude::*;
-use winit::window::WindowBuilder;
-use pixel_widgets::Command;
 use pixel_widgets::loader::Loader;
-use std::collections::HashMap;
-use serde::Deserialize;
+use pixel_widgets::prelude::*;
 use pixel_widgets::widget::drag_drop::DragDropContext;
+use pixel_widgets::Command;
+use serde::Deserialize;
+use std::collections::HashMap;
+use winit::window::WindowBuilder;
+use pixel_widgets::widget::panel::Anchor;
 
 enum Alchemy {
     Loading {
@@ -15,7 +16,8 @@ enum Alchemy {
         state: ManagedState<Id>,
         context: DragDropContext<usize>,
         items: Vec<Item>,
-        // todo
+        next_item_id: usize,
+        playground: Vec<(Item, usize, (f32, f32))>,
     },
 }
 
@@ -23,6 +25,8 @@ enum Alchemy {
 enum Id {
     Inventory,
     InventoryItem(usize),
+    Playground,
+    PlaygroundItem(usize),
 }
 
 #[derive(Clone)]
@@ -39,6 +43,7 @@ enum Message {
     LoadItems(usize),
     LoadedItem,
     Loaded(Vec<Item>),
+    Place(Item, (f32, f32)),
 }
 
 impl Model for Alchemy {
@@ -58,9 +63,17 @@ impl Model for Alchemy {
             Message::Loaded(items) => {
                 *self = Self::Game {
                     state: Default::default(),
-                    context: DragDropContext::default(),
+                    context: Default::default(),
                     items,
+                    next_item_id: 0,
+                    playground: Default::default(),
                 };
+            }
+            Message::Place(item, pos) => {
+                if let Self::Game { ref mut playground, ref mut next_item_id, .. } = *self {
+                    playground.push((item, *next_item_id, pos));
+                    *next_item_id += 1;
+                }
             }
         }
 
@@ -69,31 +82,43 @@ impl Model for Alchemy {
 
     fn view(&mut self) -> Node<Message> {
         match self {
-            &mut Self::Loading { progress, total } => {
-                Column::new()
-                    .push(Space)
-                    .push(Progress::new(progress as f32 / total as f32))
-                    .class("loading")
-            }
-            &mut Self::Game { ref mut state, ref context, ref items } => {
+            &mut Self::Loading { progress, total } => Column::new()
+                .push(Space)
+                .push(Progress::new(progress as f32 / total as f32))
+                .class("loading"),
+            &mut Self::Game {
+                ref mut state,
+                ref context,
+                ref items,
+                ref playground,
+                ..
+            } => {
                 let mut state = state.tracker();
 
-                let filtered: Vec<(usize, &Item)> = items
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, item)| item.discovered)
-                    .collect();
+                let playground = Layers::with_background(
+                    state.get(&Id::Playground),
+                    Drop::new(
+                        state.get(&Id::Playground),
+                        context,
+                        |_| true,
+                        move |i, pos| Message::Place(items[i].clone(), pos),
+                        Space,
+                    ),
+                )
+                .extend(playground.iter().map(|(item, id, pos)| (*id, Panel::new(*pos, Anchor::TopLeft, &item.image))));
 
-                let inventory = Column::new()
-                    .extend(filtered.chunks(4).map(|row| {
-                        Row::new()
-                            .extend(row.iter().map(|&(i, item)| {
-                                Drag::new(state.get(&Id::InventoryItem(i)), context, i, &item.image)
-                            }))
-                    }));
+                let filtered: Vec<(usize, &Item)> =
+                    items.iter().enumerate().filter(|(_, item)| item.discovered).collect();
+
+                let inventory = Column::new().extend(filtered.chunks(4).map(|row| {
+                    Row::new().extend(
+                        row.iter()
+                            .map(|&(i, item)| Drag::new(state.get(&Id::InventoryItem(i)), context, i, &item.image)),
+                    )
+                }));
 
                 Row::new()
-                    .push(Space)
+                    .push(playground)
                     .push(Scroll::new(state.get(&Id::Inventory), inventory))
                     .class("game")
             }
@@ -103,10 +128,7 @@ impl Model for Alchemy {
 
 #[tokio::main]
 async fn main() {
-    let model = Alchemy::Loading {
-        progress: 0,
-        total: 1,
-    };
+    let model = Alchemy::Loading { progress: 0, total: 1 };
 
     let window = WindowBuilder::new()
         .with_title("Alchemy Game")
@@ -150,7 +172,8 @@ async fn main() {
                     combinations: HashMap::new(),
                 }
             }
-        })).await;
+        }))
+        .await;
 
         for (index, def) in defs.into_iter().enumerate() {
             if let Some((a, b)) = def.recipe {

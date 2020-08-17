@@ -69,7 +69,7 @@ impl<'a, T: DragDropId, Message: 'a> Drag<'a, T, Message> {
 impl<'a, T: DragDropId, Message: 'a, OnAccept: 'a, OnDrop: 'a> Drop<'a, T, Message, OnAccept, OnDrop>
 where
     OnAccept: Fn(T) -> bool,
-    OnDrop: Fn(T) -> Message,
+    OnDrop: Fn(T, (f32, f32)) -> Message,
 {
     /// Construct a new `Drop` widget
     pub fn new(
@@ -169,7 +169,7 @@ impl<'a, T: DragDropId, Message: 'a> Widget<'a, Message> for Drag<'a, T, Message
 impl<'a, T: DragDropId, Message: 'a, OnAccept, OnDrop> Widget<'a, Message> for Drop<'a, T, Message, OnAccept, OnDrop>
 where
     OnAccept: Fn(T) -> bool,
-    OnDrop: Fn(T) -> Message,
+    OnDrop: Fn(T, (f32, f32)) -> Message,
 {
     fn widget(&self) -> &'static str {
         "drop"
@@ -209,7 +209,7 @@ where
             }
             NodeEvent::MouseUp(Key::LeftMouseButton) => {
                 if let Some(data) = self.state.hovering.take() {
-                    context.push((self.drop)(data));
+                    context.push((self.drop)(data, context.cursor));
                 }
             }
 
@@ -231,7 +231,7 @@ impl<'a, T: DragDropId, Message: 'a> IntoNode<'a, Message> for Drag<'a, T, Messa
 impl<'a, T: DragDropId, Message: 'a, OnAccept: 'a, OnDrop: 'a> IntoNode<'a, Message> for Drop<'a, T, Message, OnAccept, OnDrop>
 where
     OnAccept: Fn(T) -> bool,
-    OnDrop: Fn(T) -> Message,
+    OnDrop: Fn(T, (f32, f32)) -> Message,
 {
     fn into_node(self) -> Node<'a, Message> {
         Node::new(self)
