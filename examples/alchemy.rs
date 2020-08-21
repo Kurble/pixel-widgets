@@ -14,11 +14,17 @@ enum Alchemy {
     },
     Game {
         state: ManagedState<Id>,
-        context: DragDropContext<usize>,
+        context: DragDropContext<DragItem>,
         items: Vec<Item>,
         next_item_id: usize,
         playground: Vec<(Item, usize, (f32, f32))>,
     },
+}
+
+#[derive(Clone, Copy)]
+enum DragItem {
+    FromInventory(usize),
+    FromPlayground(usize),
 }
 
 #[derive(PartialEq, Eq, Clone)]
@@ -44,6 +50,7 @@ enum Message {
     LoadedItem,
     Loaded(Vec<Item>),
     Place(Item, (f32, f32)),
+    MovePlaygroundItem(usize, (f32, f32)),
 }
 
 impl Model for Alchemy {
@@ -75,6 +82,15 @@ impl Model for Alchemy {
                     *next_item_id += 1;
                 }
             }
+            Message::MovePlaygroundItem(move_id, new_pos) => {
+                if let Self::Game { ref mut playground, .. } = *self {
+                    for &mut (_, ref id, ref mut pos) in playground.iter_mut() {
+                        if *id == move_id {
+                            *pos = new_pos;
+                        }
+                    }
+                }
+            }
         }
 
         Vec::new()
@@ -100,12 +116,30 @@ impl Model for Alchemy {
                     Drop::new(
                         state.get(&Id::Playground),
                         context,
-                        |_| true,
-                        move |i, pos| Message::Place(items[i].clone(), pos),
+                        |_| {
+                            println!("accepting");
+                            true
+                        },
+                        move |drag_item, pos| {
+                            println!("dropping!");
+                            match drag_item {
+                                DragItem::FromInventory(i) => Message::Place(items[i].clone(), pos),
+                                DragItem::FromPlayground(i) => Message::MovePlaygroundItem(i, pos),
+                            }
+                        },
                         Space,
                     ),
                 )
-                .extend(playground.iter().map(|(item, id, pos)| (*id, Panel::new(*pos, Anchor::TopLeft, &item.image))));
+                .extend(playground.iter().map(|(item, id, pos)| {
+                    let drag = Drag::new(
+                        state.get(&Id::PlaygroundItem(*id)),
+                        context,
+                        DragItem::FromPlayground(*id),
+                        &item.image
+                    );
+                    let widget = Panel::new(*pos, Anchor::TopLeft, drag);
+                    (*id, widget)
+                }));
 
                 let filtered: Vec<(usize, &Item)> =
                     items.iter().enumerate().filter(|(_, item)| item.discovered).collect();
@@ -113,7 +147,7 @@ impl Model for Alchemy {
                 let inventory = Column::new().extend(filtered.chunks(4).map(|row| {
                     Row::new().extend(
                         row.iter()
-                            .map(|&(i, item)| Drag::new(state.get(&Id::InventoryItem(i)), context, i, &item.image)),
+                            .map(|&(i, item)| Drag::new(state.get(&Id::InventoryItem(i)), context, DragItem::FromInventory(i), &item.image)),
                     )
                 }));
 

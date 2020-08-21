@@ -15,6 +15,8 @@
 - Added `on_right_click` callback to `Node`.
 - Modified `Widget::state` to return a `SmallVec` of states, to support multiple states at once, 
 like a `Toggle` than be `checked` and `hover` at the same time.
+- Added `Drag` and `Drop` widget.
+- The `Layers` widget now propagates events to all layers, except for `Event::Cursor`.
 
  ### v0.3.0
 - Added `len()` to `Widget`.

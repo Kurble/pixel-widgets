@@ -63,10 +63,10 @@ pub mod dropdown;
 pub mod dummy;
 /// A widget that wraps around a content widget
 pub mod frame;
-/// Editable text input
-pub mod input;
 /// Just an image
 pub mod image;
+/// Editable text input
+pub mod input;
 /// Stack child widgets on top of each other, while only the topmost receives events.
 pub mod layers;
 /// A context menu with nestable items
@@ -168,6 +168,8 @@ pub trait Widget<'a, Message> {
     /// - `context`: context for submitting messages and requesting redraws of the ui.
     fn node_event(
         &mut self,
+        _layout: Rectangle,
+        _style: &Stylesheet,
         _event: NodeEvent,
         _context: &mut Context<Message>,
     ) {
@@ -193,11 +195,7 @@ pub trait IntoNode<'a, Message: 'a>: 'a + Sized {
     }
 
     /// Convenience function that converts to a node and then sets a handler for when a node event occurs.
-    fn on_event(
-        self,
-        event: NodeEvent,
-        f: impl 'a + Fn(&mut Context<Message>),
-    ) -> Node<'a, Message> {
+    fn on_event(self, event: NodeEvent, f: impl 'a + Fn(&mut Context<Message>)) -> Node<'a, Message> {
         self.into_node().on_event(event, f)
     }
 }
@@ -395,8 +393,9 @@ impl<'a, Message> Node<'a, Message> {
         self.focused.get().unwrap()
     }
 
-    fn dispatch(&mut self, event: NodeEvent, context: &mut Context<Message>) {
-        self.widget.node_event(event, context);
+    fn dispatch(&mut self, layout: Rectangle, event: NodeEvent, context: &mut Context<Message>) {
+        self.widget
+            .node_event(layout, self.stylesheet.as_ref().unwrap().deref(), event, context);
 
         for (handler_event, handler) in self.event_handlers.iter_mut() {
             if *handler_event == event {
@@ -422,23 +421,23 @@ impl<'a, Message> Node<'a, Message> {
                 if hovered != self.hovered {
                     self.hovered = hovered;
                     if hovered {
-                        self.dispatch(NodeEvent::MouseEnter, context);
+                        self.dispatch(layout, NodeEvent::MouseEnter, context);
                     } else {
-                        self.dispatch(NodeEvent::MouseLeave, context);
+                        self.dispatch(layout, NodeEvent::MouseLeave, context);
                         self.clicks.clear();
                     }
                 }
             }
             Event::Press(button) if self.hovered => {
-                self.dispatch(NodeEvent::MouseDown(button), context);
+                self.dispatch(layout, NodeEvent::MouseDown(button), context);
                 self.clicks.push(button);
             }
             Event::Release(button) if self.hovered => {
-                self.dispatch(NodeEvent::MouseUp(button), context);
+                self.dispatch(layout, NodeEvent::MouseUp(button), context);
                 let len = self.clicks.len();
                 self.clicks.retain(|click| click != &button);
                 if len != self.clicks.len() {
-                    self.dispatch(NodeEvent::MouseClick(button), context);
+                    self.dispatch(layout, NodeEvent::MouseClick(button), context);
                 }
             }
 

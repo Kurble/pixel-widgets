@@ -149,12 +149,11 @@ impl<'a, T: 'a, Id: 'a> Widget<'a, T> for Layers<'a, T, Id> {
             _ => (),
         }
 
-        if self.state.background_focused {
-            self.background
-                .as_mut()
-                .map(|bg| bg.event(layout, clip, event, context));
-        } else if self.layers.len() > 0 {
-            self.layers[0].node.event(layout, clip, event, context);
+        self.background
+            .as_mut()
+            .map(|bg| bg.event(layout, clip, event, context));
+        for layer in self.layers.iter_mut() {
+            layer.node.event(layout, clip, event, context);
         }
     }
 

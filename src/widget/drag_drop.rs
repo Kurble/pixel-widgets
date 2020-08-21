@@ -5,17 +5,17 @@ use smallvec::smallvec;
 use crate::draw::Primitive;
 use crate::event::{Event, Key, NodeEvent};
 use crate::layout::{Rectangle, Size};
-use crate::stylesheet::{Stylesheet, StyleState};
+use crate::stylesheet::{StyleState, Stylesheet};
 use crate::widget::{Context, Frame, IntoNode, Node, StateVec, Widget};
 
 /// Message type for communicating between `Drag` and `Drop` widgets
-pub trait DragDropId: 'static + Copy { }
+pub trait DragDropId: 'static + Copy {}
 
 /// Context for `Drag` and `Drop` widgets. Only `Drag` and `Drop` widgets that share the same `DragDropContext` can
 /// interact with each other.
-#[derive(Default, Clone)]
+#[derive(Clone)]
 pub struct DragDropContext<T: DragDropId> {
-    data: Cell<Option<T>>,
+    data: Cell<Option<(T, (f32, f32))>>,
 }
 
 /// A draggable item that can be dropped in `Drop` zones.
@@ -27,7 +27,6 @@ pub struct Drag<'a, T: DragDropId, Message> {
 }
 
 /// State for `Drag`
-#[derive(Default)]
 pub struct DragState<T> {
     dragging: Option<T>,
     origin: (f32, f32),
@@ -44,9 +43,8 @@ pub struct Drop<'a, T: DragDropId, Message, OnAccept, OnDrop> {
 }
 
 /// State for `Drop`
-#[derive(Default)]
 pub struct DropState<T> {
-    hovering: Option<T>,
+    hovering: Option<(T, (f32, f32))>,
 }
 
 impl<'a, T: DragDropId, Message: 'a> Drag<'a, T, Message> {
@@ -138,10 +136,13 @@ impl<'a, T: DragDropId, Message: 'a> Widget<'a, Message> for Drag<'a, T, Message
         }
     }
 
-    fn node_event(&mut self, event: NodeEvent, context: &mut Context<Message>) {
+    fn node_event(&mut self, layout: Rectangle, _: &Stylesheet, event: NodeEvent, context: &mut Context<Message>) {
         match event {
             NodeEvent::MouseDown(Key::LeftMouseButton) => {
-                self.context.data.replace(Some(self.data));
+                self.context.data.replace(Some((
+                    self.data,
+                    (context.cursor.0 - layout.left, context.cursor.1 - layout.top),
+                )));
                 self.state.origin = context.cursor;
                 self.state.offset = (0.0, 0.0);
                 self.state.dragging = Some(self.data);
@@ -195,11 +196,11 @@ where
         self.content.size(style)
     }
 
-    fn node_event(&mut self, event: NodeEvent, context: &mut Context<Message>) {
+    fn node_event(&mut self, layout: Rectangle, _: &Stylesheet, event: NodeEvent, context: &mut Context<Message>) {
         match event {
             NodeEvent::MouseEnter => {
                 if let Some(data) = self.context.data.get() {
-                    if (self.accept)(data) {
+                    if (self.accept)(data.0) {
                         self.state.hovering = Some(data);
                     }
                 }
@@ -209,7 +210,13 @@ where
             }
             NodeEvent::MouseUp(Key::LeftMouseButton) => {
                 if let Some(data) = self.state.hovering.take() {
-                    context.push((self.drop)(data, context.cursor));
+                    context.push((self.drop)(
+                        data.0,
+                        (
+                            context.cursor.0 - (data.1).0 - layout.left,
+                            context.cursor.1 - (data.1).1 - layout.top,
+                        ),
+                    ));
                 }
             }
 
@@ -228,7 +235,8 @@ impl<'a, T: DragDropId, Message: 'a> IntoNode<'a, Message> for Drag<'a, T, Messa
     }
 }
 
-impl<'a, T: DragDropId, Message: 'a, OnAccept: 'a, OnDrop: 'a> IntoNode<'a, Message> for Drop<'a, T, Message, OnAccept, OnDrop>
+impl<'a, T: DragDropId, Message: 'a, OnAccept: 'a, OnDrop: 'a> IntoNode<'a, Message>
+    for Drop<'a, T, Message, OnAccept, OnDrop>
 where
     OnAccept: Fn(T) -> bool,
     OnDrop: Fn(T, (f32, f32)) -> Message,
@@ -238,4 +246,22 @@ where
     }
 }
 
-impl<T: 'static + Copy> DragDropId for T { }
+impl<T: 'static + Copy> DragDropId for T {}
+
+impl<T: DragDropId> Default for DragDropContext<T> {
+    fn default() -> Self {
+        Self { data: Cell::new(None) }
+    }
+}
+
+impl<T: DragDropId> Default for DragState<T> {
+    fn default() -> Self {
+        Self { dragging: None, origin: (0.0, 0.0), offset: (0.0, 0.0) }
+    }
+}
+
+impl<T: DragDropId> Default for DropState<T> {
+    fn default() -> Self {
+        Self { hovering: None }
+    }
+}
