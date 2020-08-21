@@ -1,11 +1,11 @@
 use pixel_widgets::loader::Loader;
 use pixel_widgets::prelude::*;
 use pixel_widgets::widget::drag_drop::DragDropContext;
+use pixel_widgets::widget::panel::Anchor;
 use pixel_widgets::Command;
 use serde::Deserialize;
 use std::collections::HashMap;
 use winit::window::WindowBuilder;
-use pixel_widgets::widget::panel::Anchor;
 
 enum Alchemy {
     Loading {
@@ -37,6 +37,7 @@ enum Id {
 
 #[derive(Clone)]
 struct Item {
+    id: usize,
     image: Image,
     name: String,
     discovered: bool,
@@ -51,6 +52,8 @@ enum Message {
     Loaded(Vec<Item>),
     Place(Item, (f32, f32)),
     MovePlaygroundItem(usize, (f32, f32)),
+    CombineInventory(usize, usize),
+    CombinePlayground(usize, usize),
 }
 
 impl Model for Alchemy {
@@ -77,7 +80,12 @@ impl Model for Alchemy {
                 };
             }
             Message::Place(item, pos) => {
-                if let Self::Game { ref mut playground, ref mut next_item_id, .. } = *self {
+                if let Self::Game {
+                    ref mut playground,
+                    ref mut next_item_id,
+                    ..
+                } = *self
+                {
                     playground.push((item, *next_item_id, pos));
                     *next_item_id += 1;
                 }
@@ -87,6 +95,55 @@ impl Model for Alchemy {
                     for &mut (_, ref id, ref mut pos) in playground.iter_mut() {
                         if *id == move_id {
                             *pos = new_pos;
+                        }
+                    }
+                }
+            }
+            Message::CombineInventory(target, item_id) => {
+                if let Self::Game {
+                    ref mut playground,
+                    ref mut items,
+                    ..
+                } = *self
+                {
+                    for &mut (ref mut item, ref id, _) in playground.iter_mut() {
+                        if *id == target {
+                            if let Some(&output) = item.combinations.get(&item_id) {
+                                items[output].discovered = true;
+                                *item = items[output].clone();
+                            }
+                        }
+                    }
+                }
+            }
+            Message::CombinePlayground(target, source) => {
+                if let Self::Game {
+                    ref mut playground,
+                    ref mut items,
+                    ..
+                } = *self
+                {
+                    if target != source {
+                        let mut success = false;
+                        let mut item_id = None;
+                        for &(ref item, ref id, _) in playground.iter() {
+                            if *id == source {
+                                item_id.replace(item.id);
+                            }
+                        }
+                        if let Some(item_id) = item_id {
+                            for &mut (ref mut item, ref id, _) in playground.iter_mut() {
+                                if *id == target {
+                                    if let Some(&output) = item.combinations.get(&item_id) {
+                                        items[output].discovered = true;
+                                        *item = items[output].clone();
+                                        success = true;
+                                    }
+                                }
+                            }
+                            if success {
+                                playground.retain(|(_, id, _)| *id != source);
+                            }
                         }
                     }
                 }
@@ -116,16 +173,10 @@ impl Model for Alchemy {
                     Drop::new(
                         state.get(&Id::Playground),
                         context,
-                        |_| {
-                            println!("accepting");
-                            true
-                        },
-                        move |drag_item, pos| {
-                            println!("dropping!");
-                            match drag_item {
-                                DragItem::FromInventory(i) => Message::Place(items[i].clone(), pos),
-                                DragItem::FromPlayground(i) => Message::MovePlaygroundItem(i, pos),
-                            }
+                        |_| true,
+                        move |drag_item, pos| match drag_item {
+                            DragItem::FromInventory(i) => Message::Place(items[i].clone(), pos),
+                            DragItem::FromPlayground(i) => Message::MovePlaygroundItem(i, pos),
                         },
                         Space,
                     ),
@@ -135,9 +186,19 @@ impl Model for Alchemy {
                         state.get(&Id::PlaygroundItem(*id)),
                         context,
                         DragItem::FromPlayground(*id),
-                        &item.image
+                        &item.image,
                     );
-                    let widget = Panel::new(*pos, Anchor::TopLeft, drag);
+                    let drop = Drop::new(
+                        state.get(&Id::PlaygroundItem(*id)),
+                        context,
+                        |_| true,
+                        move |drag_item, _| match drag_item {
+                            DragItem::FromInventory(other_id) => Message::CombineInventory(*id, other_id),
+                            DragItem::FromPlayground(other_id) => Message::CombinePlayground(*id, other_id),
+                        },
+                        drag,
+                    );
+                    let widget = Panel::new(*pos, Anchor::TopLeft, drop);
                     (*id, widget)
                 }));
 
@@ -145,10 +206,14 @@ impl Model for Alchemy {
                     items.iter().enumerate().filter(|(_, item)| item.discovered).collect();
 
                 let inventory = Column::new().extend(filtered.chunks(4).map(|row| {
-                    Row::new().extend(
-                        row.iter()
-                            .map(|&(i, item)| Drag::new(state.get(&Id::InventoryItem(i)), context, DragItem::FromInventory(i), &item.image)),
-                    )
+                    Row::new().extend(row.iter().map(|&(i, item)| {
+                        Drag::new(
+                            state.get(&Id::InventoryItem(i)),
+                            context,
+                            DragItem::FromInventory(i),
+                            &item.image,
+                        )
+                    }))
                 }));
 
                 Row::new()
@@ -193,13 +258,14 @@ async fn main() {
         tx.unbounded_send(Message::LoadItems(defs.len() + 1)).ok();
         tx.unbounded_send(Message::LoadedItem).ok();
 
-        let mut items = futures::future::join_all(defs.iter().map(|def| {
+        let mut items = futures::future::join_all(defs.iter().enumerate().map(|(id, def)| {
             let graphics = graphics.clone();
             let tx = tx.clone();
             async move {
                 let image = graphics.load_image(def.image.as_str()).await.unwrap();
                 tx.unbounded_send(Message::LoadedItem).ok();
                 Item {
+                    id,
                     image,
                     name: def.name.clone(),
                     discovered: def.unlocked,

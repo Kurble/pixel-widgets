@@ -19,7 +19,7 @@ space {
     height: fill(1);
 }
 
-drop:hover * {
+drop:hover {
     background: #222;
 }
 

@@ -114,9 +114,9 @@ impl<'a, T: DragDropId, Message: 'a> Widget<'a, Message> for Drag<'a, T, Message
 
     fn event(
         &mut self,
-        _layout: Rectangle,
-        _clip: Rectangle,
-        _style: &Stylesheet,
+        layout: Rectangle,
+        clip: Rectangle,
+        style: &Stylesheet,
         event: Event,
         context: &mut Context<Message>,
     ) {
@@ -134,6 +134,8 @@ impl<'a, T: DragDropId, Message: 'a> Widget<'a, Message> for Drag<'a, T, Message
 
             _ => (),
         }
+
+        self.content.event(layout, clip, style, event, context);
     }
 
     fn node_event(&mut self, layout: Rectangle, _: &Stylesheet, event: NodeEvent, context: &mut Context<Message>) {
@@ -194,6 +196,10 @@ where
 
     fn size(&self, style: &Stylesheet) -> (Size, Size) {
         self.content.size(style)
+    }
+
+    fn event(&mut self, layout: Rectangle, clip: Rectangle, style: &Stylesheet, event: Event, context: &mut Context<Message>) {
+        self.content.event(layout, clip, style, event, context)
     }
 
     fn node_event(&mut self, layout: Rectangle, _: &Stylesheet, event: NodeEvent, context: &mut Context<Message>) {
