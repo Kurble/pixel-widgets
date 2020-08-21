@@ -12,6 +12,5 @@
 - [x] margins
 - [x] progress bar widget
 - [x] context menu widget / thing
-- [ ] convert button and toggle to high level events
 - [x] drag and drop widget
     - share a context between all drag/drop sources / targets
