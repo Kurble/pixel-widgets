@@ -44,7 +44,10 @@ pub fn tokenize(text: String) -> Result<Vec<Token>, Error> {
     for chr in text.chars() {
         col += 1;
 
-        let extended = current.as_mut().map(|current| current.extend(chr)).unwrap_or(ExtendResult::NotAccepted);
+        let extended = current
+            .as_mut()
+            .map(|current| current.extend(chr))
+            .unwrap_or(ExtendResult::NotAccepted);
         match extended {
             ExtendResult::Accepted => (),
             ExtendResult::Finished => {

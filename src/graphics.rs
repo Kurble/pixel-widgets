@@ -1,7 +1,7 @@
-use crate::loader::Loader;
-use std::sync::{Arc, Mutex};
 use crate::cache::Cache;
 use crate::draw::{Image, Patch};
+use crate::loader::Loader;
+use std::sync::{Arc, Mutex};
 
 /// Cloneable image loader
 pub struct Graphics<L: Loader> {

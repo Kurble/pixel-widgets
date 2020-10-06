@@ -72,7 +72,15 @@ impl<'a, T: 'a> Menu<'a, T, Vec<MenuItem<'a, T>>> {
 }
 
 impl<'a, T: 'a, S: AsRef<[MenuItem<'a, T>]> + AsMut<[MenuItem<'a, T>]>> Menu<'a, T, S> {
-    fn layout(&self, left: f32, right: f32, top: f32, bottom: f32, viewport: Rectangle, style: &Stylesheet) -> Rectangle {
+    fn layout(
+        &self,
+        left: f32,
+        right: f32,
+        top: f32,
+        bottom: f32,
+        viewport: Rectangle,
+        style: &Stylesheet,
+    ) -> Rectangle {
         let (width, height) = self.size(style);
         let width = match width {
             Size::Exact(width) => width,
@@ -268,7 +276,14 @@ impl<'a, T: 'a, S: AsRef<[MenuItem<'a, T>]> + AsMut<[MenuItem<'a, T>]>> Widget<'
             return;
         }
 
-        let layout = self.layout(self.state.left, self.state.right, self.state.top, self.state.bottom, viewport, style);
+        let layout = self.layout(
+            self.state.left,
+            self.state.right,
+            self.state.top,
+            self.state.bottom,
+            viewport,
+            style,
+        );
 
         self.state.inner = match (event, std::mem::replace(&mut self.state.inner, InnerState::Idle)) {
             (Event::Cursor(x, y), InnerState::HoverSubMenu { index, sub_state }) => self.hover(
@@ -283,7 +298,9 @@ impl<'a, T: 'a, S: AsRef<[MenuItem<'a, T>]> + AsMut<[MenuItem<'a, T>]>> Widget<'
 
             (Event::Cursor(x, y), InnerState::Pressed { index }) => {
                 match self.hover(InnerState::Idle, x, y, layout, clip, style, context) {
-                    InnerState::HoverItem { index: hover_index } if hover_index == index => InnerState::Pressed { index },
+                    InnerState::HoverItem { index: hover_index } if hover_index == index => {
+                        InnerState::Pressed { index }
+                    }
                     other => other,
                 }
             }
@@ -293,7 +310,7 @@ impl<'a, T: 'a, S: AsRef<[MenuItem<'a, T>]> + AsMut<[MenuItem<'a, T>]>> Widget<'
             (Event::Press(Key::LeftMouseButton), InnerState::Idle) => {
                 context.redraw();
                 InnerState::Closed
-            },
+            }
 
             (Event::Press(Key::LeftMouseButton), InnerState::HoverItem { index }) => {
                 context.redraw();
@@ -348,7 +365,14 @@ impl<'a, T: 'a, S: AsRef<[MenuItem<'a, T>]> + AsMut<[MenuItem<'a, T>]>> Widget<'
         let mut result = Vec::new();
         result.push(Primitive::LayerUp);
 
-        let layout = self.layout(self.state.left, self.state.right, self.state.top, self.state.bottom, viewport, style);
+        let layout = self.layout(
+            self.state.left,
+            self.state.right,
+            self.state.top,
+            self.state.bottom,
+            viewport,
+            style,
+        );
 
         result.extend(style.background.render(layout));
 

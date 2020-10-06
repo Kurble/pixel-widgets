@@ -1,7 +1,7 @@
+use futures::{FutureExt, SinkExt};
 use pixel_widgets::prelude::*;
-use winit::window::WindowBuilder;
 use pixel_widgets::Command;
-use futures::{SinkExt, FutureExt};
+use winit::window::WindowBuilder;
 
 struct Download {
     pub state: ManagedState<String>,
@@ -32,21 +32,24 @@ impl Model for Download {
                 let url = self.url.clone();
                 vec![
                     Command::from_stream(rx),
-                    Command::from_future_message(tokio::spawn(async move {
-                        tx.send(Message::ProgressUpdated(0, 1)).await.unwrap();
+                    Command::from_future_message(
+                        tokio::spawn(async move {
+                            tx.send(Message::ProgressUpdated(0, 1)).await.unwrap();
 
-                        let mut response = reqwest::get(reqwest::Url::parse(url.as_str()).unwrap()).await.unwrap();
-                        let mut progress = 0;
-                        let length = response.content_length().unwrap_or(0) as usize;
+                            let mut response = reqwest::get(reqwest::Url::parse(url.as_str()).unwrap()).await.unwrap();
+                            let mut progress = 0;
+                            let length = response.content_length().unwrap_or(0) as usize;
 
-                        tx.send(Message::ProgressUpdated(0, length)).await.unwrap();
-                        while let Ok(Some(bytes)) = response.chunk().await {
-                            progress += bytes.len();
-                            tx.send(Message::ProgressUpdated(progress, length)).await.unwrap();
-                        }
+                            tx.send(Message::ProgressUpdated(0, length)).await.unwrap();
+                            while let Ok(Some(bytes)) = response.chunk().await {
+                                progress += bytes.len();
+                                tx.send(Message::ProgressUpdated(progress, length)).await.unwrap();
+                            }
 
-                        Message::DownloadFinished
-                    }).map(Result::unwrap))
+                            Message::DownloadFinished
+                        })
+                        .map(Result::unwrap),
+                    ),
                 ]
             }
             Message::DownloadFinished => Vec::new(),
@@ -62,13 +65,20 @@ impl Model for Download {
         let mut state = self.state.tracker();
         let url = self.url.clone();
         Column::new()
-            .push(Input::new(state.get_or_default_with("url", || {
-                let mut state = pixel_widgets::widget::input::State::default();
-                state.set_value(url);
-                state
-            }), "download link", Message::UrlChanged))
+            .push(Input::new(
+                state.get_or_default_with("url", || {
+                    let mut state = pixel_widgets::widget::input::State::default();
+                    state.set_value(url);
+                    state
+                }),
+                "download link",
+                Message::UrlChanged,
+            ))
             .push(Button::new(state.get("download"), Text::new("Download")).on_clicked(Message::DownloadPressed))
-            .push(Text::new(format!("Downloaded: {} / {} bytes", self.progress, self.size)))
+            .push(Text::new(format!(
+                "Downloaded: {} / {} bytes",
+                self.progress, self.size
+            )))
             .push(Progress::new(self.progress as f32 / self.size as f32))
             .into_node()
     }

@@ -1,8 +1,8 @@
 use crate::draw::*;
-use crate::widget::{Context, Widget, IntoNode, Node, Dummy};
 use crate::event::{Event, Key};
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
+use crate::widget::{Context, Dummy, IntoNode, Node, Widget};
 
 /// View a small section of larger widget, with scrollbars.
 /// The scrollbars are only rendered if the content is larger than the view in that direction.
@@ -107,7 +107,9 @@ impl<'a, T: 'a> Widget<'a, T> for Scroll<'a, T> {
         "scroll"
     }
 
-    fn len(&self) -> usize { 1 }
+    fn len(&self) -> usize {
+        1
+    }
 
     fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut Node<'a, T>)) {
         visitor(&mut self.content);
@@ -116,7 +118,9 @@ impl<'a, T: 'a> Widget<'a, T> for Scroll<'a, T> {
     }
 
     fn size(&self, style: &Stylesheet) -> (Size, Size) {
-        style.background.resolve_size((style.width, style.height), self.content.size(), style.padding)
+        style
+            .background
+            .resolve_size((style.width, style.height), self.content.size(), style.padding)
     }
 
     fn focused(&self) -> bool {

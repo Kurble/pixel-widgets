@@ -115,7 +115,9 @@ impl<'a, T: 'a, Id: 'a> Widget<'a, T> for Layers<'a, T, Id> {
                         y = std::f32::INFINITY;
                     }
                 }
-                self.background.as_mut().map(|bg| bg.event(layout, clip, Event::Cursor(x, y), context));
+                self.background
+                    .as_mut()
+                    .map(|bg| bg.event(layout, clip, Event::Cursor(x, y), context));
                 return;
             }
             Event::Press(Key::LeftMouseButton) => {

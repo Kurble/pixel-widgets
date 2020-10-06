@@ -110,7 +110,10 @@ async fn parse_declaration<I: Iterator<Item = Token>, L: Loader>(
                     match id.as_str() {
                         "true" => Ok(Declaration::AddFlag(flag.to_string())),
                         "false" => Ok(Declaration::RemoveFlag(flag.to_string())),
-                        _ => Err(Error::Syntax("Flag values must be either `true` or `false`".into(), pos))
+                        _ => Err(Error::Syntax(
+                            "Flag values must be either `true` or `false`".into(),
+                            pos,
+                        )),
                     }
                 }
             }
@@ -136,9 +139,14 @@ async fn parse_background<I: Iterator<Item = Token>, L: Loader>(
                         Some(Token(TokenValue::Path(url), _)) => {
                             if c.images.get(&url).is_none() {
                                 let image = image::load_from_memory(
-                                    c.loader.load(url.clone()).await.map_err(|e| Error::Io(Box::new(e)))?.as_ref(),
+                                    c.loader
+                                        .load(url.clone())
+                                        .await
+                                        .map_err(|e| Error::Io(Box::new(e)))?
+                                        .as_ref(),
                                 )?;
-                                c.images.insert(url.clone(), c.cache.lock().unwrap().load_image(image.to_rgba()));
+                                c.images
+                                    .insert(url.clone(), c.cache.lock().unwrap().load_image(image.to_rgba()));
                             }
                             Ok(c.images[&url].clone())
                         }
@@ -156,9 +164,14 @@ async fn parse_background<I: Iterator<Item = Token>, L: Loader>(
                         Some(Token(TokenValue::Path(url), _)) => {
                             if c.patches.get(&url).is_none() {
                                 let image = image::load_from_memory(
-                                    c.loader.load(url.clone()).await.map_err(|e| Error::Io(Box::new(e)))?.as_ref(),
+                                    c.loader
+                                        .load(url.clone())
+                                        .await
+                                        .map_err(|e| Error::Io(Box::new(e)))?
+                                        .as_ref(),
                                 )?;
-                                c.patches.insert(url.clone(), c.cache.lock().unwrap().load_patch(image.to_rgba()));
+                                c.patches
+                                    .insert(url.clone(), c.cache.lock().unwrap().load_patch(image.to_rgba()));
                             }
                             Ok(c.patches[&url].clone())
                         }
@@ -178,14 +191,28 @@ async fn parse_background<I: Iterator<Item = Token>, L: Loader>(
             c.tokens.next();
             if url.ends_with(".9.png") {
                 if c.patches.get(&url).is_none() {
-                    let image = image::load_from_memory(c.loader.load(url.clone()).await.map_err(|e| Error::Io(Box::new(e)))?.as_ref())?;
-                    c.patches.insert(url.clone(), c.cache.lock().unwrap().load_patch(image.to_rgba()));
+                    let image = image::load_from_memory(
+                        c.loader
+                            .load(url.clone())
+                            .await
+                            .map_err(|e| Error::Io(Box::new(e)))?
+                            .as_ref(),
+                    )?;
+                    c.patches
+                        .insert(url.clone(), c.cache.lock().unwrap().load_patch(image.to_rgba()));
                 }
                 Ok(Background::Patch(c.patches[&url].clone(), Color::white()))
             } else {
                 if c.images.get(&url).is_none() {
-                    let image = image::load_from_memory(c.loader.load(url.clone()).await.map_err(|e| Error::Io(Box::new(e)))?.as_ref())?;
-                    c.images.insert(url.clone(), c.cache.lock().unwrap().load_image(image.to_rgba()));
+                    let image = image::load_from_memory(
+                        c.loader
+                            .load(url.clone())
+                            .await
+                            .map_err(|e| Error::Io(Box::new(e)))?
+                            .as_ref(),
+                    )?;
+                    c.images
+                        .insert(url.clone(), c.cache.lock().unwrap().load_image(image.to_rgba()));
                 }
                 Ok(Background::Image(c.images[&url].clone(), Color::white()))
             }
@@ -197,9 +224,7 @@ async fn parse_background<I: Iterator<Item = Token>, L: Loader>(
     }
 }
 
-async fn parse_font<I: Iterator<Item = Token>, L: Loader>(
-    c: &mut LoadContext<'_, I, L>,
-) -> Result<Font, Error> {
+async fn parse_font<I: Iterator<Item = Token>, L: Loader>(c: &mut LoadContext<'_, I, L>) -> Result<Font, Error> {
     match c.tokens.next() {
         Some(Token(TokenValue::Path(url), _)) => {
             if c.fonts.get(&url).is_none() {
@@ -214,9 +239,7 @@ async fn parse_font<I: Iterator<Item = Token>, L: Loader>(
     }
 }
 
-fn parse_selector<I: Iterator<Item = Token>, L: Loader>(
-    c: &mut LoadContext<I, L>,
-) -> Result<Selector, Error> {
+fn parse_selector<I: Iterator<Item = Token>, L: Loader>(c: &mut LoadContext<I, L>) -> Result<Selector, Error> {
     match c.tokens.next().ok_or(Error::Eof)? {
         Token(TokenValue::Star, _) => Ok(Selector::Widget(SelectorWidget::Any)),
         Token(TokenValue::Dot, _) => Ok(Selector::Class(c.take_identifier()?.0)),
@@ -303,9 +326,7 @@ fn parse_selector<I: Iterator<Item = Token>, L: Loader>(
     }
 }
 
-fn parse_widget<I: Iterator<Item = Token>, L: Loader>(
-    c: &mut LoadContext<I, L>,
-) -> Result<SelectorWidget, Error> {
+fn parse_widget<I: Iterator<Item = Token>, L: Loader>(c: &mut LoadContext<I, L>) -> Result<SelectorWidget, Error> {
     match c.tokens.next().ok_or(Error::Eof)? {
         Token(TokenValue::Star, _) => Ok(SelectorWidget::Any),
         Token(TokenValue::Iden(widget), _) => Ok(SelectorWidget::Some(widget)),
@@ -333,9 +354,7 @@ fn parse_usize<I: Iterator<Item = Token>, L: Loader>(c: &mut LoadContext<I, L>) 
     }
 }
 
-fn parse_rectangle<I: Iterator<Item = Token>, L: Loader>(
-    c: &mut LoadContext<I, L>,
-) -> Result<Rectangle, Error> {
+fn parse_rectangle<I: Iterator<Item = Token>, L: Loader>(c: &mut LoadContext<I, L>) -> Result<Rectangle, Error> {
     let mut numbers = Vec::new();
 
     while let Token(TokenValue::Number(_), _) = c.tokens.peek().ok_or(Error::Eof)? {
@@ -344,16 +363,34 @@ fn parse_rectangle<I: Iterator<Item = Token>, L: Loader>(
 
     match numbers.len() {
         0 => Ok(Rectangle::zero()),
-        1 => Ok(Rectangle { top: numbers[0], right: numbers[0], bottom: numbers[0], left: numbers[0]}),
-        2 => Ok(Rectangle { top: numbers[0], right: numbers[1], bottom: numbers[0], left: numbers[1]}),
-        3 => Ok(Rectangle { top: numbers[0], right: numbers[1], bottom: numbers[2], left: numbers[1]}),
-        _ => Ok(Rectangle { top: numbers[0], right: numbers[1], bottom: numbers[2], left: numbers[3]}),
+        1 => Ok(Rectangle {
+            top: numbers[0],
+            right: numbers[0],
+            bottom: numbers[0],
+            left: numbers[0],
+        }),
+        2 => Ok(Rectangle {
+            top: numbers[0],
+            right: numbers[1],
+            bottom: numbers[0],
+            left: numbers[1],
+        }),
+        3 => Ok(Rectangle {
+            top: numbers[0],
+            right: numbers[1],
+            bottom: numbers[2],
+            left: numbers[1],
+        }),
+        _ => Ok(Rectangle {
+            top: numbers[0],
+            right: numbers[1],
+            bottom: numbers[2],
+            left: numbers[3],
+        }),
     }
 }
 
-fn parse_text_wrap<I: Iterator<Item = Token>, L: Loader>(
-    c: &mut LoadContext<I, L>,
-) -> Result<TextWrap, Error> {
+fn parse_text_wrap<I: Iterator<Item = Token>, L: Loader>(c: &mut LoadContext<I, L>) -> Result<TextWrap, Error> {
     match c.tokens.next() {
         Some(Token(TokenValue::Iden(ty), pos)) => match ty.to_lowercase().as_str() {
             "no-wrap" => Ok(TextWrap::NoWrap),
@@ -373,9 +410,15 @@ fn parse_direction<I: Iterator<Item = Token>, L: Loader>(c: &mut LoadContext<I, 
             "left-to-right" => Ok(Direction::LeftToRight),
             "right-to-left" => Ok(Direction::RightToLeft),
             "bottom-to-top" => Ok(Direction::BottomToTop),
-            _ => Err(Error::Syntax("Expected `top-to-bottom`, `left-to-right`, `right-to-left` or `bottom-to-top`".into(), pos)),
+            _ => Err(Error::Syntax(
+                "Expected `top-to-bottom`, `left-to-right`, `right-to-left` or `bottom-to-top`".into(),
+                pos,
+            )),
         },
-        Some(Token(_, pos)) => Err(Error::Syntax("Expected `top-to-bottom`, `left-to-right`, `right-to-left` or `bottom-to-top`".into(), pos)),
+        Some(Token(_, pos)) => Err(Error::Syntax(
+            "Expected `top-to-bottom`, `left-to-right`, `right-to-left` or `bottom-to-top`".into(),
+            pos,
+        )),
         None => Err(Error::Eof),
     }
 }

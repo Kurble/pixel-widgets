@@ -1,9 +1,9 @@
-use super::{Widget, Node};
+use super::{Node, Widget};
 use crate::draw::Primitive;
-use crate::widget::{Context, IntoNode};
 use crate::event::Event;
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
+use crate::widget::{Context, IntoNode};
 
 /// Layout child widgets horizontally
 pub struct Row<'a, T> {
@@ -32,11 +32,7 @@ impl<'a, T: 'a> Row<'a, T> {
         self
     }
 
-    fn layout(
-        &mut self,
-        layout: Rectangle,
-        style: &Stylesheet,
-    ) -> impl Iterator<Item = (&mut Node<'a, T>, Rectangle)> {
+    fn layout(&mut self, layout: Rectangle, style: &Stylesheet) -> impl Iterator<Item = (&mut Node<'a, T>, Rectangle)> {
         let layout = style.background.content_rect(layout, style.padding);
         if self.layout.len() != self.children.len() {
             let align = style.align_vertical;
@@ -94,11 +90,15 @@ impl<'a, T: 'a> Widget<'a, T> for Row<'a, T> {
             })),
             other => other,
         };
-        style.background.resolve_size((style.width, style.height), (width, height), style.padding)
+        style
+            .background
+            .resolve_size((style.width, style.height), (width, height), style.padding)
     }
 
     fn focused(&self) -> bool {
-        self.children.iter().fold(false, |focused, child| focused || child.focused())
+        self.children
+            .iter()
+            .fold(false, |focused, child| focused || child.focused())
     }
 
     fn event(

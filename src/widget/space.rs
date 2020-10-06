@@ -11,7 +11,9 @@ impl<'a, T> Widget<'a, T> for Space {
         "space"
     }
 
-    fn len(&self) -> usize { 0 }
+    fn len(&self) -> usize {
+        0
+    }
 
     fn visit_children(&mut self, _: &mut dyn FnMut(&mut Node<'a, T>)) {}
 

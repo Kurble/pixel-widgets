@@ -1,8 +1,8 @@
 use crate::draw::*;
-use crate::widget::{Context, Widget, IntoNode, Node};
 use crate::event::{Event, Key};
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
+use crate::widget::{Context, IntoNode, Node, Widget};
 
 /// A window with a title and a content widget that can be moved by dragging the title.
 pub struct Window<'a, T> {
@@ -88,7 +88,9 @@ impl<'a, T: 'a> Widget<'a, T> for Window<'a, T> {
         "window"
     }
 
-    fn len(&self) -> usize { 2 }
+    fn len(&self) -> usize {
+        2
+    }
 
     fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut Node<'a, T>)) {
         visitor(&mut self.title);

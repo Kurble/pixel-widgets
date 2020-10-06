@@ -1,17 +1,19 @@
 pub use crate::draw::Image;
-use crate::widget::{Widget, Node, IntoNode};
 use crate::draw::Primitive;
-use crate::layout::{Size, Rectangle};
+use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
+use crate::widget::{IntoNode, Node, Widget};
 
 impl<'a, T: 'a> Widget<'a, T> for &'a Image {
     fn widget(&self) -> &'static str {
         "image"
     }
 
-    fn len(&self) -> usize { 0 }
+    fn len(&self) -> usize {
+        0
+    }
 
-    fn visit_children(&mut self, _: &mut dyn FnMut(&mut Node<'a, T>)) { }
+    fn visit_children(&mut self, _: &mut dyn FnMut(&mut Node<'a, T>)) {}
 
     fn size(&self, style: &Stylesheet) -> (Size, Size) {
         let width = match style.width {

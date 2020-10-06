@@ -5,7 +5,7 @@ use smallvec::smallvec;
 use crate::draw::*;
 use crate::event::{Event, Key};
 use crate::layout::{Rectangle, Size};
-use crate::stylesheet::{Stylesheet, StyleState};
+use crate::stylesheet::{StyleState, Stylesheet};
 use crate::widget::{Context, IntoNode, Node, StateVec, Widget};
 
 /// State for [`Toggle`](struct.Toggle.html)
@@ -55,7 +55,9 @@ impl<'a, T, F: Fn(bool) -> T> Widget<'a, T> for Toggle<'a, T, F> {
         state
     }
 
-    fn len(&self) -> usize { 0 }
+    fn len(&self) -> usize {
+        0
+    }
 
     fn visit_children(&mut self, _: &mut dyn FnMut(&mut Node<'a, T>)) {}
 

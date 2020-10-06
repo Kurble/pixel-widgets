@@ -1,7 +1,7 @@
-use std::iter::{FromIterator, repeat, once};
-use std::ops::{BitOrAssign, BitAndAssign};
-use std::hash::{Hash, Hasher};
 use std::fmt::*;
+use std::hash::{Hash, Hasher};
+use std::iter::{once, repeat, FromIterator};
+use std::ops::{BitAndAssign, BitOrAssign};
 
 #[derive(Clone)]
 pub enum BitSet {
@@ -19,7 +19,9 @@ impl BitSet {
         *self = match std::mem::replace(self, BitSet::Small(0)) {
             BitSet::Small(bits) => {
                 if size > 1 {
-                    BitSet::Large(Vec::from_iter(std::iter::once(bits).chain(std::iter::repeat(0)).take(size)))
+                    BitSet::Large(Vec::from_iter(
+                        std::iter::once(bits).chain(std::iter::repeat(0)).take(size),
+                    ))
                 } else {
                     BitSet::Small(bits)
                 }
@@ -93,7 +95,7 @@ impl BitSet {
             &BitSet::Small(bits) => BitIter {
                 current: bits,
                 offset: 0,
-                remaining: &[]
+                remaining: &[],
             },
             &BitSet::Large(ref blocks) => {
                 let slice = blocks.as_slice();
@@ -103,7 +105,7 @@ impl BitSet {
                     remaining,
                     offset: 0,
                 }
-            },
+            }
         }
     }
 
@@ -117,15 +119,33 @@ impl BitSet {
     pub fn apply<F: Fn(u64, u64) -> u64>(&self, other: &Self, f: F) -> Self {
         let mut result = match (self, other) {
             (&BitSet::Small(bits), &BitSet::Small(other_bits)) => BitSet::Small(f(bits, other_bits)),
-            (&BitSet::Small(bits), &BitSet::Large(ref vec)) |
-            (&BitSet::Large(ref vec), &BitSet::Small(bits)) => {
-                BitSet::Large(vec.iter().cloned().zip(once(bits).chain(repeat(0))).map(|(a, b)| f(a, b)).collect())
-            },
+            (&BitSet::Small(bits), &BitSet::Large(ref vec)) | (&BitSet::Large(ref vec), &BitSet::Small(bits)) => {
+                BitSet::Large(
+                    vec.iter()
+                        .cloned()
+                        .zip(once(bits).chain(repeat(0)))
+                        .map(|(a, b)| f(a, b))
+                        .collect(),
+                )
+            }
             (&BitSet::Large(ref vec), &BitSet::Large(ref other_vec)) => {
                 if vec.len() > other_vec.len() {
-                    BitSet::Large(vec.iter().cloned().zip(other_vec.iter().cloned().chain(repeat(0))).map(|(a, b)| f(a, b)).collect())
+                    BitSet::Large(
+                        vec.iter()
+                            .cloned()
+                            .zip(other_vec.iter().cloned().chain(repeat(0)))
+                            .map(|(a, b)| f(a, b))
+                            .collect(),
+                    )
                 } else {
-                    BitSet::Large(other_vec.iter().cloned().zip(vec.iter().cloned().chain(repeat(0))).map(|(a, b)| f(a, b)).collect())
+                    BitSet::Large(
+                        other_vec
+                            .iter()
+                            .cloned()
+                            .zip(vec.iter().cloned().chain(repeat(0)))
+                            .map(|(a, b)| f(a, b))
+                            .collect(),
+                    )
                 }
             }
         };
@@ -144,11 +164,12 @@ impl BitSet {
     pub fn intersection(&self, other: &Self) -> Self {
         match (self, other) {
             (&BitSet::Small(bits), &BitSet::Small(other_bits)) => BitSet::Small(bits & other_bits),
-            (&BitSet::Small(bits), &BitSet::Large(ref vec)) |
-            (&BitSet::Large(ref vec), &BitSet::Small(bits)) => match vec.len() {
-                0 => BitSet::Small(0),
-                _ => BitSet::Small(bits & vec[0]),
-            },
+            (&BitSet::Small(bits), &BitSet::Large(ref vec)) | (&BitSet::Large(ref vec), &BitSet::Small(bits)) => {
+                match vec.len() {
+                    0 => BitSet::Small(0),
+                    _ => BitSet::Small(bits & vec[0]),
+                }
+            }
             (&BitSet::Large(ref vec), &BitSet::Large(ref other_vec)) => {
                 let mut result = BitSet::Large(vec.iter().zip(other_vec.iter()).map(|(&a, &b)| a & b).collect());
                 result.shrink();
@@ -181,20 +202,34 @@ impl<'a> Iterator for BitIter<'a> {
 
         // convert the bit to number of zeros on the right
         let mut c = 64;
-        if bit > 0 { c -= 1 };
-        if bit & 0x00000000ffffffff > 0 { c -= 32 };
-        if bit & 0x0000ffff0000ffff > 0 { c -= 16 };
-        if bit & 0x00ff00ff00ff00ff > 0 { c -= 8 };
-        if bit & 0x0f0f0f0f0f0f0f0f > 0 { c -= 4 };
-        if bit & 0x3333333333333333 > 0 { c -= 2 };
-        if bit & 0x5555555555555555 > 0 { c -= 1 };
+        if bit > 0 {
+            c -= 1
+        };
+        if bit & 0x00000000ffffffff > 0 {
+            c -= 32
+        };
+        if bit & 0x0000ffff0000ffff > 0 {
+            c -= 16
+        };
+        if bit & 0x00ff00ff00ff00ff > 0 {
+            c -= 8
+        };
+        if bit & 0x0f0f0f0f0f0f0f0f > 0 {
+            c -= 4
+        };
+        if bit & 0x3333333333333333 > 0 {
+            c -= 2
+        };
+        if bit & 0x5555555555555555 > 0 {
+            c -= 1
+        };
 
         Some(self.offset + c)
     }
 }
 
 impl FromIterator<usize> for BitSet {
-    fn from_iter<T: IntoIterator<Item=usize>>(iter: T) -> Self {
+    fn from_iter<T: IntoIterator<Item = usize>>(iter: T) -> Self {
         let mut result = BitSet::new();
         for item in iter.into_iter() {
             result.insert(item);
@@ -220,20 +255,19 @@ impl PartialEq for BitSet {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (&BitSet::Small(bits), &BitSet::Small(other_bits)) => bits == other_bits,
-            (&BitSet::Small(bits), &BitSet::Large(ref vec)) |
-            (&BitSet::Large(ref vec), &BitSet::Small(bits)) => match vec.len() {
-                0 => bits == 0,
-                1 => bits == vec[0],
-                _ => false,
-            },
-            (&BitSet::Large(ref vec), &BitSet::Large(ref other_vec)) => {
-                vec.iter().eq(other_vec.iter())
+            (&BitSet::Small(bits), &BitSet::Large(ref vec)) | (&BitSet::Large(ref vec), &BitSet::Small(bits)) => {
+                match vec.len() {
+                    0 => bits == 0,
+                    1 => bits == vec[0],
+                    _ => false,
+                }
             }
+            (&BitSet::Large(ref vec), &BitSet::Large(ref other_vec)) => vec.iter().eq(other_vec.iter()),
         }
     }
 }
 
-impl Eq for BitSet { }
+impl Eq for BitSet {}
 
 impl Debug for BitSet {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {

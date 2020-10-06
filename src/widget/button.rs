@@ -1,11 +1,11 @@
-use std::mem::replace;
 use smallvec::smallvec;
+use std::mem::replace;
 
 use crate::draw::*;
-use crate::widget::{Context, Widget, IntoNode, Node, StateVec};
 use crate::event::{Event, Key};
 use crate::layout::{Rectangle, Size};
-use crate::stylesheet::{Stylesheet, StyleState};
+use crate::stylesheet::{StyleState, Stylesheet};
+use crate::widget::{Context, IntoNode, Node, StateVec, Widget};
 
 /// A clickable button
 pub struct Button<'a, T> {
@@ -54,14 +54,18 @@ impl<'a, T: 'a> Widget<'a, T> for Button<'a, T> {
         }
     }
 
-    fn len(&self) -> usize { 1 }
+    fn len(&self) -> usize {
+        1
+    }
 
     fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut Node<'a, T>)) {
         visitor(&mut self.content);
     }
 
     fn size(&self, style: &Stylesheet) -> (Size, Size) {
-        style.background.resolve_size((style.width, style.height), self.content.size(), style.padding)
+        style
+            .background
+            .resolve_size((style.width, style.height), self.content.size(), style.padding)
     }
 
     fn event(&mut self, layout: Rectangle, clip: Rectangle, _: &Stylesheet, event: Event, context: &mut Context<T>) {
@@ -122,11 +126,10 @@ impl<'a, T: 'a> Widget<'a, T> for Button<'a, T> {
     }
 
     fn draw(&mut self, layout: Rectangle, clip: Rectangle, style: &Stylesheet) -> Vec<Primitive<'a>> {
-        let content_rect = style
-            .background
-            .content_rect(layout, style.padding);
+        let content_rect = style.background.content_rect(layout, style.padding);
 
-        style.background
+        style
+            .background
             .render(layout)
             .into_iter()
             .chain(self.content.draw(content_rect, clip).into_iter())

@@ -1,8 +1,8 @@
 use crate::layout::{Rectangle, Size};
 use crate::text::Text;
 use smallvec::SmallVec;
-use zerocopy::AsBytes;
 use std::sync::Arc;
+use zerocopy::AsBytes;
 
 /// A high level primitive that can be drawn without any further data.
 #[derive(Clone)]
@@ -166,14 +166,14 @@ pub enum Command {
     /// Sets a new scissor rect, which is used to confine geometry to a certain area on screen.
     Clip {
         /// The scissor rectangle
-        scissor: Rectangle
+        scissor: Rectangle,
     },
     /// Draw a list of vertices without an active texture
     Colored {
         /// Offset in vertices from the start of the [vertex buffer](struct.DrawList.html#field.vertices)
         offset: usize,
         /// The number of vertices to draw
-        count: usize
+        count: usize,
     },
     /// Draw a list of vertices with the active texture denoted by it's index
     Textured {
@@ -320,7 +320,12 @@ impl Patch {
         result
     }
 
-    pub(crate) fn iterate_sections<F: FnMut((f32, f32), (f32, f32))>(&self, vertical: bool, length: f32, mut callback: F) {
+    pub(crate) fn iterate_sections<F: FnMut((f32, f32), (f32, f32))>(
+        &self,
+        vertical: bool,
+        length: f32,
+        mut callback: F,
+    ) {
         let stretches = if vertical { &self.v_stretch } else { &self.h_stretch };
 
         let total = stretches.iter().fold(0.0, |t, &(a, b)| t + (b - a));
@@ -368,12 +373,8 @@ impl Background {
     /// This is the inverse of [`content_rect`](#method.content_rect)
     pub fn layout_rect(&self, content_rect: Rectangle, padding: Rectangle) -> Rectangle {
         match self {
-            &Background::Patch(ref patch, _) => {
-                patch.measure_with_content(content_rect.after_margin(padding))
-            }
-            &_ => {
-                content_rect.after_margin(padding)
-            }
+            &Background::Patch(ref patch, _) => patch.measure_with_content(content_rect.after_margin(padding)),
+            &_ => content_rect.after_margin(padding),
         }
     }
 
@@ -392,7 +393,7 @@ impl Background {
                 let rect = self.layout_rect(Rectangle::from_wh(0.0, height), padding);
                 (other, Size::Exact(rect.height()))
             }
-            (other, _) => other
+            (other, _) => other,
         };
         match (width, height) {
             (Size::Shrink, Size::Shrink) => (Size::Exact(0.0), Size::Exact(0.0)),

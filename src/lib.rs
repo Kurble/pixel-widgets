@@ -113,8 +113,8 @@ use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use std::task::{Poll, Waker};
 
-use futures::Stream;
 use futures::task::ArcWake;
+use futures::Stream;
 
 use crate::draw::DrawList;
 use crate::event::Event;
@@ -142,8 +142,8 @@ pub mod layout;
 pub mod loader;
 mod model_view;
 /// Simple windowing system for those who want to render _just_ widgets.
-#[cfg(feature="winit")]
-#[cfg(feature="wgpu")]
+#[cfg(feature = "winit")]
+#[cfg(feature = "wgpu")]
 pub mod sandbox;
 /// Styling system
 pub mod stylesheet;
@@ -243,7 +243,10 @@ impl<M: Model, E: EventLoop<Command<M::Message>>, L: Loader> Ui<M, E, L> {
         let cache = self.cache.clone();
         let url = url.as_ref().to_string();
         self.command(Command::from_future_style(async move {
-            loader.wait(&url).await.map_err(|e| stylesheet::Error::Io(Box::new(e)))?;
+            loader
+                .wait(&url)
+                .await
+                .map_err(|e| stylesheet::Error::Io(Box::new(e)))?;
             Ok(Style::load(loader, url, cache).await?)
         }));
 
@@ -325,7 +328,10 @@ impl<M: Model, E: EventLoop<Command<M::Message>>, L: Loader> Ui<M, E, L> {
                             let cache = self.cache.clone();
                             let url = url.clone();
                             self.command(Command::from_future_style(async move {
-                                loader.wait(&url).await.map_err(|e| stylesheet::Error::Io(Box::new(e)))?;
+                                loader
+                                    .wait(&url)
+                                    .await
+                                    .map_err(|e| stylesheet::Error::Io(Box::new(e)))?;
                                 Ok(Style::load(loader, url, cache).await?)
                             }));
                         }
@@ -406,7 +412,10 @@ impl<M: Model, E: EventLoop<Command<M::Message>>, L: Loader> Ui<M, E, L> {
             }
         }
 
-        let mut layers = vec![Layer { vtx: Vec::new(), cmd: vec![Command::Nop] }];
+        let mut layers = vec![Layer {
+            vtx: Vec::new(),
+            cmd: vec![Command::Nop],
+        }];
         let mut layer: usize = 0;
 
         let mut scissors = Vec::new();
@@ -452,7 +461,10 @@ impl<M: Model, E: EventLoop<Command<M::Message>>, L: Loader> Ui<M, E, L> {
                 Primitive::LayerUp => {
                     layer += 1;
                     while layer >= layers.len() {
-                        layers.push(Layer { vtx: Vec::new(), cmd: vec![Command::Nop] });
+                        layers.push(Layer {
+                            vtx: Vec::new(),
+                            cmd: vec![Command::Nop],
+                        });
                     }
                 }
 
@@ -688,20 +700,26 @@ impl<M: Model, E: EventLoop<Command<M::Message>>, L: Loader> Ui<M, E, L> {
             }
         }
 
-        let (vertices, commands) = layers.into_iter().fold((Vec::new(), Vec::new()), |(mut vtx, mut cmd), mut layer| {
-            let layer_offset = vtx.len();
-            vtx.append(&mut layer.vtx);
-            cmd.extend(layer.cmd.into_iter().map(|command| match command {
-                Command::Textured { texture, offset, count } => {
-                    Command::Textured { texture, offset: offset + layer_offset, count }
-                }
-                Command::Colored { offset, count } => {
-                    Command::Colored { offset: offset + layer_offset, count }
-                }
-                other => other,
-            }));
-            (vtx, cmd)
-        });
+        let (vertices, commands) =
+            layers
+                .into_iter()
+                .fold((Vec::new(), Vec::new()), |(mut vtx, mut cmd), mut layer| {
+                    let layer_offset = vtx.len();
+                    vtx.append(&mut layer.vtx);
+                    cmd.extend(layer.cmd.into_iter().map(|command| match command {
+                        Command::Textured { texture, offset, count } => Command::Textured {
+                            texture,
+                            offset: offset + layer_offset,
+                            count,
+                        },
+                        Command::Colored { offset, count } => Command::Colored {
+                            offset: offset + layer_offset,
+                            count,
+                        },
+                        other => other,
+                    }));
+                    (vtx, cmd)
+                });
 
         DrawList {
             updates: self.cache.lock().unwrap().take_updates(),
@@ -749,25 +767,25 @@ impl<M: Model, E: EventLoop<Command<M::Message>>, L: Loader> DerefMut for Ui<M, 
 impl<Message> Command<Message> {
     /// Construct a new command from a future that generates a message.
     /// The message will be handled as soon as it is available.
-    pub fn from_future_message<F: 'static + Future<Output=Message> + Send>(fut: F) -> Self {
+    pub fn from_future_message<F: 'static + Future<Output = Message> + Send>(fut: F) -> Self {
         Command::Await(Box::new(fut))
     }
 
     /// Construct a new command that will replace the style of the Ui after it completes.
-    pub fn from_future_style<F: 'static + Future<Output=Result<Style, stylesheet::Error>> + Send>(fut: F) -> Self {
+    pub fn from_future_style<F: 'static + Future<Output = Result<Style, stylesheet::Error>> + Send>(fut: F) -> Self {
         Command::Stylesheet(Box::new(fut))
     }
 
     /// Construct a new command from a stream of messages. Each message will be handled as soon as it's available.
-    pub fn from_stream<S: 'static + Stream<Item=Message> + Send>(stream: S) -> Self {
+    pub fn from_stream<S: 'static + Stream<Item = Message> + Send>(stream: S) -> Self {
         Command::Subscribe(Box::new(stream))
     }
 }
 
 /// prelude module for convenience
 pub mod prelude {
-    pub use crate::{Command, layout::Rectangle, Model, stylesheet::Style, tracker::ManagedState, Ui, widget::*};
-    #[cfg(feature="winit")]
-    #[cfg(feature="wgpu")]
+    #[cfg(feature = "winit")]
+    #[cfg(feature = "wgpu")]
     pub use crate::sandbox::Sandbox;
+    pub use crate::{layout::Rectangle, stylesheet::Style, tracker::ManagedState, widget::*, Command, Model, Ui};
 }

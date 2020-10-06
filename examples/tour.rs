@@ -175,7 +175,9 @@ async fn main() {
 
     let mut sandbox = Sandbox::new(model, loader, window).await;
 
-    sandbox.ui.set_stylesheet("tour.pwss")
+    sandbox
+        .ui
+        .set_stylesheet("tour.pwss")
         .await
         .expect("Unable to load stylesheet");
 

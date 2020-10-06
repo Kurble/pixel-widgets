@@ -56,13 +56,13 @@ impl<M: Model, E: EventLoop<Command<M::Message>>, L: Loader> Ui<M, E, L> {
                         component_type: wgpu::TextureComponentType::Uint,
                         multisampled: false,
                     },
-                    count: None
+                    count: None,
                 },
                 wgpu::BindGroupLayoutEntry {
                     binding: 1,
                     visibility: wgpu::ShaderStage::FRAGMENT,
                     ty: wgpu::BindingType::Sampler { comparison: false },
-                    count: None
+                    count: None,
                 },
             ],
         });
@@ -173,44 +173,117 @@ impl<M: Model, E: EventLoop<Command<M::Message>>, L: Loader> Ui<M, E, L> {
 
             if updates.len() > 0 {
                 let cmd = device.create_command_encoder(&CommandEncoderDescriptor { label: None });
-                queue.submit(Some(updates
-                    .into_iter()
-                    .fold(cmd, |mut cmd, update| {
-                        match update {
-                            Update::Texture { id, size, data, atlas: _ } => {
-                                let texture = device.create_texture(&wgpu::TextureDescriptor {
-                                    label: None,
-                                    size: wgpu::Extent3d {
-                                        width: size[0],
-                                        height: size[1],
-                                        depth: 1,
-                                    },
-                                    mip_level_count: 1,
-                                    sample_count: 1,
-                                    dimension: wgpu::TextureDimension::D2,
-                                    format: wgpu::TextureFormat::Rgba8Unorm,
-                                    usage: wgpu::TextureUsage::SAMPLED | wgpu::TextureUsage::COPY_DST,
-                                });
+                queue.submit(Some(
+                    updates
+                        .into_iter()
+                        .fold(cmd, |mut cmd, update| {
+                            match update {
+                                Update::Texture {
+                                    id,
+                                    size,
+                                    data,
+                                    atlas: _,
+                                } => {
+                                    let texture = device.create_texture(&wgpu::TextureDescriptor {
+                                        label: None,
+                                        size: wgpu::Extent3d {
+                                            width: size[0],
+                                            height: size[1],
+                                            depth: 1,
+                                        },
+                                        mip_level_count: 1,
+                                        sample_count: 1,
+                                        dimension: wgpu::TextureDimension::D2,
+                                        format: wgpu::TextureFormat::Rgba8Unorm,
+                                        usage: wgpu::TextureUsage::SAMPLED | wgpu::TextureUsage::COPY_DST,
+                                    });
 
-                                if data.len() > 0 {
+                                    if data.len() > 0 {
+                                        let staging = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                                            label: None,
+                                            contents: data.as_slice(),
+                                            usage: wgpu::BufferUsage::COPY_SRC,
+                                        });
+                                        cmd.copy_buffer_to_texture(
+                                            wgpu::BufferCopyView {
+                                                buffer: &staging,
+                                                layout: wgpu::TextureDataLayout {
+                                                    offset: 0,
+                                                    bytes_per_row: size[0] * 4,
+                                                    rows_per_image: 0,
+                                                },
+                                            },
+                                            wgpu::TextureCopyView {
+                                                texture: &texture,
+                                                mip_level: 0,
+                                                origin: Default::default(),
+                                            },
+                                            wgpu::Extent3d {
+                                                width: size[0],
+                                                height: size[1],
+                                                depth: 1,
+                                            },
+                                        );
+                                    }
+
+                                    let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+
+                                    let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                                        layout: &self.bind_group_layout,
+                                        entries: &[
+                                            wgpu::BindGroupEntry {
+                                                binding: 0,
+                                                resource: wgpu::BindingResource::TextureView(&view),
+                                            },
+                                            wgpu::BindGroupEntry {
+                                                binding: 1,
+                                                resource: wgpu::BindingResource::Sampler(&self.sampler),
+                                            },
+                                        ],
+                                        label: None,
+                                    });
+
+                                    self.textures.insert(id, TextureEntry { bind_group, texture });
+                                }
+                                Update::TextureSubresource { id, offset, size, data } => {
+                                    let texture = self
+                                        .textures
+                                        .get(&id)
+                                        .map(|val| &val.texture)
+                                        .expect("non existing texture is updated");
+
+                                    let padding = 256 - (size[0] * 4) % 256;
+                                    let data = if padding > 0 {
+                                        data.chunks(size[0] as usize * 4).fold(Vec::new(), |mut data, row| {
+                                            data.extend_from_slice(row);
+                                            data.extend(std::iter::repeat(0).take(padding as _));
+                                            data
+                                        })
+                                    } else {
+                                        data
+                                    };
                                     let staging = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                                         label: None,
                                         contents: data.as_slice(),
-                                        usage: wgpu::BufferUsage::COPY_SRC
+                                        usage: wgpu::BufferUsage::COPY_SRC,
                                     });
                                     cmd.copy_buffer_to_texture(
                                         wgpu::BufferCopyView {
                                             buffer: &staging,
                                             layout: wgpu::TextureDataLayout {
                                                 offset: 0,
-                                                bytes_per_row:  size[0] * 4,
-                                                rows_per_image: 0
-                                            }
+                                                bytes_per_row: size[0] * 4 + padding,
+                                                rows_per_image: 0,
+                                            },
                                         },
                                         wgpu::TextureCopyView {
                                             texture: &texture,
                                             mip_level: 0,
-                                            origin: Default::default(),
+                                            origin: wgpu::Origin3d {
+                                                x: offset[0],
+                                                y: offset[1],
+                                                z: 0,
+                                            },
                                         },
                                         wgpu::Extent3d {
                                             width: size[0],
@@ -219,77 +292,11 @@ impl<M: Model, E: EventLoop<Command<M::Message>>, L: Loader> Ui<M, E, L> {
                                         },
                                     );
                                 }
-
-                                let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-
-                                let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                                    layout: &self.bind_group_layout,
-                                    entries: &[
-                                        wgpu::BindGroupEntry {
-                                            binding: 0,
-                                            resource: wgpu::BindingResource::TextureView(&view),
-                                        },
-                                        wgpu::BindGroupEntry {
-                                            binding: 1,
-                                            resource: wgpu::BindingResource::Sampler(&self.sampler),
-                                        },
-                                    ],
-                                    label: None,
-                                });
-
-                                self.textures.insert(id, TextureEntry { bind_group, texture });
                             }
-                            Update::TextureSubresource { id, offset, size, data } => {
-                                let texture = self
-                                    .textures
-                                    .get(&id)
-                                    .map(|val| &val.texture)
-                                    .expect("non existing texture is updated");
-
-                                let padding = 256 - (size[0] * 4) % 256;
-                                let data = if padding > 0 {
-                                    data.chunks(size[0] as usize * 4).fold(Vec::new(), |mut data, row| {
-                                        data.extend_from_slice(row);
-                                        data.extend(std::iter::repeat(0).take(padding as _));
-                                        data
-                                    })
-                                } else {
-                                    data
-                                };
-                                let staging = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                                    label: None,
-                                    contents: data.as_slice(),
-                                    usage: wgpu::BufferUsage::COPY_SRC
-                                });
-                                cmd.copy_buffer_to_texture(
-                                    wgpu::BufferCopyView {
-                                        buffer: &staging,
-                                        layout: wgpu::TextureDataLayout {
-                                            offset: 0,
-                                            bytes_per_row: size[0] * 4 + padding,
-                                            rows_per_image: 0,
-                                        }
-                                    },
-                                    wgpu::TextureCopyView {
-                                        texture: &texture,
-                                        mip_level: 0,
-                                        origin: wgpu::Origin3d {
-                                            x: offset[0],
-                                            y: offset[1],
-                                            z: 0,
-                                        },
-                                    },
-                                    wgpu::Extent3d {
-                                        width: size[0],
-                                        height: size[1],
-                                        depth: 1,
-                                    },
-                                );
-                            }
-                        }
-                        cmd
-                    })
-                    .finish()));
+                            cmd
+                        })
+                        .finish(),
+                ));
             }
 
             if vertices.len() > 0 {
@@ -297,7 +304,7 @@ impl<M: Model, E: EventLoop<Command<M::Message>>, L: Loader> Ui<M, E, L> {
                     .replace(device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                         label: None,
                         contents: vertices.as_bytes(),
-                        usage: wgpu::BufferUsage::VERTEX
+                        usage: wgpu::BufferUsage::VERTEX,
                     }));
             }
         }

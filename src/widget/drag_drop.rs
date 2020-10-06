@@ -198,7 +198,14 @@ where
         self.content.size(style)
     }
 
-    fn event(&mut self, layout: Rectangle, clip: Rectangle, style: &Stylesheet, event: Event, context: &mut Context<Message>) {
+    fn event(
+        &mut self,
+        layout: Rectangle,
+        clip: Rectangle,
+        style: &Stylesheet,
+        event: Event,
+        context: &mut Context<Message>,
+    ) {
         self.content.event(layout, clip, style, event, context)
     }
 
@@ -262,7 +269,11 @@ impl<T: DragDropId> Default for DragDropContext<T> {
 
 impl<T: DragDropId> Default for DragState<T> {
     fn default() -> Self {
-        Self { dragging: None, origin: (0.0, 0.0), offset: (0.0, 0.0) }
+        Self {
+            dragging: None,
+            origin: (0.0, 0.0),
+            offset: (0.0, 0.0),
+        }
     }
 }
 

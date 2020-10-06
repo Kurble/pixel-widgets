@@ -124,17 +124,17 @@ use std::iter::Peekable;
 use crate::bitset::BitSet;
 use crate::cache::Cache;
 use crate::draw::{Background, Color, Image, Patch};
-use crate::layout::{Align, Rectangle, Size, Direction};
-use crate::text::{Font, TextWrap};
+use crate::layout::{Align, Direction, Rectangle, Size};
 use crate::loader::Loader;
+use crate::text::{Font, TextWrap};
 
-pub(crate) mod tree;
 mod parse;
 mod tokenize;
+pub(crate) mod tree;
 
 use parse::*;
-use tokenize::*;
 use std::sync::{Arc, Mutex};
+use tokenize::*;
 
 /// Errors that can be encountered while loading a stylesheet
 #[derive(Debug)]
@@ -305,7 +305,10 @@ impl Style {
             rule_tree: tree::RuleTree::default(),
             default: Stylesheet {
                 background: Background::None,
-                font: cache.lock().unwrap().load_font(include_bytes!("default_font.ttf").to_vec()),
+                font: cache
+                    .lock()
+                    .unwrap()
+                    .load_font(include_bytes!("default_font.ttf").to_vec()),
                 color: Color::white(),
                 padding: Rectangle::zero(),
                 margin: Rectangle::zero(),
@@ -385,15 +388,15 @@ impl Declaration {
             &Declaration::AddFlag(ref x) => match stylesheet.flags.binary_search(x) {
                 Err(insert_at) => {
                     stylesheet.flags.insert(insert_at, x.clone());
-                },
+                }
                 Ok(_) => (),
-            }
+            },
             &Declaration::RemoveFlag(ref x) => match stylesheet.flags.binary_search(x) {
                 Ok(exists) => {
                     stylesheet.flags.remove(exists);
-                },
+                }
                 Err(_) => (),
-            }
+            },
         }
     }
 }
@@ -421,7 +424,13 @@ impl Selector {
 
     /// Match parameters of the widget matched by the current rule.
     /// If this selector is not a meta selector `None` is returned.
-    pub fn match_meta<S: AsRef<str>>(&self, state: &[StyleState<S>], class: &str, n: usize, len: usize) -> Option<bool> {
+    pub fn match_meta<S: AsRef<str>>(
+        &self,
+        state: &[StyleState<S>],
+        class: &str,
+        n: usize,
+        len: usize,
+    ) -> Option<bool> {
         match self {
             &Selector::State(ref sel_state) => Some(state.iter().find(|&state| state.eq(sel_state)).is_some()),
             &Selector::Class(ref sel_class) => Some(sel_class == class),

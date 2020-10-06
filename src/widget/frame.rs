@@ -36,7 +36,14 @@ impl<'a, T: 'a> Widget<'a, T> for Frame<'a, T> {
             .resolve_size((style.width, style.height), self.content.size(), style.padding)
     }
 
-    fn event(&mut self, layout: Rectangle, clip: Rectangle, style: &Stylesheet, event: Event, context: &mut Context<T>) {
+    fn event(
+        &mut self,
+        layout: Rectangle,
+        clip: Rectangle,
+        style: &Stylesheet,
+        event: Event,
+        context: &mut Context<T>,
+    ) {
         self.content.event(
             style.background.content_rect(layout, style.padding),
             clip,

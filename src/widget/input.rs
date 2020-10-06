@@ -1,9 +1,9 @@
 use crate::draw::*;
-use crate::widget::{Context, Widget, IntoNode, Node};
 use crate::event::{Event, Key, Modifiers};
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
 use crate::text::{Text, TextWrap};
+use crate::widget::{Context, IntoNode, Node, Widget};
 #[cfg(feature = "clipboard")]
 use clipboard::{ClipboardContext, ClipboardProvider};
 use rusttype::Scale;
@@ -89,7 +89,9 @@ impl<'a, T: 'a, F: 'a + Fn(String) -> T> Widget<'a, T> for Input<'a, T, F> {
         "input"
     }
 
-    fn len(&self) -> usize { 0 }
+    fn len(&self) -> usize {
+        0
+    }
 
     fn visit_children(&mut self, _: &mut dyn FnMut(&mut Node<'a, T>)) {}
 

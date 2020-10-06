@@ -1,7 +1,7 @@
-use crate::widget::{Widget, IntoNode, Node, Dummy};
 use crate::draw::Primitive;
-use crate::layout::{Size, Rectangle, Direction};
+use crate::layout::{Direction, Rectangle, Size};
 use crate::stylesheet::Stylesheet;
+use crate::widget::{Dummy, IntoNode, Node, Widget};
 
 /// A progress bar that fill up according to some progress
 /// The bar part of the progress bar can be styled by selecting the child widget `bar` of the `progress` widget.
@@ -18,7 +18,7 @@ impl<'a, T: 'a> Progress<'a, T> {
     pub fn new(progress: f32) -> Self {
         Self {
             progress,
-            fill: Dummy::new("bar").into_node()
+            fill: Dummy::new("bar").into_node(),
         }
     }
 }
@@ -28,7 +28,9 @@ impl<'a, T: 'a> Widget<'a, T> for Progress<'a, T> {
         "progress"
     }
 
-    fn len(&self) -> usize { 1 }
+    fn len(&self) -> usize {
+        1
+    }
 
     fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut Node<'a, T>)) {
         visitor(&mut self.fill);

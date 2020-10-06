@@ -1,8 +1,8 @@
 use crate::event::{Event, Key, Modifiers};
 
-use winit::event::{DeviceEvent, ElementState, KeyboardInput, MouseButton, MouseScrollDelta, WindowEvent};
-use winit::event_loop::{EventLoopProxy, EventLoopClosed};
 use crate::EventLoop;
+use winit::event::{DeviceEvent, ElementState, KeyboardInput, MouseButton, MouseScrollDelta, WindowEvent};
+use winit::event_loop::{EventLoopClosed, EventLoopProxy};
 
 /// Converts a winit event to a pixel-widgets event, if such a conversion is available.
 /// Requires the "winit" feature.

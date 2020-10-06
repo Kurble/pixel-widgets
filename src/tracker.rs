@@ -31,9 +31,7 @@ impl<Id: Eq + Clone> ManagedState<Id> {
 
 impl<Id: Eq + Clone> Default for ManagedState<Id> {
     fn default() -> Self {
-        Self {
-            state: Vec::new(),
-        }
+        Self { state: Vec::new() }
     }
 }
 
@@ -82,7 +80,7 @@ impl<'a, Id: Eq + Clone> ManagedStateTracker<'a, Id> {
 
         while self.index < self.tracker.state.len() {
             if self.tracker.state[self.index].id.borrow().eq(id) {
-                self.tracker.state.drain(search_start .. self.index).count();
+                self.tracker.state.drain(search_start..self.index).count();
                 unsafe {
                     let i = search_start;
                     self.index = search_start + 1;
@@ -93,10 +91,13 @@ impl<'a, Id: Eq + Clone> ManagedStateTracker<'a, Id> {
             }
         }
 
-        self.tracker.state.insert(search_start, Tracked {
-            id: id.to_owned(),
-            state: Box::new(default()) as Box<dyn Any>,
-        });
+        self.tracker.state.insert(
+            search_start,
+            Tracked {
+                id: id.to_owned(),
+                state: Box::new(default()) as Box<dyn Any>,
+            },
+        );
         self.index = search_start + 1;
         unsafe { self.tracker.state[search_start].unchecked_mut_ref() }
     }

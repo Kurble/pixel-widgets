@@ -45,7 +45,7 @@ impl Cache {
                 // glyph cache
                 TextureSlot::Big,
                 // atlas for textures
-                TextureSlot::Atlas(atlas)
+                TextureSlot::Atlas(atlas),
             ],
             textures_offset: offset,
             updates: vec![
@@ -249,17 +249,21 @@ impl Cache {
         let image_id = Arc::new(self.image_id_counter);
         self.image_id_counter += 1;
 
-        let slot = self.textures.iter_mut().enumerate().filter_map(|(index, slot)| {
-            match slot {
+        let slot = self
+            .textures
+            .iter_mut()
+            .enumerate()
+            .filter_map(|(index, slot)| match slot {
                 &mut TextureSlot::Atlas(ref mut atlas) => {
                     let image_size = image.width().max(image.height()) as usize;
-                    atlas.insert(Arc::downgrade(&image_id), image_size).ok().map(|area| {
-                        (area, atlas.size() as f32, index)
-                    })
+                    atlas
+                        .insert(Arc::downgrade(&image_id), image_size)
+                        .ok()
+                        .map(|area| (area, atlas.size() as f32, index))
                 }
                 &mut TextureSlot::Big => None,
-            }
-        }).next();
+            })
+            .next();
 
         if let Some((mut area, atlas_size, tex_id)) = slot {
             area.right = area.left + image.width() as usize;

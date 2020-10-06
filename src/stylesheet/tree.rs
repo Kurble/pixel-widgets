@@ -1,5 +1,5 @@
 use crate::bitset::BitSet;
-use crate::stylesheet::{Declaration, Selector, SelectorWidget, StyleState, Style};
+use crate::stylesheet::{Declaration, Selector, SelectorWidget, Style, StyleState};
 use std::iter::FromIterator;
 use std::rc::Rc;
 

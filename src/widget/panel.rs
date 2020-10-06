@@ -1,8 +1,8 @@
-use crate::widget::{Node, Widget, Context, IntoNode};
-use crate::layout::{Size, Rectangle};
 use crate::draw::Primitive;
 use crate::event::Event;
+use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
+use crate::widget::{Context, IntoNode, Node, Widget};
 
 /// The anchor from which to apply the offset of a `Panel`
 #[allow(missing_docs)]
@@ -40,9 +40,17 @@ impl<'a, T: 'a> Panel<'a, T> {
         };
         let available = Rectangle {
             left: if left { layout.left + self.offset.0 } else { layout.left },
-            right: if left { layout.right } else { layout.right - self.offset.0 },
+            right: if left {
+                layout.right
+            } else {
+                layout.right - self.offset.0
+            },
             top: if top { layout.top + self.offset.1 } else { layout.top },
-            bottom: if top { layout.bottom } else { layout.bottom - self.offset.1 },
+            bottom: if top {
+                layout.bottom
+            } else {
+                layout.bottom - self.offset.1
+            },
         };
         if available.left < available.right && available.top < available.bottom {
             let width = match content_width {
@@ -86,7 +94,9 @@ impl<'a, T: 'a> Widget<'a, T> for Panel<'a, T> {
 
     fn hit(&self, layout: Rectangle, clip: Rectangle, _: &Stylesheet, x: f32, y: f32) -> bool {
         if layout.point_inside(x, y) && clip.point_inside(x, y) {
-            self.layout(layout).map(|layout| layout.point_inside(x, y)).unwrap_or(false)
+            self.layout(layout)
+                .map(|layout| layout.point_inside(x, y))
+                .unwrap_or(false)
         } else {
             false
         }

@@ -3,8 +3,8 @@ use smallvec::smallvec;
 use crate::draw::Primitive;
 use crate::event::{Event, Key};
 use crate::layout::{Rectangle, Size};
-use crate::stylesheet::{Stylesheet, StyleState};
-use crate::widget::{Context, IntoNode, Node, Widget, StateVec};
+use crate::stylesheet::{StyleState, Stylesheet};
+use crate::widget::{Context, IntoNode, Node, StateVec, Widget};
 
 /// Pick an item from a dropdown box
 pub struct Dropdown<'a, T> {
@@ -97,7 +97,9 @@ impl<'a, T: 'a> Widget<'a, T> for Dropdown<'a, T> {
             other => other,
         };
 
-        style.background.resolve_size((style.width, style.height), (width, height), style.padding)
+        style
+            .background
+            .resolve_size((style.width, style.height), (width, height), style.padding)
     }
 
     fn hit(&self, layout: Rectangle, clip: Rectangle, _: &Stylesheet, x: f32, y: f32) -> bool {
@@ -160,10 +162,12 @@ impl<'a, T: 'a> Widget<'a, T> for Dropdown<'a, T> {
                 let new_hover_item =
                     (((y - layout.bottom) / layout.height()).floor().max(0.0) as usize).min(self.items.len() - 1);
 
-                if new_hover_item != hover_item || !self.state.hovered
-                {
+                if new_hover_item != hover_item || !self.state.hovered {
                     context.redraw();
-                    InnerState::Open { scroll, hover_item: new_hover_item }
+                    InnerState::Open {
+                        scroll,
+                        hover_item: new_hover_item,
+                    }
                 } else {
                     InnerState::Pressed { scroll, hover_item }
                 }

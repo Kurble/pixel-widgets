@@ -1,6 +1,6 @@
 use pixel_widgets::prelude::*;
-use winit::window::WindowBuilder;
 use pixel_widgets::Command;
+use winit::window::WindowBuilder;
 
 struct Counter {
     pub value: i32,

@@ -1,7 +1,7 @@
-use crate::widget::{Widget, Node, IntoNode};
 use crate::draw::Primitive;
-use crate::layout::{Size, Rectangle};
+use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
+use crate::widget::{IntoNode, Node, Widget};
 
 /// Dummy widget that has a custom widget name
 pub struct Dummy {
@@ -16,13 +16,19 @@ impl Dummy {
 }
 
 impl<'a, T: 'a> Widget<'a, T> for Dummy {
-    fn widget(&self) -> &'static str { self.widget }
+    fn widget(&self) -> &'static str {
+        self.widget
+    }
 
-    fn len(&self) -> usize { 0 }
+    fn len(&self) -> usize {
+        0
+    }
 
-    fn visit_children(&mut self, _: &mut dyn FnMut(&mut Node<'a, T>)) { }
+    fn visit_children(&mut self, _: &mut dyn FnMut(&mut Node<'a, T>)) {}
 
-    fn size(&self, style: &Stylesheet) -> (Size, Size) { (style.width, style.height) }
+    fn size(&self, style: &Stylesheet) -> (Size, Size) {
+        (style.width, style.height)
+    }
 
     fn draw(&mut self, layout: Rectangle, _: Rectangle, style: &Stylesheet) -> Vec<Primitive<'a>> {
         style.background.render(layout).into_iter().collect()
