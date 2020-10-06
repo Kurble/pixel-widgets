@@ -13,4 +13,14 @@
 - [x] progress bar widget
 - [x] context menu widget / thing
 - [x] drag and drop widget
-    - share a context between all drag/drop sources / targets
+
+#### v0.5
+- [ ] UI scaling
+- [ ] maybe add a slider widget
+- [ ] Animation functionality in `Node`, 
+  - [ ] Visible flag
+  - [ ] State in node...
+  - [ ] Appear animation
+  - [ ] Disappear animation
+  - [ ] Dynamic layouting
+  - [ ] Ongoing animations 

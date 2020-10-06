@@ -89,5 +89,7 @@ async fn main() {
 
     let loader = pixel_widgets::loader::FsLoader::new("./examples".into()).unwrap();
 
-    pixel_widgets::sandbox::run(model, loader, "download.pwss", window, None).await;
+    let mut sandbox = Sandbox::new(model, loader, window).await;
+    sandbox.ui.set_stylesheet("download.pwss").await.unwrap();
+    sandbox.run().await;
 }

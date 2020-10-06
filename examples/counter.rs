@@ -1,5 +1,4 @@
 use pixel_widgets::prelude::*;
-use std::path::PathBuf;
 use winit::window::WindowBuilder;
 use pixel_widgets::Command;
 
@@ -53,5 +52,7 @@ async fn main() {
 
     let loader = pixel_widgets::loader::FsLoader::new("./examples".into()).unwrap();
 
-    pixel_widgets::sandbox::run(model, loader, "counter.pwss", window, None).await;
+    let mut sandbox = Sandbox::new(model, loader, window).await;
+    sandbox.ui.set_stylesheet("counter.pwss").await.unwrap();
+    sandbox.run().await;
 }
