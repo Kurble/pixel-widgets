@@ -31,24 +31,29 @@ impl<T: 'static + Model, L: Loader> Sandbox<T, L> {
 
         let swapchain_format = wgpu::TextureFormat::Bgra8Unorm;
 
-        let surface = wgpu::Surface::create(&window);
-        let adapter = wgpu::Adapter::request(
-            &wgpu::RequestAdapterOptions {
+        let instance = wgpu::Instance::new(wgpu::BackendBit::PRIMARY);
+        let surface = unsafe { instance.create_surface(&window) };
+        let adapter = instance
+            .request_adapter(&wgpu::RequestAdapterOptions {
                 power_preference: wgpu::PowerPreference::Default,
                 compatible_surface: Some(&surface),
-            },
-            wgpu::BackendBit::PRIMARY,
-        )
+            })
             .await
             .expect("Failed to find an appropriate adapter");
 
         // Create the logical device and command queue
+        let trace_dir = std::env::var("WGPU_TRACE");
         let (device, queue) = adapter
-            .request_device(&wgpu::DeviceDescriptor {
-                extensions: Default::default(),
-                limits: wgpu::Limits::default(),
-            })
-            .await;
+            .request_device(
+                &wgpu::DeviceDescriptor {
+                    features: Default::default(),
+                    limits: wgpu::Limits::default(),
+                    shader_validation: false,
+                },
+                trace_dir.ok().as_ref().map(std::path::Path::new),
+            )
+            .await
+            .expect("Failed retrieve device and queue");
 
         let sc_desc = wgpu::SwapChainDescriptor {
             usage: wgpu::TextureUsage::OUTPUT_ATTACHMENT,
@@ -66,7 +71,7 @@ impl<T: 'static + Model, L: Loader> Sandbox<T, L> {
             loader,
             Rectangle::from_wh(size.width as f32, size.height as f32),
             swapchain_format,
-            &device
+            &device,
         );
 
         Sandbox {
@@ -99,21 +104,26 @@ impl<T: 'static + Model, L: Loader> Sandbox<T, L> {
                     self.sc_desc.width = size.width;
                     self.sc_desc.height = size.height;
                     self.swap_chain = self.device.create_swap_chain(&self.surface, &self.sc_desc);
-                    self.ui.resize(Rectangle::from_wh(size.width as f32, size.height as f32));
+                    self.ui
+                        .resize(Rectangle::from_wh(size.width as f32, size.height as f32));
                 }
                 Event::RedrawRequested(_) => {
-                    let frame = self.swap_chain
-                        .get_next_texture()
+                    let frame = self
+                        .swap_chain
+                        .get_current_frame()
                         .expect("Failed to acquire next swap chain texture");
-                    let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+                    let mut encoder = self
+                        .device
+                        .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
                     {
                         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                             color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
-                                attachment: &frame.view,
+                                attachment: &frame.output.view,
                                 resolve_target: None,
-                                load_op: wgpu::LoadOp::Clear,
-                                store_op: wgpu::StoreOp::Store,
-                                clear_color: wgpu::Color::BLACK,
+                                ops: wgpu::Operations {
+                                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                                    store: true,
+                                },
                             }],
                             depth_stencil_attachment: None,
                         });
@@ -121,7 +131,7 @@ impl<T: 'static + Model, L: Loader> Sandbox<T, L> {
                         self.ui.draw(&self.device, &self.queue, &mut pass);
                     }
 
-                    self.queue.submit(&[encoder.finish()]);
+                    self.queue.submit(Some(encoder.finish()));
                 }
                 Event::WindowEvent {
                     event: WindowEvent::CloseRequested,

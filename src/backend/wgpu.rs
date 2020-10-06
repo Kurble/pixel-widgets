@@ -9,6 +9,7 @@ use crate::draw::{Command as DrawCommand, DrawList, Update, Vertex};
 use crate::layout::Rectangle;
 use crate::loader::Loader;
 use crate::{Command, EventLoop, Model};
+use wgpu::util::DeviceExt;
 
 /// Wrapper for [`Ui`](../../struct.Ui.html) that adds wgpu rendering.
 /// Requires the "wgpu" feature.
@@ -42,18 +43,11 @@ impl<M: Model, E: EventLoop<Command<M::Message>>, L: Loader> Ui<M, E, L> {
     }
 
     fn new_inner(inner: crate::Ui<M, E, L>, format: wgpu::TextureFormat, device: &Device) -> Self {
-        let vs_module = device.create_shader_module(
-            wgpu::read_spirv(std::io::Cursor::new(&include_bytes!("wgpu_shader.vert.spv")[..]))
-                .expect("unable to load shader module")
-                .as_slice(),
-        );
-        let fs_module = device.create_shader_module(
-            wgpu::read_spirv(std::io::Cursor::new(&include_bytes!("wgpu_shader.frag.spv")[..]))
-                .expect("unable to load shader module")
-                .as_slice(),
-        );
+        let vs_module = device.create_shader_module(wgpu::include_spirv!("wgpu_shader.vert.spv"));
+        let fs_module = device.create_shader_module(wgpu::include_spirv!("wgpu_shader.frag.spv"));
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            bindings: &[
+            label: None,
+            entries: &[
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
                     visibility: wgpu::ShaderStage::FRAGMENT,
@@ -62,20 +56,24 @@ impl<M: Model, E: EventLoop<Command<M::Message>>, L: Loader> Ui<M, E, L> {
                         component_type: wgpu::TextureComponentType::Uint,
                         multisampled: false,
                     },
+                    count: None
                 },
                 wgpu::BindGroupLayoutEntry {
                     binding: 1,
                     visibility: wgpu::ShaderStage::FRAGMENT,
                     ty: wgpu::BindingType::Sampler { comparison: false },
+                    count: None
                 },
             ],
-            label: None,
         });
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: None,
             bind_group_layouts: &[&bind_group_layout],
+            push_constant_ranges: &[],
         });
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            layout: &pipeline_layout,
+            label: None,
+            layout: Some(&pipeline_layout),
             vertex_stage: wgpu::ProgrammableStageDescriptor {
                 module: &vs_module,
                 entry_point: "main",
@@ -137,6 +135,7 @@ impl<M: Model, E: EventLoop<Command<M::Message>>, L: Loader> Ui<M, E, L> {
         });
 
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: None,
             address_mode_u: wgpu::AddressMode::ClampToEdge,
             address_mode_v: wgpu::AddressMode::ClampToEdge,
             address_mode_w: wgpu::AddressMode::ClampToEdge,
@@ -145,7 +144,8 @@ impl<M: Model, E: EventLoop<Command<M::Message>>, L: Loader> Ui<M, E, L> {
             mipmap_filter: wgpu::FilterMode::Linear,
             lod_min_clamp: 0.0,
             lod_max_clamp: 0.0,
-            compare: wgpu::CompareFunction::Undefined,
+            compare: None,
+            anisotropy_clamp: None,
         });
 
         Self {
@@ -173,7 +173,7 @@ impl<M: Model, E: EventLoop<Command<M::Message>>, L: Loader> Ui<M, E, L> {
 
             if updates.len() > 0 {
                 let cmd = device.create_command_encoder(&CommandEncoderDescriptor { label: None });
-                queue.submit(&[updates
+                queue.submit(Some(updates
                     .into_iter()
                     .fold(cmd, |mut cmd, update| {
                         match update {
@@ -185,7 +185,6 @@ impl<M: Model, E: EventLoop<Command<M::Message>>, L: Loader> Ui<M, E, L> {
                                         height: size[1],
                                         depth: 1,
                                     },
-                                    array_layer_count: 1,
                                     mip_level_count: 1,
                                     sample_count: 1,
                                     dimension: wgpu::TextureDimension::D2,
@@ -194,19 +193,23 @@ impl<M: Model, E: EventLoop<Command<M::Message>>, L: Loader> Ui<M, E, L> {
                                 });
 
                                 if data.len() > 0 {
-                                    let staging =
-                                        device.create_buffer_with_data(data.as_slice(), wgpu::BufferUsage::COPY_SRC);
+                                    let staging = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                                        label: None,
+                                        contents: data.as_slice(),
+                                        usage: wgpu::BufferUsage::COPY_SRC
+                                    });
                                     cmd.copy_buffer_to_texture(
                                         wgpu::BufferCopyView {
                                             buffer: &staging,
-                                            offset: 0,
-                                            bytes_per_row: size[0] * 4,
-                                            rows_per_image: 0,
+                                            layout: wgpu::TextureDataLayout {
+                                                offset: 0,
+                                                bytes_per_row:  size[0] * 4,
+                                                rows_per_image: 0
+                                            }
                                         },
                                         wgpu::TextureCopyView {
                                             texture: &texture,
                                             mip_level: 0,
-                                            array_layer: 0,
                                             origin: Default::default(),
                                         },
                                         wgpu::Extent3d {
@@ -217,16 +220,16 @@ impl<M: Model, E: EventLoop<Command<M::Message>>, L: Loader> Ui<M, E, L> {
                                     );
                                 }
 
-                                let view = texture.create_default_view();
+                                let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
 
                                 let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
                                     layout: &self.bind_group_layout,
-                                    bindings: &[
-                                        wgpu::Binding {
+                                    entries: &[
+                                        wgpu::BindGroupEntry {
                                             binding: 0,
                                             resource: wgpu::BindingResource::TextureView(&view),
                                         },
-                                        wgpu::Binding {
+                                        wgpu::BindGroupEntry {
                                             binding: 1,
                                             resource: wgpu::BindingResource::Sampler(&self.sampler),
                                         },
@@ -253,19 +256,23 @@ impl<M: Model, E: EventLoop<Command<M::Message>>, L: Loader> Ui<M, E, L> {
                                 } else {
                                     data
                                 };
-                                let staging =
-                                    device.create_buffer_with_data(data.as_slice(), wgpu::BufferUsage::COPY_SRC);
+                                let staging = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                                    label: None,
+                                    contents: data.as_slice(),
+                                    usage: wgpu::BufferUsage::COPY_SRC
+                                });
                                 cmd.copy_buffer_to_texture(
                                     wgpu::BufferCopyView {
                                         buffer: &staging,
-                                        offset: 0,
-                                        bytes_per_row: size[0] * 4 + padding,
-                                        rows_per_image: 0,
+                                        layout: wgpu::TextureDataLayout {
+                                            offset: 0,
+                                            bytes_per_row: size[0] * 4 + padding,
+                                            rows_per_image: 0,
+                                        }
                                     },
                                     wgpu::TextureCopyView {
                                         texture: &texture,
                                         mip_level: 0,
-                                        array_layer: 0,
                                         origin: wgpu::Origin3d {
                                             x: offset[0],
                                             y: offset[1],
@@ -282,19 +289,23 @@ impl<M: Model, E: EventLoop<Command<M::Message>>, L: Loader> Ui<M, E, L> {
                         }
                         cmd
                     })
-                    .finish()]);
+                    .finish()));
             }
 
             if vertices.len() > 0 {
                 self.vertex_buffer
-                    .replace(device.create_buffer_with_data(vertices.as_bytes(), wgpu::BufferUsage::VERTEX));
+                    .replace(device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                        label: None,
+                        contents: vertices.as_bytes(),
+                        usage: wgpu::BufferUsage::VERTEX
+                    }));
             }
         }
 
         if let Some(vertex_buffer) = self.vertex_buffer.as_ref() {
             render_pass.set_pipeline(&self.pipeline);
             render_pass.set_bind_group(0, &self.textures.values().next().unwrap().bind_group, &[]);
-            render_pass.set_vertex_buffer(0, vertex_buffer, 0, 0);
+            render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
         }
 
         for command in self.draw_commands.iter() {
