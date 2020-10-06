@@ -1,5 +1,8 @@
 # Changelog
 
+### v0.4.1
+- Fixed compilation errors after dependencies that were allowed to updated were updated.
+
 ### v0.4.0
 - `Model::update` now returns a `Vec<Command<Message>>`, which can be used to send async messages.
 - `Ui::command` added, which can be used to send an async message externally

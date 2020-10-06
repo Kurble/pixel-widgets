@@ -211,7 +211,7 @@ pub enum Command<Message> {
     Stylesheet(Box<dyn Future<Output = Result<Style, stylesheet::Error>> + Send>),
 }
 
-impl<M: Model, E: EventLoop<Command<M::Message>>, L: Loader> Ui<M, E, L> {
+impl<M: Model, E: 'static + EventLoop<Command<M::Message>>, L: Loader> Ui<M, E, L> {
     /// Constructs a new `Ui` using the default style.
     /// This is not recommended as the default style is very empty and only renders white text.
     pub fn new(model: M, event_loop: E, loader: L, viewport: Rectangle) -> Self {
@@ -733,7 +733,7 @@ struct EventLoopWaker<T: Send, E: EventLoop<T>> {
     message: Mutex<(E, Option<T>)>,
 }
 
-impl<T: Send, E: EventLoop<T>> EventLoopWaker<T, E> {
+impl<T: 'static + Send, E: 'static + EventLoop<T>> EventLoopWaker<T, E> {
     fn new(event_loop: E, message: T) -> Waker {
         futures::task::waker(Arc::new(Self {
             message: Mutex::new((event_loop, Some(message))),
