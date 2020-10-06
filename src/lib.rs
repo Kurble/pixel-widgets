@@ -60,11 +60,12 @@
 //!     // define our message type
 //!     type Message = Message;
 //!
-//!     fn update(&mut self, message: Message) {
+//!     fn update(&mut self, message: Message) -> Vec<Command<Message>> {
 //!         match message {
 //!             Message::UpClicked => self.count += 1,
 //!             Message::DownClicked => self.count -= 1,
 //!         }
+//!         Vec::new()
 //!     }
 //!
 //!     // Note that the view is allowed to keep mutable references to the model.
@@ -85,7 +86,8 @@
 //!
 //! // Now that we have a model that can be used with pixel-widgets,
 //! // we can pass it to the sandbox to quickly see some results!
-//! fn main() {
+//! #[tokio::main]
+//! async fn main() {
 //!     let model = Counter {
 //!         state: ManagedState::default(),
 //!         count: 0,
@@ -95,7 +97,11 @@
 //!         .with_title("Counter")
 //!         .with_inner_size(winit::dpi::LogicalSize::new(240, 240));
 //!
-//!     pixel_widgets::sandbox::run(model, PathBuf::from("."), "counter.pwss", window);
+//!    let loader = pixel_widgets::loader::FsLoader::new("./examples".into()).unwrap();
+//!
+//!     let mut sandbox = Sandbox::new(model, loader, window).await;
+//!     sandbox.ui.set_stylesheet("counter.pwss").await.unwrap();
+//!     sandbox.run().await;
 //! }
 //! ```
 //!
