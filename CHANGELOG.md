@@ -1,5 +1,8 @@
 # Changelog
 
+### v0.4.2
+- Made all widgets and `Ui` `Send` compatible
+
 ### v0.4.1
 - Fixed compilation errors after dependencies that were allowed to updated were updated.
 

@@ -58,7 +58,7 @@ impl<'a, T: 'a> Dropdown<'a, T> {
     }
 }
 
-impl<'a, T: 'a> Widget<'a, T> for Dropdown<'a, T> {
+impl<'a, T: Send + 'a> Widget<'a, T> for Dropdown<'a, T> {
     fn widget(&self) -> &'static str {
         "dropdown"
     }
@@ -258,7 +258,7 @@ impl<'a, T: 'a> Widget<'a, T> for Dropdown<'a, T> {
     }
 }
 
-impl<'a, T: 'a> IntoNode<'a, T> for Dropdown<'a, T> {
+impl<'a, T: 'a + Send> IntoNode<'a, T> for Dropdown<'a, T> {
     fn into_node(self) -> Node<'a, T> {
         Node::new(self)
     }

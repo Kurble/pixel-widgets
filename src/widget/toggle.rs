@@ -35,7 +35,7 @@ impl<'a, T: 'a, F: 'a + Fn(bool) -> T> Toggle<'a, T, F> {
     }
 }
 
-impl<'a, T, F: Fn(bool) -> T> Widget<'a, T> for Toggle<'a, T, F> {
+impl<'a, T, F: Send + Fn(bool) -> T> Widget<'a, T> for Toggle<'a, T, F> {
     fn widget(&self) -> &'static str {
         "toggle"
     }
@@ -134,7 +134,7 @@ impl<'a, T, F: Fn(bool) -> T> Widget<'a, T> for Toggle<'a, T, F> {
     }
 }
 
-impl<'a, T: 'a, F: 'a + Fn(bool) -> T> IntoNode<'a, T> for Toggle<'a, T, F> {
+impl<'a, T: 'a + Send, F: 'a + Send + Fn(bool) -> T> IntoNode<'a, T> for Toggle<'a, T, F> {
     fn into_node(self) -> Node<'a, T> {
         Node::new(self)
     }

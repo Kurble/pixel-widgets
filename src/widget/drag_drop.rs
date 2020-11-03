@@ -1,4 +1,4 @@
-use std::cell::Cell;
+use std::sync::Mutex;
 
 use smallvec::smallvec;
 
@@ -9,13 +9,13 @@ use crate::stylesheet::{StyleState, Stylesheet};
 use crate::widget::{Context, Frame, IntoNode, Node, StateVec, Widget};
 
 /// Message type for communicating between `Drag` and `Drop` widgets
-pub trait DragDropId: 'static + Copy {}
+pub trait DragDropId: 'static + Copy + Send {}
 
 /// Context for `Drag` and `Drop` widgets. Only `Drag` and `Drop` widgets that share the same `DragDropContext` can
 /// interact with each other.
-#[derive(Clone)]
+//#[derive(Clone)]
 pub struct DragDropContext<T: DragDropId> {
-    data: Cell<Option<(T, (f32, f32))>>,
+    data: Mutex<Option<(T, (f32, f32))>>,
 }
 
 /// A draggable item that can be dropped in `Drop` zones.
@@ -87,7 +87,7 @@ where
     }
 }
 
-impl<'a, T: DragDropId, Message: 'a> Widget<'a, Message> for Drag<'a, T, Message> {
+impl<'a, T: DragDropId + Send, Message: 'a> Widget<'a, Message> for Drag<'a, T, Message> {
     fn widget(&self) -> &'static str {
         "drag"
     }
@@ -128,7 +128,7 @@ impl<'a, T: DragDropId, Message: 'a> Widget<'a, Message> for Drag<'a, T, Message
 
             Event::Release(Key::LeftMouseButton) if self.state.dragging.is_some() => {
                 self.state.dragging.take();
-                self.context.data.replace(None);
+                self.context.data.lock().unwrap().take();
                 context.redraw();
             }
 
@@ -141,10 +141,10 @@ impl<'a, T: DragDropId, Message: 'a> Widget<'a, Message> for Drag<'a, T, Message
     fn node_event(&mut self, layout: Rectangle, _: &Stylesheet, event: NodeEvent, context: &mut Context<Message>) {
         match event {
             NodeEvent::MouseDown(Key::LeftMouseButton) => {
-                self.context.data.replace(Some((
+                self.context.data.lock().unwrap().replace((
                     self.data,
                     (context.cursor.0 - layout.left, context.cursor.1 - layout.top),
-                )));
+                ));
                 self.state.origin = context.cursor;
                 self.state.offset = (0.0, 0.0);
                 self.state.dragging = Some(self.data);
@@ -171,8 +171,8 @@ impl<'a, T: DragDropId, Message: 'a> Widget<'a, Message> for Drag<'a, T, Message
 
 impl<'a, T: DragDropId, Message: 'a, OnAccept, OnDrop> Widget<'a, Message> for Drop<'a, T, Message, OnAccept, OnDrop>
 where
-    OnAccept: Fn(T) -> bool,
-    OnDrop: Fn(T, (f32, f32)) -> Message,
+    OnAccept: Send + Fn(T) -> bool,
+    OnDrop: Send + Fn(T, (f32, f32)) -> Message,
 {
     fn widget(&self) -> &'static str {
         "drop"
@@ -212,7 +212,7 @@ where
     fn node_event(&mut self, layout: Rectangle, _: &Stylesheet, event: NodeEvent, context: &mut Context<Message>) {
         match event {
             NodeEvent::MouseEnter => {
-                if let Some(data) = self.context.data.get() {
+                if let Some(data) = self.context.data.lock().unwrap().clone() {
                     if (self.accept)(data.0) {
                         self.state.hovering = Some(data);
                     }
@@ -251,19 +251,19 @@ impl<'a, T: DragDropId, Message: 'a> IntoNode<'a, Message> for Drag<'a, T, Messa
 impl<'a, T: DragDropId, Message: 'a, OnAccept: 'a, OnDrop: 'a> IntoNode<'a, Message>
     for Drop<'a, T, Message, OnAccept, OnDrop>
 where
-    OnAccept: Fn(T) -> bool,
-    OnDrop: Fn(T, (f32, f32)) -> Message,
+    OnAccept: Send + Fn(T) -> bool,
+    OnDrop: Send + Fn(T, (f32, f32)) -> Message,
 {
     fn into_node(self) -> Node<'a, Message> {
         Node::new(self)
     }
 }
 
-impl<T: 'static + Copy> DragDropId for T {}
+impl<T: 'static + Copy + Send> DragDropId for T {}
 
 impl<T: DragDropId> Default for DragDropContext<T> {
     fn default() -> Self {
-        Self { data: Cell::new(None) }
+        Self { data: Mutex::new(None) }
     }
 }
 

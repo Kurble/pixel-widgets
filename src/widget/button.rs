@@ -40,7 +40,7 @@ impl<'a, T: 'a> Button<'a, T> {
     }
 }
 
-impl<'a, T: 'a> Widget<'a, T> for Button<'a, T> {
+impl<'a, T: 'a + Send> Widget<'a, T> for Button<'a, T> {
     fn widget(&self) -> &'static str {
         "button"
     }
@@ -137,7 +137,7 @@ impl<'a, T: 'a> Widget<'a, T> for Button<'a, T> {
     }
 }
 
-impl<'a, T: 'a> IntoNode<'a, T> for Button<'a, T> {
+impl<'a, T: 'a + Send> IntoNode<'a, T> for Button<'a, T> {
     fn into_node(self) -> Node<'a, T> {
         Node::new(self)
     }

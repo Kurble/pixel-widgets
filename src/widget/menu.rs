@@ -71,7 +71,7 @@ impl<'a, T: 'a> Menu<'a, T, Vec<MenuItem<'a, T>>> {
     }
 }
 
-impl<'a, T: 'a, S: AsRef<[MenuItem<'a, T>]> + AsMut<[MenuItem<'a, T>]>> Menu<'a, T, S> {
+impl<'a, T: 'a + Send, S: Send + AsRef<[MenuItem<'a, T>]> + AsMut<[MenuItem<'a, T>]>> Menu<'a, T, S> {
     fn layout(
         &self,
         left: f32,
@@ -204,7 +204,7 @@ fn visit<'a, T>(items: &mut [MenuItem<'a, T>], visitor: &mut dyn FnMut(&mut Node
     }
 }
 
-impl<'a, T: 'a, S: AsRef<[MenuItem<'a, T>]> + AsMut<[MenuItem<'a, T>]>> Widget<'a, T> for Menu<'a, T, S> {
+impl<'a, T: 'a + Send, S: Send + AsRef<[MenuItem<'a, T>]> + AsMut<[MenuItem<'a, T>]>> Widget<'a, T> for Menu<'a, T, S> {
     fn widget(&self) -> &'static str {
         "menu"
     }
@@ -424,7 +424,7 @@ impl<'a, T: 'a, S: AsRef<[MenuItem<'a, T>]> + AsMut<[MenuItem<'a, T>]>> Widget<'
     }
 }
 
-impl<'a, T: 'a, S: 'a + AsRef<[MenuItem<'a, T>]> + AsMut<[MenuItem<'a, T>]>> IntoNode<'a, T> for Menu<'a, T, S> {
+impl<'a, T: 'a + Send, S: 'a + Send + AsRef<[MenuItem<'a, T>]> + AsMut<[MenuItem<'a, T>]>> IntoNode<'a, T> for Menu<'a, T, S> {
     fn into_node(self) -> Node<'a, T> {
         Node::new(self)
     }

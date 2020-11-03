@@ -84,7 +84,7 @@ impl<'a, T, F: Fn(String) -> T> Input<'a, T, F> {
     }
 }
 
-impl<'a, T: 'a, F: 'a + Fn(String) -> T> Widget<'a, T> for Input<'a, T, F> {
+impl<'a, T: 'a + Send, F: 'a + Send + Fn(String) -> T> Widget<'a, T> for Input<'a, T, F> {
     fn widget(&self) -> &'static str {
         "input"
     }
@@ -488,7 +488,7 @@ impl<'a, T: 'a, F: 'a + Fn(String) -> T> Widget<'a, T> for Input<'a, T, F> {
     }
 }
 
-impl<'a, T: 'a, F: 'a + Fn(String) -> T> IntoNode<'a, T> for Input<'a, T, F> {
+impl<'a, T: 'a + Send, F: 'a + Send + Fn(String) -> T> IntoNode<'a, T> for Input<'a, T, F> {
     fn into_node(self) -> Node<'a, T> {
         Node::new(self)
     }

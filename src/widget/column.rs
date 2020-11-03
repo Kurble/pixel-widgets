@@ -64,7 +64,7 @@ impl<'a, T: 'a> Column<'a, T> {
     }
 }
 
-impl<'a, T: 'a> Widget<'a, T> for Column<'a, T> {
+impl<'a, T: 'a + Send> Widget<'a, T> for Column<'a, T> {
     fn widget(&self) -> &'static str {
         "column"
     }
@@ -141,7 +141,7 @@ impl<'a, T: 'a> Widget<'a, T> for Column<'a, T> {
     }
 }
 
-impl<'a, T: 'a> IntoNode<'a, T> for Column<'a, T> {
+impl<'a, T: 'a + Send> IntoNode<'a, T> for Column<'a, T> {
     fn into_node(self) -> Node<'a, T> {
         Node::new(self)
     }

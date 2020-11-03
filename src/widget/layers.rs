@@ -62,7 +62,7 @@ impl<'a, T: 'a, Id: 'a + Eq + Clone> Layers<'a, T, Id> {
     }
 }
 
-impl<'a, T: 'a, Id: 'a> Widget<'a, T> for Layers<'a, T, Id> {
+impl<'a, T: 'a + Send, Id: 'a + Send> Widget<'a, T> for Layers<'a, T, Id> {
     fn widget(&self) -> &'static str {
         "layers"
     }
@@ -171,7 +171,7 @@ impl<'a, T: 'a, Id: 'a> Widget<'a, T> for Layers<'a, T, Id> {
     }
 }
 
-impl<'a, T: 'a, Id: 'a + Eq + Clone> IntoNode<'a, T> for Layers<'a, T, Id> {
+impl<'a, T: 'a + Send, Id: 'a + Send + Eq + Clone> IntoNode<'a, T> for Layers<'a, T, Id> {
     fn into_node(mut self) -> Node<'a, T> {
         let mut index = 0;
         for order_id in self.state.order.iter() {

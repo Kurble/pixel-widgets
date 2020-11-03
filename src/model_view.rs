@@ -2,11 +2,11 @@ use crate::stylesheet::tree::Query;
 use crate::stylesheet::Style;
 use crate::widget::Node;
 use crate::Model;
-use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 
 pub struct ModelView<M: Model> {
     model: Box<M>,
-    view: Option<Node<'static, M::Message>>,
+    view: Option<Mutex<Node<'static, M::Message>>>,
 }
 
 impl<M: Model> ModelView<M> {
@@ -34,15 +34,15 @@ impl<M: Model> ModelView<M> {
         &mut self.model
     }
 
-    pub fn view(&mut self, style: Rc<Style>) -> &mut Node<'static, M::Message> {
+    pub fn view(&mut self, style: Arc<Style>) -> &mut Node<'static, M::Message> {
         if self.view.is_none() {
             unsafe {
                 let mut root = (self.model.as_mut() as *mut M).as_mut().unwrap().view();
                 root.style(&mut Query::from_style(style));
-                self.view.replace(root);
+                self.view.replace(Mutex::new(root));
             }
         }
-        self.view.as_mut().unwrap()
+        self.view.as_mut().unwrap().get_mut().unwrap()
     }
 }
 

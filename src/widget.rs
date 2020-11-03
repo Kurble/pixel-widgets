@@ -21,7 +21,6 @@
 //! Widgets like [`Scroll`](scroll/struct.Scroll.html) can change the layout without needing a rebuild of the ui.
 use std::cell::Cell;
 use std::ops::Deref;
-use std::rc::Rc;
 
 use crate::bitset::BitSet;
 use crate::draw::Primitive;
@@ -89,7 +88,7 @@ pub mod toggle;
 pub mod window;
 
 /// A user interface widget.
-pub trait Widget<'a, Message> {
+pub trait Widget<'a, Message>: Send {
     /// The name of this widget, used to identify widgets of this type in stylesheets.
     fn widget(&self) -> &'static str;
 
@@ -195,7 +194,7 @@ pub trait IntoNode<'a, Message: 'a>: 'a + Sized {
     }
 
     /// Convenience function that converts to a node and then sets a handler for when a node event occurs.
-    fn on_event(self, event: NodeEvent, f: impl 'a + Fn(&mut Context<Message>)) -> Node<'a, Message> {
+    fn on_event(self, event: NodeEvent, f: impl 'a + Send + Fn(&mut Context<Message>)) -> Node<'a, Message> {
         self.into_node().on_event(event, f)
     }
 }
@@ -206,13 +205,13 @@ pub type StateVec = SmallVec<[StyleState<&'static str>; 3]>;
 /// Generic ui widget.
 pub struct Node<'a, Message> {
     widget: Box<dyn Widget<'a, Message> + 'a>,
-    event_handlers: Vec<(NodeEvent, Box<dyn 'a + Fn(&mut Context<Message>)>)>,
+    event_handlers: Vec<(NodeEvent, Box<dyn 'a + Fn(&mut Context<Message>) + Send>)>,
     clicks: Vec<Key>,
     hovered: bool,
     size: Cell<Option<(Size, Size)>>,
     focused: Cell<Option<bool>>,
     position: (usize, usize),
-    style: Option<Rc<Style>>,
+    style: Option<Arc<Style>>,
     selector_matches: BitSet,
     stylesheet: Option<Arc<Stylesheet>>,
     class: Option<&'a str>,
@@ -252,7 +251,7 @@ impl<'a, Message> Node<'a, Message> {
     }
 
     /// Sets a handler for when a node event occurs
-    pub fn on_event(mut self, event: NodeEvent, f: impl 'a + Fn(&mut Context<Message>)) -> Self {
+    pub fn on_event(mut self, event: NodeEvent, f: impl 'a + Send + Fn(&mut Context<Message>)) -> Self {
         self.event_handlers.push((event, Box::new(f)));
         self
     }

@@ -1,7 +1,7 @@
 use crate::bitset::BitSet;
 use crate::stylesheet::{Declaration, Selector, SelectorWidget, Style, StyleState};
 use std::iter::FromIterator;
-use std::rc::Rc;
+use std::sync::Arc;
 
 pub(crate) struct RuleTree {
     rules: Vec<Rule>,
@@ -21,7 +21,7 @@ pub(crate) struct RuleTreeBuilder {
 
 #[derive(Clone)]
 pub(crate) struct Query {
-    pub style: Rc<Style>,
+    pub style: Arc<Style>,
     pub ancestors: Vec<BitSet>,
     pub siblings: Vec<BitSet>,
 }
@@ -172,7 +172,7 @@ impl Into<RuleTree> for RuleTreeBuilder {
 }
 
 impl Query {
-    pub fn from_style(style: Rc<Style>) -> Self {
+    pub fn from_style(style: Arc<Style>) -> Self {
         Self {
             style,
             ancestors: vec![BitSet::from_iter(Some(0))],

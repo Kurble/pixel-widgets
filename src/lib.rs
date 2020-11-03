@@ -109,7 +109,6 @@
 
 use std::future::Future;
 use std::ops::{Deref, DerefMut};
-use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use std::task::{Poll, Waker};
 
@@ -191,7 +190,7 @@ pub trait EventLoop<T: Send>: Clone + Send {
 /// - [`WgpuUi`](backend/wgpu/struct.WgpuUi.html) Renders using [wgpu-rs](https://github.com/gfx-rs/wgpu-rs).
 pub struct Ui<M: Model, E: EventLoop<Command<M::Message>>, L: Loader> {
     model_view: ModelView<M>,
-    style: Rc<Style>,
+    style: Arc<Style>,
     cache: Arc<Mutex<self::cache::Cache>>,
     viewport: Rectangle,
     redraw: bool,
@@ -217,7 +216,7 @@ impl<M: Model, E: 'static + EventLoop<Command<M::Message>>, L: Loader> Ui<M, E, 
     pub fn new(model: M, event_loop: E, loader: L, viewport: Rectangle) -> Self {
         let cache = Arc::new(Mutex::new(self::cache::Cache::new(512, 0)));
 
-        let style = Rc::new(Style::new(cache.clone()));
+        let style = Arc::new(Style::new(cache.clone()));
 
         Self {
             model_view: ModelView::new(model),
@@ -236,7 +235,7 @@ impl<M: Model, E: 'static + EventLoop<Command<M::Message>>, L: Loader> Ui<M, E, 
     /// [.pwss](stylesheet/index.html) data source.
     pub async fn set_stylesheet<U: AsRef<str>>(&mut self, url: U) -> Result<(), stylesheet::Error> {
         let style = Style::load(self.loader.clone(), url.as_ref(), self.cache.clone()).await?;
-        self.style = Rc::new(style);
+        self.style = Arc::new(style);
         self.hot_reload_style = Some(url.as_ref().to_string());
 
         let loader = self.loader.clone();
@@ -315,7 +314,7 @@ impl<M: Model, E: 'static + EventLoop<Command<M::Message>>, L: Loader> Ui<M, E, 
                     Poll::Ready(style) => {
                         match style {
                             Ok(style) => {
-                                self.style = Rc::new(style);
+                                self.style = Arc::new(style);
                                 self.model_view.set_dirty();
                             }
                             Err(error) => {
