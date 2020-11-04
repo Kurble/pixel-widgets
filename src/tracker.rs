@@ -2,22 +2,22 @@ use std::any::Any;
 use std::borrow::Borrow;
 
 /// An [`Widget`](../widget/trait.Widget.html) state tracker.
-pub struct ManagedState<Id: Eq + Clone> {
+pub struct ManagedState<Id: Eq + Clone + Send + Sync> {
     state: Vec<Tracked<Id>>,
 }
 
-struct Tracked<Id: Eq + Clone> {
+struct Tracked<Id: Eq + Clone + Send + Sync> {
     id: Id,
-    state: Box<dyn Any>,
+    state: Box<dyn Any + Send + Sync>,
 }
 
 /// Temporary object used to find state objects for given ids.
-pub struct ManagedStateTracker<'a, Id: Eq + Clone> {
+pub struct ManagedStateTracker<'a, Id: Eq + Clone + Send + Sync> {
     tracker: &'a mut ManagedState<Id>,
     index: usize,
 }
 
-impl<Id: Eq + Clone> ManagedState<Id> {
+impl<Id: Eq + Clone + Send + Sync> ManagedState<Id> {
     /// Retrieve a `ManagedStateTracker` that can be used to build a ui.
     /// Normally you will call this function at the start of your
     /// [`view`](../trait.Model.html#tymethod.view) implementation.
@@ -29,14 +29,14 @@ impl<Id: Eq + Clone> ManagedState<Id> {
     }
 }
 
-impl<Id: Eq + Clone> Default for ManagedState<Id> {
+impl<Id: Eq + Clone + Send + Sync> Default for ManagedState<Id> {
     fn default() -> Self {
         Self { state: Vec::new() }
     }
 }
 
-impl<Id: Eq + Clone> Tracked<Id> {
-    unsafe fn unchecked_mut_ref<'a, T: Any>(&mut self) -> &'a mut T {
+impl<Id: Eq + Clone + Send + Sync> Tracked<Id> {
+    unsafe fn unchecked_mut_ref<'a, T: Any + Send + Sync>(&mut self) -> &'a mut T {
         let state = self
             .state
             .downcast_mut::<T>()
@@ -46,12 +46,12 @@ impl<Id: Eq + Clone> Tracked<Id> {
     }
 }
 
-impl<'a, Id: Eq + Clone> ManagedStateTracker<'a, Id> {
+impl<'a, Id: Eq + Clone + Send + Sync> ManagedStateTracker<'a, Id> {
     /// Get a state object for the given id. If such an object doesn't exist yet, it is constructed using it's `Default`
     /// implementation.
     pub fn get<'i, T, Q>(&mut self, id: &Q) -> &'i mut T
     where
-        T: Default + Any,
+        T: Default + Any + Send + Sync,
         Q: ?Sized + Eq + ToOwned<Owned = Id>,
         Id: Borrow<Q>,
     {
@@ -61,7 +61,7 @@ impl<'a, Id: Eq + Clone> ManagedStateTracker<'a, Id> {
     /// Get a state object for the given id. If such an object doesn't exist yet, the supplied default value is used.
     pub fn get_or_default<'i, T, Q>(&mut self, id: &Q, default: T) -> &'i mut T
     where
-        T: Any,
+        T: Any + Send + Sync,
         Q: ?Sized + Eq + ToOwned<Owned = Id>,
         Id: Borrow<Q>,
     {
@@ -71,7 +71,7 @@ impl<'a, Id: Eq + Clone> ManagedStateTracker<'a, Id> {
     /// Get a state object for the given id. If such an object doesn't exist yet, it is constructed using the closure.
     pub fn get_or_default_with<'i, T, Q, F>(&mut self, id: &Q, default: F) -> &'i mut T
     where
-        T: Any,
+        T: Any + Send + Sync,
         Q: ?Sized + Eq + ToOwned<Owned = Id>,
         F: FnOnce() -> T,
         Id: Borrow<Q>,
@@ -95,7 +95,7 @@ impl<'a, Id: Eq + Clone> ManagedStateTracker<'a, Id> {
             search_start,
             Tracked {
                 id: id.to_owned(),
-                state: Box::new(default()) as Box<dyn Any>,
+                state: Box::new(default()) as Box<dyn Any + Send + Sync>,
             },
         );
         self.index = search_start + 1;
@@ -103,7 +103,7 @@ impl<'a, Id: Eq + Clone> ManagedStateTracker<'a, Id> {
     }
 }
 
-impl<'a, Id: Eq + Clone> Drop for ManagedStateTracker<'a, Id> {
+impl<'a, Id: Eq + Clone + Send + Sync> Drop for ManagedStateTracker<'a, Id> {
     fn drop(&mut self) {
         while self.index < self.tracker.state.len() {
             self.tracker.state.pop();

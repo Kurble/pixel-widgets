@@ -1,6 +1,9 @@
 # Changelog
 
-### v0.4.2
+### v0.4.3
+- Fixed `ManagedState` not working anymore
+
+### v0.4.2 (yanked)
 - Made all widgets and `Ui` `Send` compatible
 
 ### v0.4.1
