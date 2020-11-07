@@ -11,13 +11,13 @@ use std::sync::{Arc, Mutex};
 ///
 /// Included implementations:
 /// - `PathBuf`, loads data from disk using the `PathBuf` as working directory.
-pub trait Loader: 'static + Send + Sync {
+pub trait Loader: Send + Sync {
     /// A future returned when calling `load`.
-    type Load: Future<Output = Result<Vec<u8>, Self::Error>> + Send + Sync;
+    type Load: Future<Output = Result<Vec<u8>, Self::Error>> + Send;
     /// A future returned when calling `wait`.
-    type Wait: Future<Output = Result<(), Self::Error>> + Send + Sync;
+    type Wait: Future<Output = Result<(), Self::Error>> + Send;
     /// Error returned by the loader when the request failed.
-    type Error: Error + Send;
+    type Error: 'static + Error + Send + Sync;
     /// Asynchronously load a resource located at the given url
     fn load(&self, url: impl AsRef<str>) -> Self::Load;
     /// Wait for a resource to be modified externally.

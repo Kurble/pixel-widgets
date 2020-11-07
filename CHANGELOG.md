@@ -1,5 +1,9 @@
 # Changelog
 
+### v0.5.0
+- More `Loader` flexibility.
+- `Style` is responsible for textures instead of `Ui`
+
 ### v0.4.3
 - Fixed `ManagedState` not working anymore
 

@@ -28,7 +28,7 @@ struct TextureEntry {
     bind_group: BindGroup,
 }
 
-impl<M: Model, E: 'static + EventLoop<Command<M::Message>>, L: Loader> Ui<M, E, L> {
+impl<M: Model, E: 'static + EventLoop<Command<M::Message>>, L: 'static + Loader> Ui<M, E, L> {
     /// Constructs a new `Ui` using the default style.
     /// This is not recommended as the default style is very empty and only renders white text.
     pub fn new(

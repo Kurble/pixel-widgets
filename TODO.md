@@ -14,7 +14,10 @@
 - [x] context menu widget / thing
 - [x] drag and drop widget
 
-#### v0.5
+### v0.5
+- [ ] use anyhow for errors.
+
+#### v0.6
 - [ ] UI scaling
 - [ ] maybe add a slider widget
 - [ ] Animation functionality in `Node`, 

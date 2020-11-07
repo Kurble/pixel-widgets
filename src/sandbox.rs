@@ -8,7 +8,7 @@ use crate::loader::Loader;
 use crate::prelude::*;
 
 /// Sandbox for quick prototyping of pixel widgets applications
-pub struct Sandbox<M: 'static + Model, L: Loader> {
+pub struct Sandbox<M: 'static + Model, L: 'static + Loader> {
     /// The `Ui` being used in the sandbox
     pub ui: crate::backend::wgpu::Ui<M, EventLoopProxy<Command<M::Message>>, L>,
     event_loop: Option<EventLoop<Command<M::Message>>>,
@@ -22,7 +22,7 @@ pub struct Sandbox<M: 'static + Model, L: Loader> {
     window: Window,
 }
 
-impl<T: 'static + Model, L: Loader> Sandbox<T, L> {
+impl<T: 'static + Model, L: 'static + Loader> Sandbox<T, L> {
     /// Construct a new `Sandbox`
     pub async fn new(model: T, loader: L, builder: WindowBuilder) -> Self {
         let event_loop = EventLoop::<Command<T::Message>>::with_user_event();

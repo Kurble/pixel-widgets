@@ -3,7 +3,7 @@ use super::*;
 use std::sync::{Arc, Mutex};
 
 struct LoadContext<'a, I: Iterator<Item = Token>, L: Loader> {
-    loader: Arc<L>,
+    loader: &'a L,
     tokens: Peekable<I>,
     cache: Arc<Mutex<Cache>>,
     images: &'a mut HashMap<String, Image>,
@@ -29,8 +29,8 @@ impl<I: Iterator<Item = Token>, L: Loader> LoadContext<'_, I, L> {
     }
 }
 
-pub async fn parse<L: Loader>(tokens: Vec<Token>, loader: Arc<L>, cache: Arc<Mutex<Cache>>) -> Result<Style, Error> {
-    let mut result = Style::new(cache.clone());
+pub async fn parse(tokens: Vec<Token>, loader: &impl Loader, size: usize, offset: usize) -> Result<Style, Error> {
+    let mut result = Style::new(size, offset);
 
     let mut images = HashMap::new();
     let mut patches = HashMap::new();
@@ -38,7 +38,7 @@ pub async fn parse<L: Loader>(tokens: Vec<Token>, loader: Arc<L>, cache: Arc<Mut
     let mut context = LoadContext {
         loader,
         tokens: tokens.into_iter().peekable(),
-        cache,
+        cache: result.cache(),
         images: &mut images,
         patches: &mut patches,
         fonts: &mut fonts,

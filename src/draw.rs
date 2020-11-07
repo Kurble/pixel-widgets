@@ -469,7 +469,7 @@ impl Command {
                         };
                         None
                     } else {
-                        Some(Command::Colored { offset, count })
+                        Some(command)
                     }
                 }
                 other => Some(other),
@@ -490,7 +490,7 @@ impl Command {
                         };
                         None
                     } else {
-                        Some(Command::Textured { texture, offset, count })
+                        Some(command)
                     }
                 }
                 other => Some(other),

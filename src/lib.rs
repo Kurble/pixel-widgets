@@ -128,7 +128,8 @@ mod atlas;
 /// Backend specific code
 pub mod backend;
 mod bitset;
-mod cache;
+/// Texture cache for styles and text
+pub mod cache;
 /// Primitives used for drawing
 pub mod draw;
 /// User input events
@@ -191,7 +192,6 @@ pub trait EventLoop<T: Send>: Clone + Send {
 pub struct Ui<M: Model, E: EventLoop<Command<M::Message>>, L: Loader> {
     model_view: ModelView<M>,
     style: Arc<Style>,
-    cache: Arc<Mutex<self::cache::Cache>>,
     viewport: Rectangle,
     redraw: bool,
     cursor: (f32, f32),
@@ -210,18 +210,15 @@ pub enum Command<Message> {
     Stylesheet(Box<dyn Future<Output = Result<Style, stylesheet::Error>> + Send>),
 }
 
-impl<M: Model, E: 'static + EventLoop<Command<M::Message>>, L: Loader> Ui<M, E, L> {
+impl<M: Model, E: 'static + EventLoop<Command<M::Message>>, L: 'static + Loader> Ui<M, E, L> {
     /// Constructs a new `Ui` using the default style.
     /// This is not recommended as the default style is very empty and only renders white text.
     pub fn new(model: M, event_loop: E, loader: L, viewport: Rectangle) -> Self {
-        let cache = Arc::new(Mutex::new(self::cache::Cache::new(512, 0)));
-
-        let style = Arc::new(Style::new(cache.clone()));
+        let style = Arc::new(Style::new(512, 0));
 
         Self {
             model_view: ModelView::new(model),
             style,
-            cache,
             viewport,
             redraw: true,
             cursor: (0.0, 0.0),
@@ -234,38 +231,45 @@ impl<M: Model, E: 'static + EventLoop<Command<M::Message>>, L: Loader> Ui<M, E, 
     /// Constructs a new `Ui` asynchronously by first fetching a stylesheet from a
     /// [.pwss](stylesheet/index.html) data source.
     pub async fn set_stylesheet<U: AsRef<str>>(&mut self, url: U) -> Result<(), stylesheet::Error> {
-        let style = Style::load(self.loader.clone(), url.as_ref(), self.cache.clone()).await?;
+        let style = Style::load(&*self.loader, url.as_ref(), 512, 0).await?;
         self.style = Arc::new(style);
         self.hot_reload_style = Some(url.as_ref().to_string());
 
         let loader = self.loader.clone();
-        let cache = self.cache.clone();
         let url = url.as_ref().to_string();
         self.command(Command::from_future_style(async move {
             loader
                 .wait(&url)
                 .await
                 .map_err(|e| stylesheet::Error::Io(Box::new(e)))?;
-            Ok(Style::load(loader, url, cache).await?)
+            Ok(Style::load(&*loader, url, 512, 0).await?)
         }));
 
         Ok(())
     }
 
+    /// Replace the current stylesheet with a loaded new stylesheet
+    pub fn replace_stylesheet(&mut self, style: Arc<Style>) {
+        if !Arc::ptr_eq(&self.style, &style) {
+            self.style = style;
+            self.hot_reload_style = None;
+            self.model_view.set_dirty();
+        }
+    }
+
     /// Replace the current stylesheet with a new one
     pub fn reload_stylesheet<U: 'static + AsRef<str> + Send>(&mut self, url: U) {
-        let cache = self.cache.clone();
         let loader = self.loader.clone();
         self.hot_reload_style = Some(url.as_ref().to_string());
         self.command(Command::from_future_style(async move {
-            Style::load(loader, url, cache).await
+            Style::load(&*loader, url, 512, 0).await
         }));
     }
 
     /// Get a `Graphics` loader
     pub fn graphics(&self) -> Graphics<L> {
         Graphics {
-            cache: self.cache.clone(),
+            cache: self.style.cache(),
             loader: self.loader.clone(),
         }
     }
@@ -324,14 +328,13 @@ impl<M: Model, E: 'static + EventLoop<Command<M::Message>>, L: Loader> Ui<M, E, 
 
                         if let Some(url) = self.hot_reload_style.clone() {
                             let loader = self.loader.clone();
-                            let cache = self.cache.clone();
                             let url = url.clone();
                             self.command(Command::from_future_style(async move {
                                 loader
                                     .wait(&url)
                                     .await
                                     .map_err(|e| stylesheet::Error::Io(Box::new(e)))?;
-                                Ok(Style::load(loader, url, cache).await?)
+                                Ok(Style::load(&*loader, url, 512, 0).await?)
                             }));
                         }
                     }
@@ -523,7 +526,7 @@ impl<M: Model, E: 'static + EventLoop<Command<M::Message>>, L: Loader> Ui<M, E, 
                         let mode = 0;
                         let offset = layers[layer].vtx.len();
 
-                        self.cache.lock().unwrap().draw_text(&text, rect, |uv, pos| {
+                        self.style.cache().lock().unwrap().draw_text(&text, rect, |uv, pos| {
                             let rc = Rectangle {
                                 left: pos.left,
                                 top: pos.top,
@@ -721,7 +724,7 @@ impl<M: Model, E: 'static + EventLoop<Command<M::Message>>, L: Loader> Ui<M, E, 
                 });
 
         DrawList {
-            updates: self.cache.lock().unwrap().take_updates(),
+            updates: self.style.cache().lock().unwrap().take_updates(),
             vertices,
             commands,
         }

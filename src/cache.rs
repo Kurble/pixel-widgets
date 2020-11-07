@@ -13,9 +13,10 @@ use crate::layout::Rectangle;
 use crate::text::Text;
 
 type GlyphCache = rusttype::gpu_cache::Cache<'static>;
-pub type Font = rusttype::Font<'static>;
-pub type FontId = usize;
+pub(crate) type Font = rusttype::Font<'static>;
+pub(crate) type FontId = usize;
 
+/// A cache for textures and text
 pub struct Cache {
     #[allow(unused)]
     size: usize,
@@ -33,6 +34,8 @@ enum TextureSlot {
 }
 
 impl Cache {
+    /// Create a new cache. Size is the width and height of textures in pixels.
+    /// Offset is the offset to apply to texture ids
     pub fn new(size: usize, offset: usize) -> Cache {
         let glyphs = GlyphCache::builder().dimensions(size as u32, size as u32).build();
 
@@ -69,11 +72,12 @@ impl Cache {
         }
     }
 
+    /// Take updates for the texture system from the cache
     pub fn take_updates(&mut self) -> Vec<Update> {
         mem::replace(&mut self.updates, Vec::new())
     }
 
-    pub fn draw_text<F: FnMut(Rectangle, Rectangle)>(&mut self, text: &Text, rect: Rectangle, mut place_glyph: F) {
+    pub(crate) fn draw_text<F: FnMut(Rectangle, Rectangle)>(&mut self, text: &Text, rect: Rectangle, mut place_glyph: F) {
         let start = point(rect.left, rect.top);
 
         let mut placed_glyphs = Vec::with_capacity(text.text.len());
@@ -132,7 +136,7 @@ impl Cache {
         }
     }
 
-    pub fn load_image(&mut self, image: RgbaImage) -> Image {
+    pub(crate) fn load_image(&mut self, image: RgbaImage) -> Image {
         let size = Rectangle {
             left: 0.0,
             top: 0.0,
@@ -148,7 +152,7 @@ impl Cache {
         }
     }
 
-    pub fn load_patch(&mut self, mut image: RgbaImage) -> Patch {
+    pub(crate) fn load_patch(&mut self, mut image: RgbaImage) -> Patch {
         // find 9 patch borders in image data
         let black = Rgba([0u8, 0u8, 0u8, 255u8]);
 
@@ -226,7 +230,7 @@ impl Cache {
         }
     }
 
-    pub fn load_font<D: Into<Vec<u8>>>(&mut self, data: D) -> crate::text::Font {
+    pub(crate) fn load_font<D: Into<Vec<u8>>>(&mut self, data: D) -> crate::text::Font {
         let inner = Font::try_from_vec(data.into()).expect("error loading font");
 
         let id = self.font_id_counter;

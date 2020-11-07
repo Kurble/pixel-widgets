@@ -146,11 +146,12 @@ pub enum Error {
     /// Image loading error
     Image(image::ImageError),
     /// File input/output error
-    Io(Box<dyn std::error::Error + Send>),
+    Io(Box<dyn std::error::Error + Send + Sync>),
 }
 
 /// A style loaded from a `.pwss` file.
 pub struct Style {
+    cache: Arc<Mutex<Cache>>,
     resolved: Mutex<HashMap<BitSet, Arc<Stylesheet>>>,
     default: Stylesheet,
     rule_tree: tree::RuleTree,
@@ -299,13 +300,16 @@ pub enum StyleState<S: AsRef<str>> {
 
 impl Style {
     /// Construct a new default style
-    pub fn new(cache: Arc<Mutex<Cache>>) -> Self {
+    pub fn new(cache_size: usize, cache_offset: usize) -> Self {
+        let cache = Arc::new(Mutex::new(Cache::new(cache_size, cache_offset)));
         Style {
+            cache: cache.clone(),
             resolved: Mutex::new(HashMap::new()),
             rule_tree: tree::RuleTree::default(),
             default: Stylesheet {
                 background: Background::None,
                 font: cache
+                    .clone()
                     .lock()
                     .unwrap()
                     .load_font(include_bytes!("default_font.ttf").to_vec()),
@@ -342,15 +346,32 @@ impl Style {
         &self.rule_tree
     }
 
+    pub(crate) fn cache(&self) -> Arc<Mutex<Cache>> {
+        self.cache.clone()
+    }
+
     /// Asynchronously load a stylesheet from a .pwss file. See the [module documentation](index.html) on how to write
     /// .pwss files.
-    pub async fn load<L: Loader, U: AsRef<str>>(
-        loader: Arc<L>,
+    pub async fn load<U: AsRef<str>, L: Loader>(
+        loader: &L,
         url: U,
-        cache: Arc<Mutex<Cache>>,
+        cache_size: usize,
+        cache_offset: usize,
     ) -> Result<Self, Error> {
         let text = String::from_utf8(loader.load(url).await.map_err(|e| Error::Io(Box::new(e)))?).unwrap();
-        parse(tokenize(text)?, loader, cache).await
+        parse(tokenize(text)?, loader, cache_size, cache_offset).await
+    }
+
+    /// Asynchronously load a stylesheet from a .pwss file already in memory.
+    /// See the [module documentation](index.html) on how to write .pwss files.
+    pub async fn load_from_memory<L: Loader>(
+        bytes: &[u8],
+        loader: &L,
+        cache_size: usize,
+        cache_offset: usize,
+    ) -> Result<Self, Error> {
+        let text = String::from_utf8(bytes.to_vec()).unwrap();
+        parse(tokenize(text)?, loader, cache_size, cache_offset).await
     }
 }
 
