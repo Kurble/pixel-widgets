@@ -1,5 +1,8 @@
 # Changelog
 
+### v0.5.1
+- Fixed a bug with inserting textures in the atlas
+
 ### v0.5.0
 - More `Loader` flexibility.
 - `Style` is responsible for textures instead of `Ui`
