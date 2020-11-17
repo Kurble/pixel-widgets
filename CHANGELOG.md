@@ -1,5 +1,8 @@
 # Changelog
 
+### v0.5.2
+- Added input::State::get_value and updated the set_value return value.
+
 ### v0.5.1
 - Fixed a bug with inserting textures in the atlas
 

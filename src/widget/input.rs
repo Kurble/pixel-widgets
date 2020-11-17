@@ -513,9 +513,14 @@ impl Default for State {
 }
 
 impl State {
-    /// Sets the current value of the input state
-    pub fn set_value(&mut self, value: impl Into<String>) {
-        self.value = value.into();
+    /// Sets the current value of the input state. Returns the old value.
+    pub fn set_value(&mut self, value: impl Into<String>) -> String {
+        std::mem::replace(&mut self.value, value.into())
+    }
+
+    /// Returns a reference to the current value of the input state.
+    pub fn get_value(&self) -> &str {
+        self.value.as_str()
     }
 }
 
