@@ -1,5 +1,8 @@
 # Changelog
 
+### v0.5.3
+- Fixed bug where ui wouldn't be redrawn even if needed
+
 ### v0.5.2
 - Added input::State::get_value and updated the set_value return value.
 

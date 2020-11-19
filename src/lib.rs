@@ -358,7 +358,7 @@ impl<M: Model, E: 'static + EventLoop<Command<M::Message>>, L: 'static + Loader>
             self.cursor = (x, y);
         }
 
-        let mut context = Context::new(self.redraw, self.cursor);
+        let mut context = Context::new(self.needs_redraw(), self.cursor);
 
         {
             let view = self.model_view.view(self.style.clone());
