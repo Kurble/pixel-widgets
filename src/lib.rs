@@ -110,6 +110,7 @@
 use std::future::Future;
 use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicBool, Ordering::Relaxed};
 use std::task::{Poll, Waker};
 
 use futures::task::ArcWake;
@@ -203,11 +204,11 @@ pub struct Ui<M: Model, E: EventLoop<Command<M::Message>>, L: Loader> {
 /// Some asynchronous work that will update the ui later.
 pub enum Command<Message> {
     /// Wait for a future to resolve
-    Await(Box<dyn Future<Output = Message> + Send>),
+    Await(Task<Message>),
     /// Handle all messages coming out of stream
     Subscribe(Box<dyn Stream<Item = Message> + Send>),
     /// Swap the stylesheet
-    Stylesheet(Box<dyn Future<Output = Result<Style, stylesheet::Error>> + Send>),
+    Stylesheet(Task<Result<Style, stylesheet::Error>>),
 }
 
 impl<M: Model, E: 'static + EventLoop<Command<M::Message>>, L: 'static + Loader> Ui<M, E, L> {
@@ -285,15 +286,19 @@ impl<M: Model, E: 'static + EventLoop<Command<M::Message>>, L: 'static + Loader>
     /// Updates the model after a `Command` has resolved.
     pub fn command(&mut self, command: Command<M::Message>) {
         match command {
-            Command::Await(mut fut) => {
-                let ptr = fut.deref_mut() as *mut dyn Future<Output = M::Message>;
-                let pin = unsafe { std::pin::Pin::new_unchecked(ptr.as_mut().unwrap()) };
-                let waker = EventLoopWaker::new(self.event_loop.clone(), Command::Await(fut));
-                match pin.poll(&mut std::task::Context::from_waker(&waker)) {
-                    Poll::Ready(message) => {
-                        self.update(message);
+            Command::Await(mut task) => {
+                let complete = task.complete.clone();
+                if !complete.load(Relaxed) {
+                    let ptr = task.future.deref_mut() as *mut dyn Future<Output=M::Message>;
+                    let pin = unsafe { std::pin::Pin::new_unchecked(ptr.as_mut().unwrap()) };
+                    let waker = EventLoopWaker::new(self.event_loop.clone(), Command::Await(task));
+                    match pin.poll(&mut std::task::Context::from_waker(&waker)) {
+                        Poll::Ready(message) => {
+                            complete.store(true, Relaxed);
+                            self.update(message);
+                        }
+                        _ => (),
                     }
-                    _ => (),
                 }
             }
 
@@ -303,42 +308,47 @@ impl<M: Model, E: 'static + EventLoop<Command<M::Message>>, L: 'static + Loader>
                 let waker = EventLoopWaker::new(self.event_loop.clone(), Command::Subscribe(stream));
                 match pin.poll_next(&mut std::task::Context::from_waker(&waker)) {
                     Poll::Ready(Some(message)) => {
-                        self.update(message);
                         waker.wake();
+                        self.update(message);
                     }
                     _ => (),
                 }
             }
 
-            Command::Stylesheet(mut fut) => {
-                let ptr = fut.deref_mut() as *mut dyn Future<Output = Result<Style, stylesheet::Error>>;
-                let pin = unsafe { std::pin::Pin::new_unchecked(ptr.as_mut().unwrap()) };
-                let waker = EventLoopWaker::new(self.event_loop.clone(), Command::Stylesheet(fut));
-                match pin.poll(&mut std::task::Context::from_waker(&waker)) {
-                    Poll::Ready(style) => {
-                        match style {
-                            Ok(style) => {
-                                self.style = Arc::new(style);
-                                self.model_view.set_dirty();
-                            }
-                            Err(error) => {
-                                eprintln!("Unable to load stylesheet: {}", error);
-                            }
-                        }
+            Command::Stylesheet(mut task) => {
+                let complete = task.complete.clone();
+                if !complete.load(Relaxed) {
+                    let ptr = task.future.deref_mut() as *mut dyn Future<Output=Result<Style, stylesheet::Error>>;
+                    let pin = unsafe { std::pin::Pin::new_unchecked(ptr.as_mut().unwrap()) };
+                    let waker = EventLoopWaker::new(self.event_loop.clone(), Command::Stylesheet(task));
+                    match pin.poll(&mut std::task::Context::from_waker(&waker)) {
+                        Poll::Ready(style) => {
+                            complete.store(true, Relaxed);
 
-                        if let Some(url) = self.hot_reload_style.clone() {
-                            let loader = self.loader.clone();
-                            let url = url.clone();
-                            self.command(Command::from_future_style(async move {
-                                loader
-                                    .wait(&url)
-                                    .await
-                                    .map_err(|e| stylesheet::Error::Io(Box::new(e)))?;
-                                Ok(Style::load(&*loader, url, 512, 0).await?)
-                            }));
+                            match style {
+                                Ok(style) => {
+                                    self.style = Arc::new(style);
+                                    self.model_view.set_dirty();
+                                }
+                                Err(error) => {
+                                    eprintln!("Unable to load stylesheet: {}", error);
+                                }
+                            }
+
+                            if let Some(url) = self.hot_reload_style.clone() {
+                                let loader = self.loader.clone();
+                                let url = url.clone();
+                                self.command(Command::from_future_style(async move {
+                                    loader
+                                        .wait(&url)
+                                        .await
+                                        .map_err(|e| stylesheet::Error::Io(Box::new(e)))?;
+                                    Ok(Style::load(&*loader, url, 512, 0).await?)
+                                }));
+                            }
                         }
+                        _ => (),
                     }
-                    _ => (),
                 }
             }
         }
@@ -731,6 +741,12 @@ impl<M: Model, E: 'static + EventLoop<Command<M::Message>>, L: 'static + Loader>
     }
 }
 
+/// An asynchronous task handled by pixel-widgets
+pub struct Task<T> {
+    future: Box<dyn Future<Output = T> + Send>,
+    complete: Arc<AtomicBool>,
+}
+
 struct EventLoopWaker<T: Send, E: EventLoop<T>> {
     message: Mutex<(E, Option<T>)>,
 }
@@ -770,12 +786,12 @@ impl<Message> Command<Message> {
     /// Construct a new command from a future that generates a message.
     /// The message will be handled as soon as it is available.
     pub fn from_future_message<F: 'static + Future<Output = Message> + Send>(fut: F) -> Self {
-        Command::Await(Box::new(fut))
+        Command::Await(Task { complete: Arc::new(AtomicBool::new(false)), future: Box::new(fut) })
     }
 
     /// Construct a new command that will replace the style of the Ui after it completes.
     pub fn from_future_style<F: 'static + Future<Output = Result<Style, stylesheet::Error>> + Send>(fut: F) -> Self {
-        Command::Stylesheet(Box::new(fut))
+        Command::Stylesheet(Task { complete: Arc::new(AtomicBool::new(false)), future: Box::new(fut) })
     }
 
     /// Construct a new command from a stream of messages. Each message will be handled as soon as it's available.

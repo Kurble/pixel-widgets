@@ -1,5 +1,8 @@
 # Changelog
 
+### v0.5.4
+- Fixed bug where some async tasks were resumed after being finished
+
 ### v0.5.3
 - Fixed bug where ui wouldn't be redrawn even if needed
 
