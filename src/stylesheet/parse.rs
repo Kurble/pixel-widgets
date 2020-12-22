@@ -146,7 +146,7 @@ async fn parse_background<I: Iterator<Item = Token>, L: Loader>(
                                         .as_ref(),
                                 )?;
                                 c.images
-                                    .insert(url.clone(), c.cache.lock().unwrap().load_image(image.to_rgba()));
+                                    .insert(url.clone(), c.cache.lock().unwrap().load_image(image.to_rgba8()));
                             }
                             Ok(c.images[&url].clone())
                         }
@@ -171,7 +171,7 @@ async fn parse_background<I: Iterator<Item = Token>, L: Loader>(
                                         .as_ref(),
                                 )?;
                                 c.patches
-                                    .insert(url.clone(), c.cache.lock().unwrap().load_patch(image.to_rgba()));
+                                    .insert(url.clone(), c.cache.lock().unwrap().load_patch(image.to_rgba8()));
                             }
                             Ok(c.patches[&url].clone())
                         }
@@ -199,7 +199,7 @@ async fn parse_background<I: Iterator<Item = Token>, L: Loader>(
                             .as_ref(),
                     )?;
                     c.patches
-                        .insert(url.clone(), c.cache.lock().unwrap().load_patch(image.to_rgba()));
+                        .insert(url.clone(), c.cache.lock().unwrap().load_patch(image.to_rgba8()));
                 }
                 Ok(Background::Patch(c.patches[&url].clone(), Color::white()))
             } else {
@@ -212,7 +212,7 @@ async fn parse_background<I: Iterator<Item = Token>, L: Loader>(
                             .as_ref(),
                     )?;
                     c.images
-                        .insert(url.clone(), c.cache.lock().unwrap().load_image(image.to_rgba()));
+                        .insert(url.clone(), c.cache.lock().unwrap().load_image(image.to_rgba8()));
                 }
                 Ok(Background::Image(c.images[&url].clone(), Color::white()))
             }

@@ -39,7 +39,11 @@ impl<T> Atlas<T> {
     pub fn insert(&mut self, mut val: T, size: usize) -> Result<Area, T> {
         let size = size.next_power_of_two();
         if size > self.size() {
-            panic!("Texture does not fit in configured atlas size! {} > {}", size, self.size());
+            panic!(
+                "Texture does not fit in configured atlas size! {} > {}",
+                size,
+                self.size()
+            );
         }
 
         match self {

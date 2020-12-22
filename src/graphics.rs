@@ -19,7 +19,7 @@ impl<L: Loader> Graphics<L> {
     pub async fn load_image<U: AsRef<str>>(&self, url: U) -> Result<Image, L::Error> {
         let bytes = self.loader.load(url).await?;
         let image = image::load_from_memory(bytes.as_slice()).unwrap();
-        let image = self.cache.lock().unwrap().load_image(image.into_rgba());
+        let image = self.cache.lock().unwrap().load_image(image.into_rgba8());
         Ok(image)
     }
 
@@ -27,7 +27,7 @@ impl<L: Loader> Graphics<L> {
     pub async fn load_patch<U: AsRef<str>>(&self, url: U) -> Result<Patch, L::Error> {
         let bytes = self.loader.load(url).await?;
         let image = image::load_from_memory(bytes.as_slice()).unwrap();
-        let image = self.cache.lock().unwrap().load_patch(image.into_rgba());
+        let image = self.cache.lock().unwrap().load_patch(image.into_rgba8());
         Ok(image)
     }
 }

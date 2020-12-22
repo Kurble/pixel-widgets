@@ -77,7 +77,12 @@ impl Cache {
         mem::replace(&mut self.updates, Vec::new())
     }
 
-    pub(crate) fn draw_text<F: FnMut(Rectangle, Rectangle)>(&mut self, text: &Text, rect: Rectangle, mut place_glyph: F) {
+    pub(crate) fn draw_text<F: FnMut(Rectangle, Rectangle)>(
+        &mut self,
+        text: &Text,
+        rect: Rectangle,
+        mut place_glyph: F,
+    ) {
         let start = point(rect.left, rect.top);
 
         let mut placed_glyphs = Vec::with_capacity(text.text.len());

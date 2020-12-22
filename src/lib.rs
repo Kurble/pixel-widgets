@@ -109,8 +109,8 @@
 
 use std::future::Future;
 use std::ops::{Deref, DerefMut};
-use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering::Relaxed};
+use std::sync::{Arc, Mutex};
 use std::task::{Poll, Waker};
 
 use futures::task::ArcWake;
@@ -289,7 +289,7 @@ impl<M: Model, E: 'static + EventLoop<Command<M::Message>>, L: 'static + Loader>
             Command::Await(mut task) => {
                 let complete = task.complete.clone();
                 if !complete.load(Relaxed) {
-                    let ptr = task.future.deref_mut() as *mut dyn Future<Output=M::Message>;
+                    let ptr = task.future.deref_mut() as *mut dyn Future<Output = M::Message>;
                     let pin = unsafe { std::pin::Pin::new_unchecked(ptr.as_mut().unwrap()) };
                     let waker = EventLoopWaker::new(self.event_loop.clone(), Command::Await(task));
                     match pin.poll(&mut std::task::Context::from_waker(&waker)) {
@@ -318,7 +318,7 @@ impl<M: Model, E: 'static + EventLoop<Command<M::Message>>, L: 'static + Loader>
             Command::Stylesheet(mut task) => {
                 let complete = task.complete.clone();
                 if !complete.load(Relaxed) {
-                    let ptr = task.future.deref_mut() as *mut dyn Future<Output=Result<Style, stylesheet::Error>>;
+                    let ptr = task.future.deref_mut() as *mut dyn Future<Output = Result<Style, stylesheet::Error>>;
                     let pin = unsafe { std::pin::Pin::new_unchecked(ptr.as_mut().unwrap()) };
                     let waker = EventLoopWaker::new(self.event_loop.clone(), Command::Stylesheet(task));
                     match pin.poll(&mut std::task::Context::from_waker(&waker)) {
@@ -786,12 +786,18 @@ impl<Message> Command<Message> {
     /// Construct a new command from a future that generates a message.
     /// The message will be handled as soon as it is available.
     pub fn from_future_message<F: 'static + Future<Output = Message> + Send>(fut: F) -> Self {
-        Command::Await(Task { complete: Arc::new(AtomicBool::new(false)), future: Box::new(fut) })
+        Command::Await(Task {
+            complete: Arc::new(AtomicBool::new(false)),
+            future: Box::new(fut),
+        })
     }
 
     /// Construct a new command that will replace the style of the Ui after it completes.
     pub fn from_future_style<F: 'static + Future<Output = Result<Style, stylesheet::Error>> + Send>(fut: F) -> Self {
-        Command::Stylesheet(Task { complete: Arc::new(AtomicBool::new(false)), future: Box::new(fut) })
+        Command::Stylesheet(Task {
+            complete: Arc::new(AtomicBool::new(false)),
+            future: Box::new(fut),
+        })
     }
 
     /// Construct a new command from a stream of messages. Each message will be handled as soon as it's available.
