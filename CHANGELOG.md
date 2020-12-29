@@ -1,5 +1,8 @@
 # Changelog
 
+### v0.5.6
+- Bump winit to 0.24
+
 ### v0.5.4
 - Fixed bug where some async tasks were resumed after being finished
 
