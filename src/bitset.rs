@@ -47,10 +47,10 @@ impl BitSet {
         self.grow(bit / 64);
         match self {
             BitSet::Small(ref mut bits) => {
-                bits.bitor_assign((1 << bit) as u64);
+                bits.bitor_assign(1u64 << bit);
             }
             BitSet::Large(ref mut vec) => {
-                vec[bit / 64].bitor_assign((1 << bit) as u64);
+                vec[bit / 64].bitor_assign(1u64 << bit);
             }
         }
     }
@@ -58,12 +58,12 @@ impl BitSet {
     pub fn remove(&mut self, bit: usize) {
         match self {
             BitSet::Small(ref mut bits) => {
-                bits.bitand_assign(!(1 << (bit & 0x03f)));
+                bits.bitand_assign(!(1u64 << (bit & 0x03f)));
             }
             BitSet::Large(ref mut vec) => {
                 let block = bit / 64;
                 if vec.len() > block {
-                    vec[block].bitand_assign(!(1 << (bit & 0x3f)));
+                    vec[block].bitand_assign(!(1u64 << (bit & 0x3f)));
                 }
             }
         }
@@ -74,7 +74,7 @@ impl BitSet {
         match self {
             &BitSet::Small(bits) => {
                 if bit < 64 {
-                    bits & (1 << bit) > 0
+                    bits & (1u64 << bit) > 0
                 } else {
                     false
                 }
@@ -82,7 +82,7 @@ impl BitSet {
             &BitSet::Large(ref vec) => {
                 let block = bit / 64;
                 if block < vec.len() {
-                    vec[block] & (1 << (bit & 0x3f)) > 0
+                    vec[block] & (1u64 << (bit & 0x3f)) > 0
                 } else {
                     false
                 }
