@@ -1,5 +1,8 @@
 # Changelog
 
+### v0.5.8
+- Fixed panic bug with stylesheets that have more than 64 rules
+
 ### v0.5.7
 - Fixed panic bug with stylesheets that have more than 32 rules
 

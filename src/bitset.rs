@@ -15,19 +15,19 @@ impl BitSet {
         BitSet::Small(0)
     }
 
-    fn grow(&mut self, size: usize) {
+    fn grow(&mut self, bit_size: usize) {
         *self = match std::mem::replace(self, BitSet::Small(0)) {
             BitSet::Small(bits) => {
-                if size > 1 {
+                if bit_size > 63 {
                     BitSet::Large(Vec::from_iter(
-                        std::iter::once(bits).chain(std::iter::repeat(0)).take(size),
+                        std::iter::once(bits).chain(std::iter::repeat(0)).take(1 + bit_size / 64),
                     ))
                 } else {
                     BitSet::Small(bits)
                 }
             }
             BitSet::Large(mut vec) => {
-                while vec.len() < size {
+                while vec.len() < 1 + bit_size / 64 {
                     vec.push(0);
                 }
                 BitSet::Large(vec)
@@ -44,13 +44,14 @@ impl BitSet {
     }
 
     pub fn insert(&mut self, bit: usize) {
-        self.grow(bit / 64);
+        self.grow(bit);
         match self {
             BitSet::Small(ref mut bits) => {
                 bits.bitor_assign(1u64 << bit);
             }
             BitSet::Large(ref mut vec) => {
-                vec[bit / 64].bitor_assign(1u64 << bit);
+                let block = bit / 64;
+                vec[block].bitor_assign(1u64 << (bit & 0x3f));
             }
         }
     }
