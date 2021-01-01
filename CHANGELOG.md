@@ -1,5 +1,8 @@
 # Changelog
 
+### v0.5.9
+- Added some more keys to the winit utils
+
 ### v0.5.8
 - Fixed panic bug with stylesheets that have more than 64 rules
 
