@@ -138,7 +138,10 @@ impl Model for Tour {
                     Scroll::new(
                         state.get("scroll"),
                         Column::new()
-                            .push(Input::new(state.get("name"), "username", Message::NameChanged))
+                            .push(
+                                Input::new(state.get("name"), "username", Message::NameChanged)
+                                    .with_trigger_key(Key::Enter),
+                            )
                             .push(Input::password(
                                 state.get("password"),
                                 "password",

@@ -102,6 +102,12 @@ pub trait Widget<'a, Message>: Send {
     /// [`visit_children()`](#tymethod.visit_children).
     fn len(&self) -> usize;
 
+    /// Returns whether this children has no children. Must be consistent with
+    /// [`visit_children()`](#tymethod.visit_children).
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     /// Applies a visitor to all childs of the widget. If an widget fails to visit it's children, the children won't
     /// be able to resolve their stylesheet, resulting in a panic when calling [`size`](struct.Node.html#method.size),
     /// [`hit`](struct.Node.html#method.hit), [`event`](struct.Node.html#method.event) or
@@ -205,6 +211,7 @@ pub type StateVec = SmallVec<[StyleState<&'static str>; 3]>;
 /// Generic ui widget.
 pub struct Node<'a, Message> {
     widget: Box<dyn Widget<'a, Message> + 'a>,
+    #[allow(clippy::type_complexity)]
     event_handlers: Vec<(NodeEvent, Box<dyn 'a + Fn(&mut Context<Message>) + Send>)>,
     clicks: Vec<Key>,
     hovered: bool,
@@ -261,7 +268,7 @@ impl<'a, Message> Node<'a, Message> {
         if self.hovered {
             result.push(StyleState::Hover);
         }
-        if self.clicks.len() > 0 {
+        if !self.clicks.is_empty() {
             result.push(StyleState::Pressed);
         }
         result

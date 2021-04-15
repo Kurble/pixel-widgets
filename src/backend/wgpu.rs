@@ -171,7 +171,7 @@ impl<M: Model, E: 'static + EventLoop<Command<M::Message>>, L: 'static + Loader>
             self.vertex_buffer.take();
             self.draw_commands = commands;
 
-            if updates.len() > 0 {
+            if !updates.is_empty() {
                 let cmd = device.create_command_encoder(&CommandEncoderDescriptor { label: None });
                 queue.submit(Some(
                     updates
@@ -198,7 +198,7 @@ impl<M: Model, E: 'static + EventLoop<Command<M::Message>>, L: 'static + Loader>
                                         usage: wgpu::TextureUsage::SAMPLED | wgpu::TextureUsage::COPY_DST,
                                     });
 
-                                    if data.len() > 0 {
+                                    if !data.is_empty() {
                                         let staging = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                                             label: None,
                                             contents: data.as_slice(),
@@ -299,7 +299,7 @@ impl<M: Model, E: 'static + EventLoop<Command<M::Message>>, L: 'static + Loader>
                 ));
             }
 
-            if vertices.len() > 0 {
+            if !vertices.is_empty() {
                 self.vertex_buffer
                     .replace(device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                         label: None,
@@ -317,7 +317,7 @@ impl<M: Model, E: 'static + EventLoop<Command<M::Message>>, L: 'static + Loader>
 
         for command in self.draw_commands.iter() {
             match command {
-                &DrawCommand::Clip { scissor } => {
+                DrawCommand::Clip { scissor } => {
                     render_pass.set_scissor_rect(
                         scissor.left as u32,
                         scissor.top as u32,
@@ -332,7 +332,7 @@ impl<M: Model, E: 'static + EventLoop<Command<M::Message>>, L: 'static + Loader>
                     render_pass.set_bind_group(0, &self.textures.get(&texture).unwrap().bind_group, &[]);
                     render_pass.draw(offset as u32..(offset + count) as u32, 0..1);
                 }
-                &DrawCommand::Nop => (),
+                DrawCommand::Nop => (),
             }
         }
     }

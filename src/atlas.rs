@@ -97,7 +97,7 @@ impl<T> Atlas<T> {
                     vacant.insert(val, size)
                 } else {
                     *vacant = Atlas::Occupied(area.clone(), val);
-                    Ok(area.clone())
+                    Ok(area)
                 }
             }
         }
@@ -107,14 +107,14 @@ impl<T> Atlas<T> {
 impl<T> Atlas<Weak<T>> {
     pub fn remove_expired(&mut self) -> bool {
         let (area, empty) = match self {
-            &mut Atlas::Split(ref area, ref mut children) => (
+            Atlas::Split(area, children) => (
                 area.clone(),
                 children
                     .iter_mut()
                     .fold(true, |empty, child| child.remove_expired() && empty),
             ),
-            &mut Atlas::Vacant(ref area) => (area.clone(), true),
-            &mut Atlas::Occupied(ref area, ref content) => {
+            Atlas::Vacant(area) => (area.clone(), true),
+            Atlas::Occupied(area, content) => {
                 if content.strong_count() == 0 {
                     (area.clone(), true)
                 } else {

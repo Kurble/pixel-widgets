@@ -107,11 +107,7 @@ impl<'a, T: Send + 'a> Widget<'a, T> for Dropdown<'a, T> {
     }
 
     fn focused(&self) -> bool {
-        if let InnerState::Open { .. } | InnerState::Pressed { .. } = self.state.inner {
-            true
-        } else {
-            false
-        }
+        matches!(self.state.inner, InnerState::Open { .. } | InnerState::Pressed { .. })
     }
 
     fn event(&mut self, layout: Rectangle, clip: Rectangle, _: &Stylesheet, event: Event, context: &mut Context<T>) {

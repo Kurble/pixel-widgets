@@ -1,8 +1,7 @@
 use super::Error;
 
-const URL_CHARACTERS: &'static str =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~:/?#[]@!$&'()*+,;%=";
-const NUMBER_CHARACTERS: &'static str = "0123456789.";
+const URL_CHARACTERS: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~:/?#[]@!$&'()*+,;%=";
+const NUMBER_CHARACTERS: &str = "0123456789.";
 
 #[derive(Debug, Clone, Copy)]
 pub struct TokenPos {
@@ -127,7 +126,7 @@ impl Token {
                 }
             }
             Token(TokenValue::Path(ref mut p), ref mut pos) => {
-                if URL_CHARACTERS.chars().find(|&c| c == ch).is_some() {
+                if URL_CHARACTERS.chars().any(|c| c == ch) {
                     pos.col_end += 1;
                     p.push(ch);
                     ExtendResult::Accepted
@@ -138,7 +137,7 @@ impl Token {
                 }
             }
             Token(TokenValue::Number(ref mut n), ref mut pos) => {
-                if NUMBER_CHARACTERS.chars().find(|&c| c == ch).is_some() {
+                if NUMBER_CHARACTERS.chars().any(|c| c == ch) {
                     pos.col_end += 1;
                     n.push(ch);
                     ExtendResult::Accepted

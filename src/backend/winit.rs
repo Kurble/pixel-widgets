@@ -18,12 +18,12 @@ pub fn convert_event<T>(ev: winit::event::Event<T>) -> Option<Event> {
                     state: ElementState::Pressed,
                     virtual_keycode: Some(key),
                     ..
-                } => convert_key(key).map(|key| Event::Press(key)),
+                } => convert_key(key).map(Event::Press),
                 KeyboardInput {
                     state: ElementState::Released,
                     virtual_keycode: Some(key),
                     ..
-                } => convert_key(key).map(|key| Event::Release(key)),
+                } => convert_key(key).map(Event::Release),
                 _ => None,
             },
             WindowEvent::ModifiersChanged(modifiers) => Some(Event::Modifiers(convert_mods(modifiers))),
@@ -55,10 +55,10 @@ pub fn convert_event<T>(ev: winit::event::Event<T>) -> Option<Event> {
             },
             _ => None,
         },
-        winit::event::Event::DeviceEvent { event, .. } => match event {
-            DeviceEvent::MouseMotion { delta: (x, y) } => Some(Event::Motion(x as f32, y as f32)),
-            _ => None,
-        },
+        winit::event::Event::DeviceEvent {
+            event: DeviceEvent::MouseMotion { delta: (x, y) },
+            ..
+        } => Some(Event::Motion(x as f32, y as f32)),
         _ => None,
     }
 }

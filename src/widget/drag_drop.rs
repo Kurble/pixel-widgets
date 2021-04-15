@@ -139,19 +139,15 @@ impl<'a, T: DragDropId + Send, Message: 'a> Widget<'a, Message> for Drag<'a, T, 
     }
 
     fn node_event(&mut self, layout: Rectangle, _: &Stylesheet, event: NodeEvent, context: &mut Context<Message>) {
-        match event {
-            NodeEvent::MouseDown(Key::LeftMouseButton) => {
-                self.context.data.lock().unwrap().replace((
-                    self.data,
-                    (context.cursor.0 - layout.left, context.cursor.1 - layout.top),
-                ));
-                self.state.origin = context.cursor;
-                self.state.offset = (0.0, 0.0);
-                self.state.dragging = Some(self.data);
-                context.redraw();
-            }
-
-            _ => (),
+        if let NodeEvent::MouseDown(Key::LeftMouseButton) = event {
+            self.context.data.lock().unwrap().replace((
+                self.data,
+                (context.cursor.0 - layout.left, context.cursor.1 - layout.top),
+            ));
+            self.state.origin = context.cursor;
+            self.state.offset = (0.0, 0.0);
+            self.state.dragging = Some(self.data);
+            context.redraw();
         }
     }
 
@@ -212,7 +208,7 @@ where
     fn node_event(&mut self, layout: Rectangle, _: &Stylesheet, event: NodeEvent, context: &mut Context<Message>) {
         match event {
             NodeEvent::MouseEnter => {
-                if let Some(data) = self.context.data.lock().unwrap().clone() {
+                if let Some(data) = *self.context.data.lock().unwrap() {
                     if (self.accept)(data.0) {
                         self.state.hovering = Some(data);
                     }

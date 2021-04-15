@@ -19,9 +19,12 @@ impl BitSet {
         *self = match std::mem::replace(self, BitSet::Small(0)) {
             BitSet::Small(bits) => {
                 if bit_size > 63 {
-                    BitSet::Large(Vec::from_iter(
-                        std::iter::once(bits).chain(std::iter::repeat(0)).take(1 + bit_size / 64),
-                    ))
+                    BitSet::Large(
+                        std::iter::once(bits)
+                            .chain(std::iter::repeat(0))
+                            .take(1 + bit_size / 64)
+                            .collect(),
+                    )
                 } else {
                     BitSet::Small(bits)
                 }
@@ -73,14 +76,14 @@ impl BitSet {
 
     pub fn contains(&self, bit: usize) -> bool {
         match self {
-            &BitSet::Small(bits) => {
+            BitSet::Small(bits) => {
                 if bit < 64 {
-                    bits & (1u64 << bit) > 0
+                    *bits & (1u64 << bit) > 0
                 } else {
                     false
                 }
             }
-            &BitSet::Large(ref vec) => {
+            BitSet::Large(vec) => {
                 let block = bit / 64;
                 if block < vec.len() {
                     vec[block] & (1u64 << (bit & 0x3f)) > 0
@@ -93,12 +96,12 @@ impl BitSet {
 
     pub fn iter(&self) -> BitIter {
         match self {
-            &BitSet::Small(bits) => BitIter {
-                current: bits,
+            BitSet::Small(bits) => BitIter {
+                current: *bits,
                 offset: 0,
                 remaining: &[],
             },
-            &BitSet::Large(ref blocks) => {
+            BitSet::Large(blocks) => {
                 let slice = blocks.as_slice();
                 let (&current, remaining) = slice.split_first().unwrap_or((&0, &[]));
                 BitIter {
@@ -112,8 +115,8 @@ impl BitSet {
 
     pub fn is_empty(&self) -> bool {
         match self {
-            &BitSet::Small(bits) => bits == 0,
-            &BitSet::Large(ref vec) => vec.last().map(|&last| last == 0).unwrap_or(true),
+            BitSet::Small(bits) => *bits == 0,
+            BitSet::Large(vec) => vec.last().map(|&last| last == 0).unwrap_or(true),
         }
     }
 
@@ -242,8 +245,8 @@ impl FromIterator<usize> for BitSet {
 impl Hash for BitSet {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match self {
-            &BitSet::Small(bits) => bits.hash(state),
-            &BitSet::Large(ref vec) => {
+            BitSet::Small(bits) => bits.hash(state),
+            BitSet::Large(ref vec) => {
                 for block in vec.iter() {
                     block.hash(state);
                 }

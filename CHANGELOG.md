@@ -1,5 +1,10 @@
 # Changelog
 
+### v0.5.10
+- Added widget::input::State::is_focused
+- Added Input::with_on_submit
+- Added Input::with_trigger_key
+
 ### v0.5.9
 - Added some more keys to the winit utils
 

@@ -1,9 +1,7 @@
 use std::mem;
 use std::sync::{Arc, Weak};
 
-use image;
 use image::{Rgba, RgbaImage};
-use rusttype;
 use rusttype::{point, vector};
 use smallvec::SmallVec;
 
@@ -119,25 +117,22 @@ impl Cache {
             .unwrap();
 
         for g in placed_glyphs.iter() {
-            self.glyphs
-                .rect_for(text.font.id as usize, g)
-                .unwrap()
-                .map(|(uv, pos)| {
-                    place_glyph(
-                        Rectangle {
-                            left: uv.min.x,
-                            top: uv.min.y,
-                            right: uv.max.x,
-                            bottom: uv.max.y,
-                        },
-                        Rectangle {
-                            left: pos.min.x as f32,
-                            top: pos.min.y as f32,
-                            right: pos.max.x as f32,
-                            bottom: pos.max.y as f32,
-                        },
-                    );
-                });
+            if let Some((uv, pos)) = self.glyphs.rect_for(text.font.id as usize, g).unwrap() {
+                place_glyph(
+                    Rectangle {
+                        left: uv.min.x,
+                        top: uv.min.y,
+                        right: uv.max.x,
+                        bottom: uv.max.y,
+                    },
+                    Rectangle {
+                        left: pos.min.x as f32,
+                        top: pos.min.y as f32,
+                        right: pos.max.x as f32,
+                        bottom: pos.max.y as f32,
+                    },
+                );
+            }
         }
     }
 
@@ -176,8 +171,8 @@ impl Cache {
             // check stretch pixel
             if image[(x, 0)] == black {
                 h_current_stretch = Some(h_current_stretch.map_or_else(|| (h_begin, h_end), |(s, _)| (s, h_end)));
-            } else {
-                h_current_stretch.take().map(|s| h_stretch.push(s));
+            } else if let Some(s) = h_current_stretch.take() {
+                h_stretch.push(s);
             }
 
             // check content pixel
@@ -195,8 +190,8 @@ impl Cache {
             // check stretch pixel
             if image[(0, y)] == black {
                 v_current_stretch = Some(v_current_stretch.map_or_else(|| (v_begin, v_end), |(s, _)| (s, v_end)));
-            } else {
-                v_current_stretch.take().map(|s| v_stretch.push(s));
+            } else if let Some(s) = v_current_stretch.take() {
+                v_stretch.push(s);
             }
 
             // check content pixel
@@ -206,8 +201,12 @@ impl Cache {
             }
         }
 
-        h_current_stretch.take().map(|s| h_stretch.push(s));
-        v_current_stretch.take().map(|s| v_stretch.push(s));
+        if let Some(s) = h_current_stretch.take() {
+            h_stretch.push(s);
+        }
+        if let Some(s) = v_current_stretch.take() {
+            v_stretch.push(s);
+        }
 
         // strip stretch and content bars from the image
         let patch_width = image.width() - 2;
@@ -250,7 +249,7 @@ impl Cache {
 
     fn insert_image(&mut self, image: image::RgbaImage) -> (usize, Arc<usize>, Rectangle) {
         for slot in self.textures.iter_mut() {
-            if let &mut TextureSlot::Atlas(ref mut atlas) = slot {
+            if let TextureSlot::Atlas(atlas) = slot {
                 atlas.remove_expired();
             }
         }
@@ -263,14 +262,14 @@ impl Cache {
             .iter_mut()
             .enumerate()
             .filter_map(|(index, slot)| match slot {
-                &mut TextureSlot::Atlas(ref mut atlas) => {
+                TextureSlot::Atlas(atlas) => {
                     let image_size = image.width().max(image.height()) as usize;
                     atlas
                         .insert(Arc::downgrade(&image_id), image_size)
                         .ok()
                         .map(|area| (area, atlas.size() as f32, index))
                 }
-                &mut TextureSlot::Big => None,
+                TextureSlot::Big => None,
             })
             .next();
 

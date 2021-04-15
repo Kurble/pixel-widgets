@@ -49,7 +49,7 @@ impl<'a, 'b> Iterator for CharPositionIter<'a, 'b> {
     type Item = (char, rusttype::ScaledGlyph<'static>, f32, f32);
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.base.next().and_then(|c| {
+        self.base.next().map(|c| {
             let g = self.font.glyph(c);
             let g = g.scaled(self.scale);
             let w = g.h_metrics().advance_width
@@ -62,7 +62,7 @@ impl<'a, 'b> Iterator for CharPositionIter<'a, 'b> {
 
             let elem = (c, g, self.x, self.x + w);
             self.x += w;
-            Some(elem)
+            elem
         })
     }
 }
@@ -130,7 +130,7 @@ impl<'t> Text<'t> {
         };
         CharPositionIter {
             font: &self.font.inner,
-            scale: scale,
+            scale,
             last: None,
             x: 0.0,
             base: self.text.chars(),
@@ -173,8 +173,8 @@ impl<'t> Text<'t> {
                     y: line.ascent,
                     final_x: 0.0,
                     final_y: line.ascent,
-                    width: width,
-                    height: height,
+                    width,
+                    height,
                     iter: self.char_positions(),
                     f: &mut f,
                 };

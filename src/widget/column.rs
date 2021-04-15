@@ -14,10 +14,7 @@ pub struct Column<'a, T> {
 impl<'a, T: 'a> Column<'a, T> {
     /// Construct a new Column
     pub fn new() -> Self {
-        Self {
-            children: Vec::new(),
-            layout: Vec::new(),
-        }
+        Default::default()
     }
 
     /// Adds a child widget to the column
@@ -64,6 +61,15 @@ impl<'a, T: 'a> Column<'a, T> {
     }
 }
 
+impl<'a, T: 'a> Default for Column<'a, T> {
+    fn default() -> Self {
+        Self {
+            children: Vec::new(),
+            layout: Vec::new(),
+        }
+    }
+}
+
 impl<'a, T: 'a + Send> Widget<'a, T> for Column<'a, T> {
     fn widget(&self) -> &'static str {
         "column"
@@ -99,9 +105,7 @@ impl<'a, T: 'a + Send> Widget<'a, T> for Column<'a, T> {
     }
 
     fn focused(&self) -> bool {
-        self.children
-            .iter()
-            .fold(false, |focused, child| focused || child.focused())
+        self.children.iter().any(|child| child.focused())
     }
 
     fn event(

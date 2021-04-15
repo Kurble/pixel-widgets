@@ -45,7 +45,7 @@ pub async fn parse(tokens: Vec<Token>, loader: &impl Loader, size: usize, offset
     };
 
     let mut rule_tree = RuleTreeBuilder::new(Selector::Widget(SelectorWidget::Any));
-    while let Some(_) = context.tokens.peek() {
+    while context.tokens.peek().is_some() {
         let (selectors, rules) = parse_rule(&mut context).await?;
         rule_tree.insert(selectors, rules);
     }
@@ -61,7 +61,7 @@ async fn parse_rule<I: Iterator<Item = Token>, L: Loader>(
     let mut selectors = Vec::new();
     let mut declarations = Vec::new();
     loop {
-        if let &Token(TokenValue::BraceOpen, _) = c.tokens.peek().ok_or(Error::Eof)? {
+        if let Token(TokenValue::BraceOpen, _) = c.tokens.peek().ok_or(Error::Eof)? {
             c.tokens.next();
             loop {
                 if let Some(&Token(TokenValue::BraceClose, _)) = c.tokens.peek() {
@@ -463,6 +463,7 @@ fn parse_size<I: Iterator<Item = Token>, L: Loader>(c: &mut LoadContext<I, L>) -
     }
 }
 
+#[allow(clippy::identity_op)] // to keep the code clean and consistent
 fn parse_color<I: Iterator<Item = Token>, L: Loader>(c: &mut LoadContext<I, L>) -> Result<Color, Error> {
     match c.tokens.next().ok_or(Error::Eof)? {
         Token(TokenValue::Color(string), pos) => {

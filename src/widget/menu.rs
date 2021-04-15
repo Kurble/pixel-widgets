@@ -146,6 +146,7 @@ impl<'a, T: 'a + Send, S: Send + AsRef<[MenuItem<'a, T>]> + AsMut<[MenuItem<'a, 
         })
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn hover(
         &mut self,
         current: InnerState,
@@ -168,8 +169,8 @@ impl<'a, T: 'a + Send, S: Send + AsRef<[MenuItem<'a, T>]> + AsMut<[MenuItem<'a, 
                 };
                 if hover_rect.point_inside(x, y) {
                     result = match item {
-                        &mut MenuItem::Item { .. } => InnerState::HoverItem { index },
-                        &mut MenuItem::Menu { .. } => InnerState::HoverSubMenu {
+                        MenuItem::Item { .. } => InnerState::HoverItem { index },
+                        MenuItem::Menu { .. } => InnerState::HoverSubMenu {
                             index,
                             sub_state: Box::new(State {
                                 inner: InnerState::Idle,
@@ -192,8 +193,8 @@ impl<'a, T: 'a + Send, S: Send + AsRef<[MenuItem<'a, T>]> + AsMut<[MenuItem<'a, 
 fn visit<'a, T>(items: &mut [MenuItem<'a, T>], visitor: &mut dyn FnMut(&mut Node<'a, T>)) {
     for item in items.iter_mut() {
         match item {
-            &mut MenuItem::Item { ref mut content, .. } => visitor(content),
-            &mut MenuItem::Menu {
+            MenuItem::Item { ref mut content, .. } => visitor(content),
+            MenuItem::Menu {
                 ref mut content,
                 ref mut items,
             } => {
@@ -257,11 +258,7 @@ impl<'a, T: 'a + Send, S: Send + AsRef<[MenuItem<'a, T>]> + AsMut<[MenuItem<'a, 
     }
 
     fn focused(&self) -> bool {
-        if let InnerState::Closed = self.state.inner {
-            false
-        } else {
-            true
-        }
+        !matches!(self.state.inner, InnerState::Closed)
     }
 
     fn event(
@@ -464,15 +461,15 @@ impl Default for State {
 impl<'a, T: 'a> MenuItem<'a, T> {
     fn content(&self) -> &Node<'a, T> {
         match self {
-            &MenuItem::Item { ref content, .. } => content,
-            &MenuItem::Menu { ref content, .. } => content,
+            MenuItem::Item { ref content, .. } => content,
+            MenuItem::Menu { ref content, .. } => content,
         }
     }
 
     fn content_mut(&mut self) -> &mut Node<'a, T> {
         match self {
-            &mut MenuItem::Item { ref mut content, .. } => content,
-            &mut MenuItem::Menu { ref mut content, .. } => content,
+            MenuItem::Item { ref mut content, .. } => content,
+            MenuItem::Menu { ref mut content, .. } => content,
         }
     }
 }

@@ -81,7 +81,7 @@ impl<'a, T: 'a + Send, Id: 'a + Send> Widget<'a, T> for Layers<'a, T, Id> {
     }
 
     fn focused(&self) -> bool {
-        self.layers.iter().find(|layer| layer.node.focused()).is_some()
+        self.layers.iter().any(|layer| layer.node.focused())
             || self.background.as_ref().map(|bg| bg.focused()).unwrap_or(false)
     }
 
@@ -115,9 +115,9 @@ impl<'a, T: 'a + Send, Id: 'a + Send> Widget<'a, T> for Layers<'a, T, Id> {
                         y = std::f32::INFINITY;
                     }
                 }
-                self.background
-                    .as_mut()
-                    .map(|bg| bg.event(layout, clip, Event::Cursor(x, y), context));
+                if let Some(bg) = self.background.as_mut() {
+                    bg.event(layout, clip, Event::Cursor(x, y), context)
+                }
                 return;
             }
             Event::Press(Key::LeftMouseButton) => {
@@ -140,20 +140,20 @@ impl<'a, T: 'a + Send, Id: 'a + Send> Widget<'a, T> for Layers<'a, T, Id> {
                     }
                 } else if !self.state.background_focused {
                     self.state.background_focused = true;
-                    if self.layers.len() > 0 {
+                    if !self.layers.is_empty() {
                         self.layers[0].node.event(layout, clip, event, context);
                     }
-                    self.background
-                        .as_mut()
-                        .map(|bg| bg.event(layout, clip, Event::Cursor(x, y), context));
+                    if let Some(bg) = self.background.as_mut() {
+                        bg.event(layout, clip, Event::Cursor(x, y), context)
+                    }
                 }
             }
             _ => (),
         }
 
-        self.background
-            .as_mut()
-            .map(|bg| bg.event(layout, clip, event, context));
+        if let Some(bg) = self.background.as_mut() {
+            bg.event(layout, clip, event, context)
+        }
         for layer in self.layers.iter_mut() {
             layer.node.event(layout, clip, event, context);
         }

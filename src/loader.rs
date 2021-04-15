@@ -28,6 +28,7 @@ pub trait Loader: Send + Sync {
 pub struct FsLoader {
     base: PathBuf,
     _watcher: RecommendedWatcher,
+    #[allow(clippy::type_complexity)]
     watches: Arc<Mutex<Vec<(PathBuf, Sender<Result<(), std::io::Error>>)>>>,
 }
 
@@ -40,25 +41,26 @@ impl FsLoader {
 
         let mut watcher = notify::immediate_watcher({
             let watches = watches.clone();
-            move |event: Result<notify::event::Event, notify::Error>| match event {
-                Ok(event) => match event.kind {
-                    EventKind::Access(AccessKind::Close(AccessMode::Write)) => {
-                        let mut guard = watches.lock().unwrap();
-                        *guard = guard
-                            .drain(..)
-                            .filter_map(|(path, sender)| {
-                                if event.paths.contains(&path) {
-                                    sender.send(Ok(())).ok();
-                                    None
-                                } else {
-                                    Some((path, sender))
-                                }
-                            })
-                            .collect();
-                    }
-                    _ => (),
-                },
-                Err(_) => (),
+            move |event: Result<notify::event::Event, notify::Error>| {
+                if let Ok(notify::event::Event {
+                    kind: EventKind::Access(AccessKind::Close(AccessMode::Write)),
+                    paths,
+                    ..
+                }) = event
+                {
+                    let mut guard = watches.lock().unwrap();
+                    *guard = guard
+                        .drain(..)
+                        .filter_map(|(path, sender)| {
+                            if paths.contains(&path) {
+                                sender.send(Ok(())).ok();
+                                None
+                            } else {
+                                Some((path, sender))
+                            }
+                        })
+                        .collect();
+                }
             }
         })
         .expect("unable to create watcher");
@@ -77,6 +79,7 @@ impl FsLoader {
 
 impl Loader for FsLoader {
     type Load = futures::future::Ready<Result<Vec<u8>, Self::Error>>;
+    #[allow(clippy::type_complexity)]
     type Wait = futures::future::Map<
         Receiver<Result<(), Self::Error>>,
         fn(Result<Result<(), Self::Error>, Canceled>) -> Result<(), Self::Error>,

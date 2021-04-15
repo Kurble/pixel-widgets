@@ -309,10 +309,9 @@ impl Style {
             default: Stylesheet {
                 background: Background::None,
                 font: cache
-                    .clone()
                     .lock()
-                    .unwrap()
-                    .load_font(include_bytes!("default_font.ttf").to_vec()),
+                    .map(|mut lk| lk.load_font(include_bytes!("default_font.ttf").to_vec()))
+                    .unwrap(),
                 color: Color::white(),
                 padding: Rectangle::zero(),
                 margin: Rectangle::zero(),
@@ -386,38 +385,36 @@ impl Declaration {
     /// Apply values to a `Stylesheet`.
     pub fn apply(&self, stylesheet: &mut Stylesheet) {
         match self {
-            &Declaration::Background(ref x) => stylesheet.background = x.clone(),
-            &Declaration::Font(ref x) => stylesheet.font = x.clone(),
-            &Declaration::Color(ref x) => stylesheet.color = x.clone(),
-            &Declaration::Padding(ref x) => stylesheet.padding = x.clone(),
-            &Declaration::PaddingLeft(x) => stylesheet.padding.left = x,
-            &Declaration::PaddingRight(x) => stylesheet.padding.right = x,
-            &Declaration::PaddingTop(x) => stylesheet.padding.top = x,
-            &Declaration::PaddingBottom(x) => stylesheet.padding.bottom = x,
-            &Declaration::Margin(ref x) => stylesheet.margin = x.clone(),
-            &Declaration::MarginLeft(x) => stylesheet.margin.left = x,
-            &Declaration::MarginRight(x) => stylesheet.margin.right = x,
-            &Declaration::MarginTop(x) => stylesheet.margin.top = x,
-            &Declaration::MarginBottom(x) => stylesheet.margin.bottom = x,
-            &Declaration::TextSize(x) => stylesheet.text_size = x.clone(),
-            &Declaration::TextWrap(ref x) => stylesheet.text_wrap = x.clone(),
-            &Declaration::Width(ref x) => stylesheet.width = x.clone(),
-            &Declaration::Height(ref x) => stylesheet.height = x.clone(),
-            &Declaration::LayoutDirection(x) => stylesheet.direction = x,
-            &Declaration::AlignHorizontal(ref x) => stylesheet.align_horizontal = x.clone(),
-            &Declaration::AlignVertical(ref x) => stylesheet.align_vertical = x.clone(),
-            &Declaration::AddFlag(ref x) => match stylesheet.flags.binary_search(x) {
-                Err(insert_at) => {
+            Declaration::Background(x) => stylesheet.background = x.clone(),
+            Declaration::Font(x) => stylesheet.font = x.clone(),
+            Declaration::Color(x) => stylesheet.color = *x,
+            Declaration::Padding(x) => stylesheet.padding = *x,
+            Declaration::PaddingLeft(x) => stylesheet.padding.left = *x,
+            Declaration::PaddingRight(x) => stylesheet.padding.right = *x,
+            Declaration::PaddingTop(x) => stylesheet.padding.top = *x,
+            Declaration::PaddingBottom(x) => stylesheet.padding.bottom = *x,
+            Declaration::Margin(x) => stylesheet.margin = *x,
+            Declaration::MarginLeft(x) => stylesheet.margin.left = *x,
+            Declaration::MarginRight(x) => stylesheet.margin.right = *x,
+            Declaration::MarginTop(x) => stylesheet.margin.top = *x,
+            Declaration::MarginBottom(x) => stylesheet.margin.bottom = *x,
+            Declaration::TextSize(x) => stylesheet.text_size = *x,
+            Declaration::TextWrap(x) => stylesheet.text_wrap = *x,
+            Declaration::Width(x) => stylesheet.width = *x,
+            Declaration::Height(x) => stylesheet.height = *x,
+            Declaration::LayoutDirection(x) => stylesheet.direction = *x,
+            Declaration::AlignHorizontal(x) => stylesheet.align_horizontal = *x,
+            Declaration::AlignVertical(x) => stylesheet.align_vertical = *x,
+            Declaration::AddFlag(x) => {
+                if let Err(insert_at) = stylesheet.flags.binary_search(x) {
                     stylesheet.flags.insert(insert_at, x.clone());
                 }
-                Ok(_) => (),
-            },
-            &Declaration::RemoveFlag(ref x) => match stylesheet.flags.binary_search(x) {
-                Ok(exists) => {
+            }
+            Declaration::RemoveFlag(x) => {
+                if let Ok(exists) = stylesheet.flags.binary_search(x) {
                     stylesheet.flags.remove(exists);
                 }
-                Err(_) => (),
-            },
+            }
         }
     }
 }
@@ -426,20 +423,20 @@ impl Selector {
     /// Match a sibling widget of the current rule. If this selector is not a sibling selector `None` is returned.
     pub fn match_sibling(&self, direct: bool, widget: &str) -> Option<bool> {
         match self {
-            &Selector::WidgetDirectAfter(ref sel_widget) => Some(direct && sel_widget.matches(widget)),
-            &Selector::WidgetAfter(ref sel_widget) => Some(sel_widget.matches(widget)),
-            &Selector::Not(ref selector) => selector.match_sibling(direct, widget).map(|b| !b),
-            &_ => None,
+            Selector::WidgetDirectAfter(ref sel_widget) => Some(direct && sel_widget.matches(widget)),
+            Selector::WidgetAfter(ref sel_widget) => Some(sel_widget.matches(widget)),
+            Selector::Not(ref selector) => selector.match_sibling(direct, widget).map(|b| !b),
+            _ => None,
         }
     }
 
     /// Match a child widget of the current rule. If this selector is not a child selector `None` is returned.
     pub fn match_child(&self, direct: bool, widget: &str) -> Option<bool> {
         match self {
-            &Selector::Widget(ref sel_widget) => Some(sel_widget.matches(widget)),
-            &Selector::WidgetDirectChild(ref sel_widget) => Some(direct && sel_widget.matches(widget)),
-            &Selector::Not(ref selector) => selector.match_child(direct, widget).map(|b| !b),
-            &_ => None,
+            Selector::Widget(ref sel_widget) => Some(sel_widget.matches(widget)),
+            Selector::WidgetDirectChild(ref sel_widget) => Some(direct && sel_widget.matches(widget)),
+            Selector::Not(ref selector) => selector.match_child(direct, widget).map(|b| !b),
+            _ => None,
         }
     }
 
@@ -453,15 +450,15 @@ impl Selector {
         len: usize,
     ) -> Option<bool> {
         match self {
-            &Selector::State(ref sel_state) => Some(state.iter().find(|&state| state.eq(sel_state)).is_some()),
-            &Selector::Class(ref sel_class) => Some(sel_class == class),
-            &Selector::Nth(num) => Some(n == num),
-            &Selector::NthMod(num, den) => Some((n % den) == num),
-            &Selector::NthLast(num) => Some(len - 1 - n == num),
-            &Selector::NthLastMod(num, den) => Some(((len - 1 - n) % den) == num),
-            &Selector::OnlyChild => Some(n == 0 && len == 1),
-            &Selector::Not(ref selector) => selector.match_meta(state, class, n, len).map(|b| !b),
-            &_ => None,
+            Selector::State(ref sel_state) => Some(state.iter().any(|state| state.eq(sel_state))),
+            Selector::Class(ref sel_class) => Some(sel_class == class),
+            Selector::Nth(num) => Some(n == *num),
+            Selector::NthMod(num, den) => Some((n % *den) == *num),
+            Selector::NthLast(num) => Some(len - 1 - n == *num),
+            Selector::NthLastMod(num, den) => Some(((len - 1 - n) % *den) == *num),
+            Selector::OnlyChild => Some(n == 0 && len == 1),
+            Selector::Not(ref selector) => selector.match_meta(state, class, n, len).map(|b| !b),
+            _ => None,
         }
     }
 }

@@ -257,14 +257,12 @@ impl Patch {
         let grow_x = (measured_content.width() - patch_content.width()).max(0.0);
         let grow_y = (measured_content.height() - patch_content.height()).max(0.0);
 
-        let result = Rectangle {
+        Rectangle {
             left: 0.0,
             top: 0.0,
             right: self.image.size.width() + grow_x,
             bottom: self.image.size.height() + grow_y,
-        };
-
-        result
+        }
     }
 
     /// Returns the padding of the 9 patch
@@ -364,8 +362,8 @@ impl Background {
     /// Content rect for a given size and padding
     pub fn content_rect(&self, layout: Rectangle, padding: Rectangle) -> Rectangle {
         match self {
-            &Background::Patch(ref patch, _) => patch.content_rect(layout).after_padding(padding),
-            &_ => layout.after_padding(padding),
+            Background::Patch(ref patch, _) => patch.content_rect(layout).after_padding(padding),
+            _ => layout.after_padding(padding),
         }
     }
 
@@ -373,8 +371,8 @@ impl Background {
     /// This is the inverse of [`content_rect`](#method.content_rect)
     pub fn layout_rect(&self, content_rect: Rectangle, padding: Rectangle) -> Rectangle {
         match self {
-            &Background::Patch(ref patch, _) => patch.measure_with_content(content_rect.after_margin(padding)),
-            &_ => content_rect.after_margin(padding),
+            Background::Patch(ref patch, _) => patch.measure_with_content(content_rect.after_margin(padding)),
+            _ => content_rect.after_margin(padding),
         }
     }
 
@@ -406,36 +404,33 @@ impl Background {
     /// Size of the background if the content rect is zero sized
     pub fn minimum_size(&self) -> (f32, f32) {
         match self {
-            &Background::Patch(ref patch, _) => patch.minimum_size(),
-            &Background::Image(ref image, _) => (image.size.width(), image.size.height()),
-            &_ => (0.0, 0.0),
+            Background::Patch(patch, _) => patch.minimum_size(),
+            Background::Image(image, _) => (image.size.width(), image.size.height()),
+            _ => (0.0, 0.0),
         }
     }
 
     /// Padding of the background. Only defined for 9 patch backgrounds, other backgrounds have no padding.
     pub fn padding(&self) -> Rectangle {
         match self {
-            &Background::Patch(ref patch, _) => patch.margin(),
-            &_ => Rectangle::zero(),
+            Background::Patch(ref patch, _) => patch.margin(),
+            _ => Rectangle::zero(),
         }
     }
 
     /// Returns whether the background is visible
     pub fn is_solid(&self) -> bool {
-        match self {
-            &Background::None => false,
-            &_ => true,
-        }
+        !matches!(self, Background::None)
     }
 
     /// Convert background to [`Some(Primitive)`](enum.Primitive.html),
     /// or `None` if this background is [`None`](#variant.None)
     pub fn render(&self, rectangle: Rectangle) -> Option<Primitive<'static>> {
         match self {
-            &Background::Color(color) => Some(Primitive::DrawRect(rectangle, color)),
-            &Background::Image(ref image, color) => Some(Primitive::DrawImage(image.clone(), rectangle, color)),
-            &Background::Patch(ref patch, color) => Some(Primitive::Draw9(patch.clone(), rectangle, color)),
-            &Background::None => None,
+            Background::Color(color) => Some(Primitive::DrawRect(rectangle, *color)),
+            Background::Image(image, color) => Some(Primitive::DrawImage(image.clone(), rectangle, *color)),
+            Background::Patch(patch, color) => Some(Primitive::Draw9(patch.clone(), rectangle, *color)),
+            Background::None => None,
         }
     }
 }
@@ -464,7 +459,7 @@ impl Command {
                 } => {
                     if new_offset == offset + count {
                         *self = Command::Colored {
-                            offset: offset,
+                            offset,
                             count: count + new_count,
                         };
                         None
@@ -484,8 +479,8 @@ impl Command {
                 } => {
                     if texture == new_texture && new_offset == offset + count {
                         *self = Command::Textured {
-                            texture: texture,
-                            offset: offset,
+                            texture,
+                            offset,
                             count: count + new_count,
                         };
                         None

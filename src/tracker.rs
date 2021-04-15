@@ -55,7 +55,7 @@ impl<'a, Id: Eq + Clone + Send + Sync> ManagedStateTracker<'a, Id> {
         Q: ?Sized + Eq + ToOwned<Owned = Id>,
         Id: Borrow<Q>,
     {
-        self.get_or_default_with(id, || T::default())
+        self.get_or_default_with(id, T::default)
     }
 
     /// Get a state object for the given id. If such an object doesn't exist yet, the supplied default value is used.

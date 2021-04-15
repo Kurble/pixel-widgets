@@ -34,6 +34,7 @@ pub struct Input<'a, T, F> {
     password: bool,
     on_change: F,
     on_submit: Option<T>,
+    trigger: Option<Key>,
 }
 
 impl<'a, T, F: Fn(String) -> T> Input<'a, T, F> {
@@ -45,6 +46,7 @@ impl<'a, T, F: Fn(String) -> T> Input<'a, T, F> {
             password: false,
             on_change,
             on_submit: None,
+            trigger: None,
         }
     }
 
@@ -56,7 +58,20 @@ impl<'a, T, F: Fn(String) -> T> Input<'a, T, F> {
             password: true,
             on_change,
             on_submit: None,
+            trigger: None,
         }
+    }
+
+    /// Sets the message to post when the users submits using the enter key
+    pub fn with_on_submit(mut self, message: T) -> Self {
+        self.on_submit.replace(message);
+        self
+    }
+
+    /// Sets a key that will trigger input focus
+    pub fn with_trigger_key(mut self, key: Key) -> Self {
+        self.trigger.replace(key);
+        self
     }
 
     fn text(&self, stylesheet: &Stylesheet) -> Text {
@@ -207,189 +222,198 @@ impl<'a, T: 'a + Send, F: 'a + Send + Fn(String) -> T> Widget<'a, T> for Input<'
                 }
             }
 
-            event => {
-                if let InnerState::Focused(from, to, _) = self.state.inner {
-                    match event {
-                        Event::Text(c) => match c {
-                            '\x08' => {
-                                context.redraw();
-                                let (from, to) = (from.min(to), from.max(to));
-
-                                if to > from {
-                                    let pt = codepoint(&self.state.value, from);
-                                    let tail = self.state.value.split_off(pt);
-                                    self.state.value.push_str(tail.split_at(codepoint(&tail, to - from)).1);
-                                    self.state.inner = InnerState::Focused(from, from, Instant::now());
-                                    context.push((self.on_change)(self.state.value.clone()));
-                                } else if from > 0 {
-                                    let pt = codepoint(&self.state.value, from - 1);
-                                    let tail = self.state.value.split_off(pt);
-                                    self.state.value.push_str(tail.split_at(codepoint(&tail, 1)).1);
-                                    self.state.inner = InnerState::Focused(from - 1, from - 1, Instant::now());
-                                    context.push((self.on_change)(self.state.value.clone()));
-                                }
-                            }
-                            '\x7f' => {
-                                context.redraw();
-                                let (from, to) = (from.min(to), from.max(to));
-
-                                let pt = codepoint(&self.state.value, from);
-                                let tail = self.state.value.split_off(pt);
-
-                                if to > from {
-                                    self.state.value.push_str(tail.split_at(codepoint(&tail, to - from)).1);
-                                } else if tail.len() > 0 {
-                                    self.state.value.push_str(tail.split_at(codepoint(&tail, 1)).1);
-                                }
-                                self.state.inner = InnerState::Focused(from, from, Instant::now());
-                                context.push((self.on_change)(self.state.value.clone()));
-                            }
-                            c => {
-                                if !c.is_control() {
-                                    context.redraw();
-                                    let (from, to) = (from.min(to), from.max(to));
-
-                                    let pt = codepoint(&self.state.value, from);
-                                    let mut tail = self.state.value.split_off(pt);
-                                    self.state.value.push(c);
-
-                                    if to > from {
-                                        let pt = codepoint(&tail, to - from);
-                                        self.state.value.push_str(&tail.split_off(pt));
-                                    } else {
-                                        self.state.value.push_str(&tail);
-                                    }
-                                    self.state.inner = InnerState::Focused(from + 1, from + 1, Instant::now());
-                                    context.push((self.on_change)(self.state.value.clone()));
-                                }
-                            }
-                        },
-
-                        Event::Press(Key::Enter) => {
-                            if self.state.modifiers.shift == false {
-                                context.redraw();
-                                context.extend(self.on_submit.take());
-                            }
-                        }
-
-                        #[cfg(feature = "clipboard")]
-                        Event::Press(Key::C) => {
-                            if self.state.modifiers.ctrl {
-                                let (a, b) = (from.min(to), from.max(to));
-                                let (a, b) = (codepoint(&self.state.value, a), codepoint(&self.state.value, b));
-                                let copy_text = self.state.value[a..b].to_string();
-                                ClipboardContext::new()
-                                    .and_then(|mut cc| cc.set_contents(copy_text))
-                                    .ok();
-                            }
-                        }
-
-                        #[cfg(feature = "clipboard")]
-                        Event::Press(Key::X) => {
-                            if self.state.modifiers.ctrl {
-                                context.redraw();
-                                let (from, to) = (from.min(to), from.max(to));
-                                let (a, b) = (codepoint(&self.state.value, from), codepoint(&self.state.value, to));
-                                let cut_text = self.state.value[a..b].to_string();
-                                ClipboardContext::new()
-                                    .and_then(|mut cc| cc.set_contents(cut_text))
-                                    .ok();
-
-                                let pt = codepoint(&self.state.value, from);
-                                let tail = self.state.value.split_off(pt);
-
-                                if to > from {
-                                    self.state.value.push_str(tail.split_at(codepoint(&tail, to - from)).1);
-                                } else if tail.len() > 0 {
-                                    self.state.value.push_str(tail.split_at(codepoint(&tail, 1)).1);
-                                }
-                                self.state.inner = InnerState::Focused(from, from, Instant::now());
-                                context.push((self.on_change)(self.state.value.clone()));
-                            }
-                        }
-
-                        #[cfg(feature = "clipboard")]
-                        Event::Press(Key::V) => {
-                            if self.state.modifiers.ctrl {
-                                context.redraw();
-                                let (from, to) = (from.min(to), from.max(to));
-                                let paste_text = ClipboardContext::new().and_then(|mut cc| cc.get_contents()).ok();
-
-                                if let Some(paste_text) = paste_text {
-                                    let pt = codepoint(&self.state.value, from);
-                                    let mut tail = self.state.value.split_off(pt);
-                                    self.state.value.push_str(&paste_text);
-
-                                    if to > from {
-                                        let pt = codepoint(&tail, to - from);
-                                        self.state.value.push_str(&tail.split_off(pt));
-                                    } else {
-                                        self.state.value.push_str(&tail);
-                                    }
-                                    self.state.inner = InnerState::Focused(
-                                        from + paste_text.len(),
-                                        from + paste_text.len(),
-                                        Instant::now(),
-                                    );
-                                    context.push((self.on_change)(self.state.value.clone()));
-                                }
-                            }
-                        }
-
-                        Event::Press(Key::Left) => {
-                            context.redraw();
-                            if self.state.modifiers.shift {
-                                self.state.inner =
-                                    InnerState::Focused(from, if to > 0 { to - 1 } else { 0 }, Instant::now());
-                            } else {
-                                let (from, to) = (from.min(to), from.max(to));
-                                if from != to || from == 0 {
-                                    self.state.inner = InnerState::Focused(from, from, Instant::now());
-                                } else {
-                                    self.state.inner = InnerState::Focused(from - 1, from - 1, Instant::now());
-                                }
-                            }
-                        }
-
-                        Event::Press(Key::Right) => {
-                            context.redraw();
-                            if self.state.modifiers.shift {
-                                let count = self.state.value.chars().count();
-                                self.state.inner = InnerState::Focused(from, (to + 1).min(count), Instant::now());
-                            } else {
-                                let (from, to) = (from.min(to), from.max(to));
-                                if from != to || to >= self.state.value.chars().count() {
-                                    self.state.inner = InnerState::Focused(to, to, Instant::now());
-                                } else {
-                                    self.state.inner = InnerState::Focused(to + 1, to + 1, Instant::now());
-                                }
-                            }
-                        }
-
-                        Event::Press(Key::Home) => {
-                            context.redraw();
-                            if self.state.modifiers.shift {
-                                self.state.inner = InnerState::Focused(from, 0, Instant::now());
-                            } else {
-                                self.state.inner = InnerState::Focused(0, 0, Instant::now());
-                            }
-                        }
-
-                        Event::Press(Key::End) => {
-                            context.redraw();
-                            if self.state.modifiers.shift {
-                                let count = self.state.value.chars().count();
-                                self.state.inner = InnerState::Focused(from, count, Instant::now());
-                            } else {
-                                let count = self.state.value.chars().count();
-                                self.state.inner = InnerState::Focused(count, count, Instant::now());
-                            }
-                        }
-
-                        _ => (),
+            event => match self.state.inner {
+                InnerState::Idle => match event {
+                    Event::Press(key) if Some(key) == self.trigger => {
+                        self.state.inner = InnerState::Focused(0, self.state.value.len(), Instant::now());
+                        context.redraw();
                     }
-                }
-            }
+                    _ => (),
+                },
+
+                InnerState::Focused(from, to, _) => match event {
+                    Event::Text(c) => match c {
+                        '\x08' => {
+                            context.redraw();
+                            let (from, to) = (from.min(to), from.max(to));
+
+                            if to > from {
+                                let pt = codepoint(&self.state.value, from);
+                                let tail = self.state.value.split_off(pt);
+                                self.state.value.push_str(tail.split_at(codepoint(&tail, to - from)).1);
+                                self.state.inner = InnerState::Focused(from, from, Instant::now());
+                                context.push((self.on_change)(self.state.value.clone()));
+                            } else if from > 0 {
+                                let pt = codepoint(&self.state.value, from - 1);
+                                let tail = self.state.value.split_off(pt);
+                                self.state.value.push_str(tail.split_at(codepoint(&tail, 1)).1);
+                                self.state.inner = InnerState::Focused(from - 1, from - 1, Instant::now());
+                                context.push((self.on_change)(self.state.value.clone()));
+                            }
+                        }
+                        '\x7f' => {
+                            context.redraw();
+                            let (from, to) = (from.min(to), from.max(to));
+
+                            let pt = codepoint(&self.state.value, from);
+                            let tail = self.state.value.split_off(pt);
+
+                            if to > from {
+                                self.state.value.push_str(tail.split_at(codepoint(&tail, to - from)).1);
+                            } else if !tail.is_empty() {
+                                self.state.value.push_str(tail.split_at(codepoint(&tail, 1)).1);
+                            }
+                            self.state.inner = InnerState::Focused(from, from, Instant::now());
+                            context.push((self.on_change)(self.state.value.clone()));
+                        }
+                        c => {
+                            if !c.is_control() {
+                                context.redraw();
+                                let (from, to) = (from.min(to), from.max(to));
+
+                                let pt = codepoint(&self.state.value, from);
+                                let mut tail = self.state.value.split_off(pt);
+                                self.state.value.push(c);
+
+                                if to > from {
+                                    let pt = codepoint(&tail, to - from);
+                                    self.state.value.push_str(&tail.split_off(pt));
+                                } else {
+                                    self.state.value.push_str(&tail);
+                                }
+                                self.state.inner = InnerState::Focused(from + 1, from + 1, Instant::now());
+                                context.push((self.on_change)(self.state.value.clone()));
+                            }
+                        }
+                    },
+
+                    Event::Press(Key::Enter) if self.on_submit.is_some() => {
+                        if !self.state.modifiers.shift {
+                            context.redraw();
+                            context.extend(self.on_submit.take());
+                            self.state.inner = InnerState::Idle;
+                        }
+                    }
+
+                    #[cfg(feature = "clipboard")]
+                    Event::Press(Key::C) => {
+                        if self.state.modifiers.ctrl {
+                            let (a, b) = (from.min(to), from.max(to));
+                            let (a, b) = (codepoint(&self.state.value, a), codepoint(&self.state.value, b));
+                            let copy_text = self.state.value[a..b].to_string();
+                            ClipboardContext::new()
+                                .and_then(|mut cc| cc.set_contents(copy_text))
+                                .ok();
+                        }
+                    }
+
+                    #[cfg(feature = "clipboard")]
+                    Event::Press(Key::X) => {
+                        if self.state.modifiers.ctrl {
+                            context.redraw();
+                            let (from, to) = (from.min(to), from.max(to));
+                            let (a, b) = (codepoint(&self.state.value, from), codepoint(&self.state.value, to));
+                            let cut_text = self.state.value[a..b].to_string();
+                            ClipboardContext::new()
+                                .and_then(|mut cc| cc.set_contents(cut_text))
+                                .ok();
+
+                            let pt = codepoint(&self.state.value, from);
+                            let tail = self.state.value.split_off(pt);
+
+                            if to > from {
+                                self.state.value.push_str(tail.split_at(codepoint(&tail, to - from)).1);
+                            } else if !tail.is_empty() {
+                                self.state.value.push_str(tail.split_at(codepoint(&tail, 1)).1);
+                            }
+                            self.state.inner = InnerState::Focused(from, from, Instant::now());
+                            context.push((self.on_change)(self.state.value.clone()));
+                        }
+                    }
+
+                    #[cfg(feature = "clipboard")]
+                    Event::Press(Key::V) => {
+                        if self.state.modifiers.ctrl {
+                            context.redraw();
+                            let (from, to) = (from.min(to), from.max(to));
+                            let paste_text = ClipboardContext::new().and_then(|mut cc| cc.get_contents()).ok();
+
+                            if let Some(paste_text) = paste_text {
+                                let pt = codepoint(&self.state.value, from);
+                                let mut tail = self.state.value.split_off(pt);
+                                self.state.value.push_str(&paste_text);
+
+                                if to > from {
+                                    let pt = codepoint(&tail, to - from);
+                                    self.state.value.push_str(&tail.split_off(pt));
+                                } else {
+                                    self.state.value.push_str(&tail);
+                                }
+                                self.state.inner = InnerState::Focused(
+                                    from + paste_text.len(),
+                                    from + paste_text.len(),
+                                    Instant::now(),
+                                );
+                                context.push((self.on_change)(self.state.value.clone()));
+                            }
+                        }
+                    }
+
+                    Event::Press(Key::Left) => {
+                        context.redraw();
+                        if self.state.modifiers.shift {
+                            self.state.inner =
+                                InnerState::Focused(from, if to > 0 { to - 1 } else { 0 }, Instant::now());
+                        } else {
+                            let (from, to) = (from.min(to), from.max(to));
+                            if from != to || from == 0 {
+                                self.state.inner = InnerState::Focused(from, from, Instant::now());
+                            } else {
+                                self.state.inner = InnerState::Focused(from - 1, from - 1, Instant::now());
+                            }
+                        }
+                    }
+
+                    Event::Press(Key::Right) => {
+                        context.redraw();
+                        if self.state.modifiers.shift {
+                            let count = self.state.value.chars().count();
+                            self.state.inner = InnerState::Focused(from, (to + 1).min(count), Instant::now());
+                        } else {
+                            let (from, to) = (from.min(to), from.max(to));
+                            if from != to || to >= self.state.value.chars().count() {
+                                self.state.inner = InnerState::Focused(to, to, Instant::now());
+                            } else {
+                                self.state.inner = InnerState::Focused(to + 1, to + 1, Instant::now());
+                            }
+                        }
+                    }
+
+                    Event::Press(Key::Home) => {
+                        context.redraw();
+                        if self.state.modifiers.shift {
+                            self.state.inner = InnerState::Focused(from, 0, Instant::now());
+                        } else {
+                            self.state.inner = InnerState::Focused(0, 0, Instant::now());
+                        }
+                    }
+
+                    Event::Press(Key::End) => {
+                        context.redraw();
+                        if self.state.modifiers.shift {
+                            let count = self.state.value.chars().count();
+                            self.state.inner = InnerState::Focused(from, count, Instant::now());
+                        } else {
+                            let count = self.state.value.chars().count();
+                            self.state.inner = InnerState::Focused(count, count, Instant::now());
+                        }
+                    }
+
+                    _ => (),
+                },
+
+                _ => (),
+            },
         }
 
         // update scroll state for current text and caret position
@@ -522,6 +546,11 @@ impl State {
     pub fn get_value(&self) -> &str {
         self.value.as_str()
     }
+
+    /// Returns whether the input state is currently focused and accepting input
+    pub fn is_focused(&self) -> bool {
+        matches!(self.inner, InnerState::Focused(_, _, _))
+    }
 }
 
 fn text_display(buffer: Text<'_>, password: bool) -> Text<'static> {
@@ -538,6 +567,6 @@ fn text_display(buffer: Text<'_>, password: bool) -> Text<'static> {
     }
 }
 
-fn codepoint(s: &String, char_index: usize) -> usize {
-    s.char_indices().skip(char_index).next().map_or(s.len(), |(i, _)| i)
+fn codepoint(s: &str, char_index: usize) -> usize {
+    s.char_indices().nth(char_index).map_or(s.len(), |(i, _)| i)
 }

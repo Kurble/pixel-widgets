@@ -292,12 +292,9 @@ impl<M: Model, E: 'static + EventLoop<Command<M::Message>>, L: 'static + Loader>
                     let ptr = task.future.deref_mut() as *mut dyn Future<Output = M::Message>;
                     let pin = unsafe { std::pin::Pin::new_unchecked(ptr.as_mut().unwrap()) };
                     let waker = EventLoopWaker::new(self.event_loop.clone(), Command::Await(task));
-                    match pin.poll(&mut std::task::Context::from_waker(&waker)) {
-                        Poll::Ready(message) => {
-                            complete.store(true, Relaxed);
-                            self.update(message);
-                        }
-                        _ => (),
+                    if let Poll::Ready(message) = pin.poll(&mut std::task::Context::from_waker(&waker)) {
+                        complete.store(true, Relaxed);
+                        self.update(message);
                     }
                 }
             }
@@ -306,12 +303,9 @@ impl<M: Model, E: 'static + EventLoop<Command<M::Message>>, L: 'static + Loader>
                 let ptr = stream.deref_mut() as *mut dyn Stream<Item = M::Message>;
                 let pin = unsafe { std::pin::Pin::new_unchecked(ptr.as_mut().unwrap()) };
                 let waker = EventLoopWaker::new(self.event_loop.clone(), Command::Subscribe(stream));
-                match pin.poll_next(&mut std::task::Context::from_waker(&waker)) {
-                    Poll::Ready(Some(message)) => {
-                        waker.wake();
-                        self.update(message);
-                    }
-                    _ => (),
+                if let Poll::Ready(Some(message)) = pin.poll_next(&mut std::task::Context::from_waker(&waker)) {
+                    waker.wake();
+                    self.update(message);
                 }
             }
 
@@ -321,33 +315,29 @@ impl<M: Model, E: 'static + EventLoop<Command<M::Message>>, L: 'static + Loader>
                     let ptr = task.future.deref_mut() as *mut dyn Future<Output = Result<Style, stylesheet::Error>>;
                     let pin = unsafe { std::pin::Pin::new_unchecked(ptr.as_mut().unwrap()) };
                     let waker = EventLoopWaker::new(self.event_loop.clone(), Command::Stylesheet(task));
-                    match pin.poll(&mut std::task::Context::from_waker(&waker)) {
-                        Poll::Ready(style) => {
-                            complete.store(true, Relaxed);
+                    if let Poll::Ready(style) = pin.poll(&mut std::task::Context::from_waker(&waker)) {
+                        complete.store(true, Relaxed);
 
-                            match style {
-                                Ok(style) => {
-                                    self.style = Arc::new(style);
-                                    self.model_view.set_dirty();
-                                }
-                                Err(error) => {
-                                    eprintln!("Unable to load stylesheet: {}", error);
-                                }
+                        match style {
+                            Ok(style) => {
+                                self.style = Arc::new(style);
+                                self.model_view.set_dirty();
                             }
-
-                            if let Some(url) = self.hot_reload_style.clone() {
-                                let loader = self.loader.clone();
-                                let url = url.clone();
-                                self.command(Command::from_future_style(async move {
-                                    loader
-                                        .wait(&url)
-                                        .await
-                                        .map_err(|e| stylesheet::Error::Io(Box::new(e)))?;
-                                    Ok(Style::load(&*loader, url, 512, 0).await?)
-                                }));
+                            Err(error) => {
+                                eprintln!("Unable to load stylesheet: {}", error);
                             }
                         }
-                        _ => (),
+
+                        if let Some(url) = self.hot_reload_style.clone() {
+                            let loader = self.loader.clone();
+                            self.command(Command::from_future_style(async move {
+                                loader
+                                    .wait(&url)
+                                    .await
+                                    .map_err(|e| stylesheet::Error::Io(Box::new(e)))?;
+                                Ok(Style::load(&*loader, url, 512, 0).await?)
+                            }));
+                        }
                     }
                 }
             }
@@ -752,6 +742,7 @@ struct EventLoopWaker<T: Send, E: EventLoop<T>> {
 }
 
 impl<T: 'static + Send, E: 'static + EventLoop<T>> EventLoopWaker<T, E> {
+    #[allow(clippy::new_ret_no_self)]
     fn new(event_loop: E, message: T) -> Waker {
         futures::task::waker(Arc::new(Self {
             message: Mutex::new((event_loop, Some(message))),

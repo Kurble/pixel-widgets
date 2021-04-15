@@ -14,10 +14,7 @@ pub struct Row<'a, T> {
 impl<'a, T: 'a> Row<'a, T> {
     /// Construct a new `Row`
     pub fn new() -> Self {
-        Self {
-            children: Vec::new(),
-            layout: Vec::new(),
-        }
+        Default::default()
     }
 
     /// Adds a child widget to the row
@@ -62,6 +59,15 @@ impl<'a, T: 'a> Row<'a, T> {
     }
 }
 
+impl<'a, T: 'a> Default for Row<'a, T> {
+    fn default() -> Self {
+        Self {
+            children: Vec::new(),
+            layout: Vec::new(),
+        }
+    }
+}
+
 impl<'a, T: 'a> Widget<'a, T> for Row<'a, T> {
     fn widget(&self) -> &'static str {
         "row"
@@ -96,9 +102,7 @@ impl<'a, T: 'a> Widget<'a, T> for Row<'a, T> {
     }
 
     fn focused(&self) -> bool {
-        self.children
-            .iter()
-            .fold(false, |focused, child| focused || child.focused())
+        self.children.iter().any(|child| child.focused())
     }
 
     fn event(

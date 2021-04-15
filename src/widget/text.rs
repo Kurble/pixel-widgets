@@ -35,9 +35,9 @@ impl<'a, T> Widget<'a, T> for Text {
         let text = text::Text {
             text: Cow::Borrowed(self.text.as_str()),
             font: style.font.clone(),
-            size: style.text_size.clone(),
-            wrap: style.text_wrap.clone(),
-            color: style.color.clone(),
+            size: style.text_size,
+            wrap: style.text_wrap,
+            color: style.color,
         };
         let content = match (width, height) {
             (Size::Shrink, Size::Shrink) => {
@@ -68,9 +68,9 @@ impl<'a, T> Widget<'a, T> for Text {
             text::Text {
                 text: Cow::Owned(self.text.clone()),
                 font: style.font.clone(),
-                size: style.text_size.clone(),
-                wrap: style.text_wrap.clone(),
-                color: style.color.clone(),
+                size: style.text_size,
+                wrap: style.text_wrap,
+                color: style.color,
             },
             style.background.content_rect(layout, style.padding),
         ));
