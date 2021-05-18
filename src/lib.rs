@@ -243,7 +243,7 @@ impl<M: Model, E: 'static + EventLoop<Command<M::Message>>, L: 'static + Loader>
                 .wait(&url)
                 .await
                 .map_err(|e| stylesheet::Error::Io(Box::new(e)))?;
-            Ok(Style::load(&*loader, url, 512, 0).await?)
+            Style::load(&*loader, url, 512, 0).await
         }));
 
         Ok(())
@@ -335,7 +335,7 @@ impl<M: Model, E: 'static + EventLoop<Command<M::Message>>, L: 'static + Loader>
                                     .wait(&url)
                                     .await
                                     .map_err(|e| stylesheet::Error::Io(Box::new(e)))?;
-                                Ok(Style::load(&*loader, url, 512, 0).await?)
+                                Style::load(&*loader, url, 512, 0).await
                             }));
                         }
                     }
@@ -404,7 +404,7 @@ impl<M: Model, E: 'static + EventLoop<Command<M::Message>>, L: 'static + Loader>
         struct Layer {
             vtx: Vec<Vertex>,
             cmd: Vec<Command>,
-        };
+        }
 
         impl Layer {
             fn append(&mut self, command: Command) {
@@ -420,8 +420,7 @@ impl<M: Model, E: 'static + EventLoop<Command<M::Message>>, L: 'static + Loader>
         }];
         let mut layer: usize = 0;
 
-        let mut scissors = Vec::new();
-        scissors.push(viewport);
+        let mut scissors = vec![viewport];
 
         let validate_clip = move |clip: Rectangle| {
             let v = Rectangle {
@@ -430,7 +429,7 @@ impl<M: Model, E: 'static + EventLoop<Command<M::Message>>, L: 'static + Loader>
                 right: clip.right.max(0.0).min(viewport.right),
                 bottom: clip.bottom.max(0.0).min(viewport.bottom),
             };
-            if v.width() > 0.0 && v.height() > 0.0 {
+            if v.right as u32 - v.left as u32 > 0 && v.bottom as u32 - v.top as u32 > 0 {
                 Some(v)
             } else {
                 None
@@ -478,7 +477,7 @@ impl<M: Model, E: 'static + EventLoop<Command<M::Message>>, L: 'static + Loader>
                     if draw_enabled {
                         let r = r.to_device_coordinates(viewport);
                         let color = [color.r, color.g, color.b, color.a];
-                        let mode = 2;
+                        let mode = 1.0;
                         let offset = layers[layer].vtx.len();
                         layers[layer].vtx.push(Vertex {
                             pos: [r.left, r.top],
@@ -523,7 +522,7 @@ impl<M: Model, E: 'static + EventLoop<Command<M::Message>>, L: 'static + Loader>
                 Primitive::DrawText(text, rect) => {
                     if draw_enabled {
                         let color = [text.color.r, text.color.g, text.color.b, text.color.a];
-                        let mode = 0;
+                        let mode = 0.0;
                         let offset = layers[layer].vtx.len();
 
                         self.style.cache().lock().unwrap().draw_text(&text, rect, |uv, pos| {
@@ -586,7 +585,7 @@ impl<M: Model, E: 'static + EventLoop<Command<M::Message>>, L: 'static + Loader>
                     if draw_enabled {
                         let uv = patch.image.texcoords;
                         let color = [color.r, color.g, color.b, color.a];
-                        let mode = 1;
+                        let mode = 0.0;
                         let offset = layers[layer].vtx.len();
 
                         patch.iterate_sections(false, rect.width(), |x, u| {
@@ -652,7 +651,7 @@ impl<M: Model, E: 'static + EventLoop<Command<M::Message>>, L: 'static + Loader>
                         let r = r.to_device_coordinates(viewport);
                         let uv = image.texcoords;
                         let color = [color.r, color.g, color.b, color.a];
-                        let mode = 1;
+                        let mode = 0.0;
                         let offset = layers[layer].vtx.len();
 
                         layers[layer].vtx.push(Vertex {

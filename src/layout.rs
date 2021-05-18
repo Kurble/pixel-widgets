@@ -271,13 +271,13 @@ impl Rectangle {
     }
 }
 
-impl Into<Rectangle> for [f32; 4] {
-    fn into(self) -> Rectangle {
+impl From<[f32; 4]> for Rectangle {
+    fn from(a: [f32; 4]) -> Rectangle {
         Rectangle {
-            left: self[0],
-            top: self[1],
-            right: self[2],
-            bottom: self[3],
+            left: a[0],
+            top: a[1],
+            right: a[2],
+            bottom: a[3],
         }
     }
 }

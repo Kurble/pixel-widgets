@@ -9,6 +9,7 @@ use crate::draw::{Command as DrawCommand, DrawList, Update, Vertex};
 use crate::layout::Rectangle;
 use crate::loader::Loader;
 use crate::{Command, EventLoop, Model};
+use std::num::NonZeroU32;
 use wgpu::util::DeviceExt;
 
 /// Wrapper for [`Ui`](../../struct.Ui.html) that adds wgpu rendering.
@@ -43,25 +44,31 @@ impl<M: Model, E: 'static + EventLoop<Command<M::Message>>, L: 'static + Loader>
     }
 
     fn new_inner(inner: crate::Ui<M, E, L>, format: wgpu::TextureFormat, device: &Device) -> Self {
-        let vs_module = device.create_shader_module(wgpu::include_spirv!("wgpu_shader.vert.spv"));
-        let fs_module = device.create_shader_module(wgpu::include_spirv!("wgpu_shader.frag.spv"));
+        let shader_module = device.create_shader_module(&ShaderModuleDescriptor {
+            label: Some("wgpu.wgsl"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("wgpu.wgsl").into()),
+            flags: ShaderFlags::VALIDATION,
+        });
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: None,
             entries: &[
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
                     visibility: wgpu::ShaderStage::FRAGMENT,
-                    ty: wgpu::BindingType::SampledTexture {
-                        dimension: wgpu::TextureViewDimension::D2,
-                        component_type: wgpu::TextureComponentType::Uint,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
                         multisampled: false,
+                        view_dimension: wgpu::TextureViewDimension::D2,
                     },
                     count: None,
                 },
                 wgpu::BindGroupLayoutEntry {
                     binding: 1,
                     visibility: wgpu::ShaderStage::FRAGMENT,
-                    ty: wgpu::BindingType::Sampler { comparison: false },
+                    ty: wgpu::BindingType::Sampler {
+                        filtering: true,
+                        comparison: false,
+                    },
                     count: None,
                 },
             ],
@@ -74,64 +81,51 @@ impl<M: Model, E: 'static + EventLoop<Command<M::Message>>, L: 'static + Loader>
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: None,
             layout: Some(&pipeline_layout),
-            vertex_stage: wgpu::ProgrammableStageDescriptor {
-                module: &vs_module,
-                entry_point: "main",
-            },
-            fragment_stage: Some(wgpu::ProgrammableStageDescriptor {
-                module: &fs_module,
-                entry_point: "main",
-            }),
-            // Use the default rasterizer state: no culling, no depth bias
-            rasterization_state: None,
-            primitive_topology: wgpu::PrimitiveTopology::TriangleList,
-            color_states: &[wgpu::ColorStateDescriptor {
-                format,
-                color_blend: wgpu::BlendDescriptor {
-                    src_factor: BlendFactor::SrcAlpha,
-                    dst_factor: BlendFactor::OneMinusSrcAlpha,
-                    operation: BlendOperation::Add,
-                },
-                alpha_blend: wgpu::BlendDescriptor {
-                    src_factor: BlendFactor::Zero,
-                    dst_factor: BlendFactor::Zero,
-                    operation: BlendOperation::Add,
-                },
-                write_mask: wgpu::ColorWrite::ALL,
-            }],
-            depth_stencil_state: None,
-            vertex_state: wgpu::VertexStateDescriptor {
-                index_format: wgpu::IndexFormat::Uint16,
-                vertex_buffers: &[wgpu::VertexBufferDescriptor {
-                    stride: std::mem::size_of::<Vertex>() as u64,
+            vertex: wgpu::VertexState {
+                module: &shader_module,
+                entry_point: "vs_main",
+                buffers: &[wgpu::VertexBufferLayout {
+                    array_stride: std::mem::size_of::<Vertex>() as u64,
                     step_mode: wgpu::InputStepMode::Vertex,
                     attributes: &[
-                        wgpu::VertexAttributeDescriptor {
+                        wgpu::VertexAttribute {
+                            format: VertexFormat::Float32x2,
                             offset: 0,
-                            format: wgpu::VertexFormat::Float2,
                             shader_location: 0,
                         },
-                        wgpu::VertexAttributeDescriptor {
+                        wgpu::VertexAttribute {
+                            format: VertexFormat::Float32x2,
                             offset: 8,
-                            format: wgpu::VertexFormat::Float2,
                             shader_location: 1,
                         },
-                        wgpu::VertexAttributeDescriptor {
+                        wgpu::VertexAttribute {
+                            format: VertexFormat::Float32x4,
                             offset: 16,
-                            format: wgpu::VertexFormat::Float4,
                             shader_location: 2,
                         },
-                        wgpu::VertexAttributeDescriptor {
+                        wgpu::VertexAttribute {
+                            format: VertexFormat::Float32,
                             offset: 32,
-                            format: wgpu::VertexFormat::Uint,
                             shader_location: 3,
                         },
                     ],
                 }],
             },
-            sample_count: 1,
-            sample_mask: !0,
-            alpha_to_coverage_enabled: false,
+            primitive: wgpu::PrimitiveState {
+                topology: PrimitiveTopology::TriangleList,
+                ..wgpu::PrimitiveState::default()
+            },
+            depth_stencil: None,
+            multisample: Default::default(),
+            fragment: Some(wgpu::FragmentState {
+                module: &shader_module,
+                entry_point: "fs_main",
+                targets: &[wgpu::ColorTargetState {
+                    format,
+                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                    write_mask: wgpu::ColorWrite::ALL,
+                }],
+            }),
         });
 
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
@@ -146,6 +140,7 @@ impl<M: Model, E: 'static + EventLoop<Command<M::Message>>, L: 'static + Loader>
             lod_max_clamp: 0.0,
             compare: None,
             anisotropy_clamp: None,
+            border_color: None,
         });
 
         Self {
@@ -184,47 +179,24 @@ impl<M: Model, E: 'static + EventLoop<Command<M::Message>>, L: 'static + Loader>
                                     data,
                                     atlas: _,
                                 } => {
-                                    let texture = device.create_texture(&wgpu::TextureDescriptor {
+                                    let texture_desc = wgpu::TextureDescriptor {
                                         label: None,
                                         size: wgpu::Extent3d {
                                             width: size[0],
                                             height: size[1],
-                                            depth: 1,
+                                            depth_or_array_layers: 1,
                                         },
                                         mip_level_count: 1,
                                         sample_count: 1,
                                         dimension: wgpu::TextureDimension::D2,
                                         format: wgpu::TextureFormat::Rgba8Unorm,
                                         usage: wgpu::TextureUsage::SAMPLED | wgpu::TextureUsage::COPY_DST,
-                                    });
-
-                                    if !data.is_empty() {
-                                        let staging = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                                            label: None,
-                                            contents: data.as_slice(),
-                                            usage: wgpu::BufferUsage::COPY_SRC,
-                                        });
-                                        cmd.copy_buffer_to_texture(
-                                            wgpu::BufferCopyView {
-                                                buffer: &staging,
-                                                layout: wgpu::TextureDataLayout {
-                                                    offset: 0,
-                                                    bytes_per_row: size[0] * 4,
-                                                    rows_per_image: 0,
-                                                },
-                                            },
-                                            wgpu::TextureCopyView {
-                                                texture: &texture,
-                                                mip_level: 0,
-                                                origin: Default::default(),
-                                            },
-                                            wgpu::Extent3d {
-                                                width: size[0],
-                                                height: size[1],
-                                                depth: 1,
-                                            },
-                                        );
-                                    }
+                                    };
+                                    let texture = if data.is_empty() {
+                                        device.create_texture(&texture_desc)
+                                    } else {
+                                        device.create_texture_with_data(queue, &texture_desc, data.as_slice())
+                                    };
 
                                     let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
 
@@ -268,15 +240,15 @@ impl<M: Model, E: 'static + EventLoop<Command<M::Message>>, L: 'static + Loader>
                                         usage: wgpu::BufferUsage::COPY_SRC,
                                     });
                                     cmd.copy_buffer_to_texture(
-                                        wgpu::BufferCopyView {
+                                        wgpu::ImageCopyBuffer {
                                             buffer: &staging,
-                                            layout: wgpu::TextureDataLayout {
+                                            layout: wgpu::ImageDataLayout {
                                                 offset: 0,
-                                                bytes_per_row: size[0] * 4 + padding,
-                                                rows_per_image: 0,
+                                                bytes_per_row: NonZeroU32::new(size[0] * 4 + padding),
+                                                rows_per_image: None,
                                             },
                                         },
-                                        wgpu::TextureCopyView {
+                                        wgpu::ImageCopyTexture {
                                             texture: &texture,
                                             mip_level: 0,
                                             origin: wgpu::Origin3d {
@@ -288,7 +260,7 @@ impl<M: Model, E: 'static + EventLoop<Command<M::Message>>, L: 'static + Loader>
                                         wgpu::Extent3d {
                                             width: size[0],
                                             height: size[1],
-                                            depth: 1,
+                                            depth_or_array_layers: 1,
                                         },
                                     );
                                 }

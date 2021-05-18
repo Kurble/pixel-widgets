@@ -359,8 +359,7 @@ impl<'a, T: 'a + Send, S: Send + AsRef<[MenuItem<'a, T>]> + AsMut<[MenuItem<'a, 
             return Vec::new();
         }
 
-        let mut result = Vec::new();
-        result.push(Primitive::LayerUp);
+        let mut result = vec![Primitive::LayerUp];
 
         let layout = self.layout(
             self.state.left,

@@ -150,12 +150,11 @@ pub struct Vertex {
     pub color: [f32; 4],
     /// The mode with which the `Vertex` will be drawn within the fragment shader.
     ///
-    /// `0` for rendering text.
-    /// `1` for rendering an image.
-    /// `2` for rendering non-textured 2D geometry.
+    /// `0` for rendering an image.
+    /// `1` for rendering non-textured 2D geometry.
     ///
     /// If any other value is given, the fragment shader will not output any color.
-    pub mode: u32,
+    pub mode: f32,
 }
 
 /// A draw `Command` that is to be translated to a draw command specific to the backend

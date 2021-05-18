@@ -163,10 +163,10 @@ impl RuleTreeBuilder {
     }
 }
 
-impl Into<RuleTree> for RuleTreeBuilder {
-    fn into(self) -> RuleTree {
+impl From<RuleTreeBuilder> for RuleTree {
+    fn from(x: RuleTreeBuilder) -> Self {
         let mut result = RuleTree { rules: Vec::new() };
-        self.flatten(&mut result);
+        x.flatten(&mut result);
         result
     }
 }

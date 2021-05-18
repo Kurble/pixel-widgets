@@ -1,5 +1,11 @@
 # Changelog
 
+### v0.6.0
+- Upgraded wgpu backend to version 0.8
+- Refactored `Vertex::mode` from `u32` to `f32` for simpler branchless shading
+- Performing scissor rect validation in `u32` instead of `f32`, 
+  to prevent incorrectly valid scissor rects with a size of 0.
+
 ### v0.5.10
 - Added widget::input::State::is_focused
 - Added Input::with_on_submit

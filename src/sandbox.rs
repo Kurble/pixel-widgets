@@ -35,7 +35,7 @@ impl<T: 'static + Model, L: 'static + Loader> Sandbox<T, L> {
         let surface = unsafe { instance.create_surface(&window) };
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
-                power_preference: wgpu::PowerPreference::Default,
+                power_preference: wgpu::PowerPreference::LowPower,
                 compatible_surface: Some(&surface),
             })
             .await
@@ -46,9 +46,9 @@ impl<T: 'static + Model, L: 'static + Loader> Sandbox<T, L> {
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
+                    label: None,
                     features: Default::default(),
                     limits: wgpu::Limits::default(),
-                    shader_validation: false,
                 },
                 trace_dir.ok().as_ref().map(std::path::Path::new),
             )
@@ -56,7 +56,7 @@ impl<T: 'static + Model, L: 'static + Loader> Sandbox<T, L> {
             .expect("Failed retrieve device and queue");
 
         let sc_desc = wgpu::SwapChainDescriptor {
-            usage: wgpu::TextureUsage::OUTPUT_ATTACHMENT,
+            usage: wgpu::TextureUsage::RENDER_ATTACHMENT,
             format: swapchain_format,
             width: size.width,
             height: size.height,
@@ -117,8 +117,9 @@ impl<T: 'static + Model, L: 'static + Loader> Sandbox<T, L> {
                         .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
                     {
                         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                            color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
-                                attachment: &frame.output.view,
+                            label: None,
+                            color_attachments: &[wgpu::RenderPassColorAttachment {
+                                view: &frame.output.view,
                                 resolve_target: None,
                                 ops: wgpu::Operations {
                                     load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
