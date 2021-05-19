@@ -19,6 +19,7 @@ enum Message {
     ShowLogin,
     NameChanged(String),
     PasswordChanged(String),
+    SlideChanged(f32),
     PlanetSelected(&'static str),
 }
 
@@ -47,6 +48,9 @@ impl Model for Tour {
             }
             Message::PasswordChanged(password) => {
                 self.password = password;
+            }
+            Message::SlideChanged(x) => {
+                println!("slide to {}", x);
             }
         }
 
@@ -113,6 +117,7 @@ impl Model for Tour {
                         .push(Space.class("close"))
                         .class("title"),
                     Column::new()
+                        .push(Slider::new(state.get("slider"), 0.0, 100.0, Message::SlideChanged))
                         .push(Text::new("Select a planet from the dropdown list: "))
                         .push(
                             Dropdown::new(state.get("dd")).extend(

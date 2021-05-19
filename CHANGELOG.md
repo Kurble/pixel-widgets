@@ -1,5 +1,8 @@
 # Changelog
 
+### v0.6.1
+- Add `Slider` widget.
+
 ### v0.6.0
 - Upgraded wgpu backend to version 0.8
 - Refactored `Vertex::mode` from `u32` to `f32` for simpler branchless shading

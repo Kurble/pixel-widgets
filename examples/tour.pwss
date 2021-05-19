@@ -17,6 +17,16 @@ scroll {
     padding: 0 5 5 0;
 }
 
+slider {
+    background: #fff;
+    width: 150;
+    height: 40;
+}
+
+handle {
+    background: #000;
+}
+
 button {
     background: #888;
     padding: 5 20 5;

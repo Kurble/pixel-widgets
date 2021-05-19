@@ -43,6 +43,7 @@ pub use self::panel::Panel;
 pub use self::progress::Progress;
 pub use self::row::Row;
 pub use self::scroll::Scroll;
+pub use self::slider::Slider;
 pub use self::space::Space;
 pub use self::text::Text;
 pub use self::toggle::Toggle;
@@ -78,6 +79,8 @@ pub mod progress;
 pub mod row;
 /// View a small section of larger widget, with scrollbars.
 pub mod scroll;
+/// A slider for easily picking some number
+pub mod slider;
 /// Empty widget
 pub mod space;
 /// Widget that renders a paragraph of text.
