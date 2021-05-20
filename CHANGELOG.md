@@ -3,7 +3,7 @@
 ### v0.7.0
 - Upgraded winit backend to version 0.25
 - Moved some state management responsibility to the caller:
-  - Modified `Input` constructor to take a `&str` value. It's state no longer has a value of its own.
+  - Modified `Input` constructor to take a `AsRef<str>` value. It's state no longer has a value of its own.
   - Modified `Slider` constructor to take a `f32` value. It's state no longer has a value of its own.
 - Added `Dropdown::default_selection`.
 
