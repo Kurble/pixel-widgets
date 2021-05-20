@@ -39,6 +39,12 @@ impl<'a, T: 'a> Dropdown<'a, T> {
         }
     }
 
+    /// Set the default selected item
+    pub fn default_selection(mut self, item_index: usize) -> Self {
+        self.state.selected_item = self.state.selected_item.or(Some(item_index.min(self.items.len() - 1)));
+        self
+    }
+
     /// Add an item to the dropdown.
     pub fn push(mut self, item: impl IntoNode<'a, T>, on_select: T) -> Self {
         self.items.push(Item {

@@ -17,7 +17,6 @@ pub struct State {
     modifiers: Modifiers,
     inner: InnerState,
     cursor: (f32, f32),
-    value: String,
 }
 
 #[derive(Clone, Copy)]
@@ -32,6 +31,7 @@ pub struct Input<'a, T, F> {
     placeholder: &'a str,
     state: &'a mut State,
     password: bool,
+    value: &'a str,
     on_change: F,
     on_submit: Option<T>,
     trigger: Option<Key>,
@@ -39,11 +39,12 @@ pub struct Input<'a, T, F> {
 
 impl<'a, T, F: Fn(String) -> T> Input<'a, T, F> {
     /// Construct a new `Input`
-    pub fn new(state: &'a mut State, placeholder: &'a str, on_change: F) -> Self {
+    pub fn new(state: &'a mut State, placeholder: &'a str, value: &'a str, on_change: F) -> Self {
         Input {
             placeholder,
             state,
             password: false,
+            value,
             on_change,
             on_submit: None,
             trigger: None,
@@ -51,11 +52,12 @@ impl<'a, T, F: Fn(String) -> T> Input<'a, T, F> {
     }
 
     /// Construct a new `Input` that renders the text as dots, for passwords.
-    pub fn password(state: &'a mut State, placeholder: &'a str, on_change: F) -> Self {
+    pub fn password(state: &'a mut State, placeholder: &'a str, value: &'a str, on_change: F) -> Self {
         Input {
             placeholder,
             state,
             password: true,
+            value,
             on_change,
             on_submit: None,
             trigger: None,
@@ -76,7 +78,7 @@ impl<'a, T, F: Fn(String) -> T> Input<'a, T, F> {
 
     fn text(&self, stylesheet: &Stylesheet) -> Text {
         Text {
-            text: Cow::Borrowed(&self.state.value),
+            text: Cow::Borrowed(self.value),
             font: stylesheet.font.clone(),
             size: stylesheet.text_size,
             wrap: TextWrap::NoWrap,
@@ -147,24 +149,26 @@ impl<'a, T: 'a + Send, F: 'a + Send + Fn(String) -> T> Widget<'a, T> for Input<'
         context: &mut Context<T>,
     ) {
         let content_rect = self.content_rect(layout, stylesheet);
+        let value_len = self.value.chars().count();
+        let mut new_text = None;
 
         // sanity check on the state
         self.state.inner = match self.state.inner {
             InnerState::Dragging(mut from, mut to, since) => {
-                if from > self.state.value.len() {
-                    from = self.state.value.len();
+                if from > value_len {
+                    from = value_len;
                 }
-                if to > self.state.value.len() {
-                    to = self.state.value.len();
+                if to > value_len {
+                    to = value_len;
                 }
                 InnerState::Dragging(from, to, since)
             }
             InnerState::Focused(mut from, mut to, since) => {
-                if from > self.state.value.len() {
-                    from = self.state.value.len();
+                if from > value_len {
+                    from = value_len;
                 }
-                if to > self.state.value.len() {
-                    to = self.state.value.len();
+                if to > value_len {
+                    to = value_len;
                 }
                 InnerState::Focused(from, to, since)
             }
@@ -225,7 +229,7 @@ impl<'a, T: 'a + Send, F: 'a + Send + Fn(String) -> T> Widget<'a, T> for Input<'
             event => match self.state.inner {
                 InnerState::Idle => match event {
                     Event::Press(key) if Some(key) == self.trigger => {
-                        self.state.inner = InnerState::Focused(0, self.state.value.len(), Instant::now());
+                        self.state.inner = InnerState::Focused(0, self.value.len(), Instant::now());
                         context.redraw();
                     }
                     _ => (),
@@ -238,51 +242,44 @@ impl<'a, T: 'a + Send, F: 'a + Send + Fn(String) -> T> Widget<'a, T> for Input<'
                             let (from, to) = (from.min(to), from.max(to));
 
                             if to > from {
-                                let pt = codepoint(&self.state.value, from);
-                                let tail = self.state.value.split_off(pt);
-                                self.state.value.push_str(tail.split_at(codepoint(&tail, to - from)).1);
                                 self.state.inner = InnerState::Focused(from, from, Instant::now());
-                                context.push((self.on_change)(self.state.value.clone()));
+                                let (head, tail) = self.value.split_at(codepoint(self.value, from));
+                                new_text.replace(format!("{}{}", head, tail.split_at(codepoint(tail, to - from)).1));
                             } else if from > 0 {
-                                let pt = codepoint(&self.state.value, from - 1);
-                                let tail = self.state.value.split_off(pt);
-                                self.state.value.push_str(tail.split_at(codepoint(&tail, 1)).1);
                                 self.state.inner = InnerState::Focused(from - 1, from - 1, Instant::now());
-                                context.push((self.on_change)(self.state.value.clone()));
+                                let (head, tail) = self.value.split_at(codepoint(self.value, from - 1));
+                                new_text.replace(format!("{}{}", head, tail.split_at(codepoint(tail, 1)).1));
                             }
                         }
                         '\x7f' => {
                             context.redraw();
                             let (from, to) = (from.min(to), from.max(to));
-
-                            let pt = codepoint(&self.state.value, from);
-                            let tail = self.state.value.split_off(pt);
-
-                            if to > from {
-                                self.state.value.push_str(tail.split_at(codepoint(&tail, to - from)).1);
-                            } else if !tail.is_empty() {
-                                self.state.value.push_str(tail.split_at(codepoint(&tail, 1)).1);
-                            }
                             self.state.inner = InnerState::Focused(from, from, Instant::now());
-                            context.push((self.on_change)(self.state.value.clone()));
+
+                            let (head, tail) = self.value.split_at(codepoint(self.value, from));
+                            if to > from {
+                                new_text.replace(format!("{}{}", head, tail.split_at(codepoint(tail, to - from)).1));
+                            } else if !tail.is_empty() {
+                                new_text.replace(format!("{}{}", head, tail.split_at(codepoint(tail, 1)).1));
+                            }
                         }
                         c => {
                             if !c.is_control() {
                                 context.redraw();
                                 let (from, to) = (from.min(to), from.max(to));
-
-                                let pt = codepoint(&self.state.value, from);
-                                let mut tail = self.state.value.split_off(pt);
-                                self.state.value.push(c);
-
-                                if to > from {
-                                    let pt = codepoint(&tail, to - from);
-                                    self.state.value.push_str(&tail.split_off(pt));
-                                } else {
-                                    self.state.value.push_str(&tail);
-                                }
                                 self.state.inner = InnerState::Focused(from + 1, from + 1, Instant::now());
-                                context.push((self.on_change)(self.state.value.clone()));
+
+                                let (head, tail) = self.value.split_at(codepoint(self.value, from));
+                                if to > from {
+                                    new_text.replace(format!(
+                                        "{}{}{}",
+                                        head,
+                                        c,
+                                        tail.split_at(codepoint(tail, to - from)).1
+                                    ));
+                                } else {
+                                    new_text.replace(format!("{}{}{}", head, c, tail));
+                                }
                             }
                         }
                     },
@@ -298,9 +295,8 @@ impl<'a, T: 'a + Send, F: 'a + Send + Fn(String) -> T> Widget<'a, T> for Input<'
                     #[cfg(feature = "clipboard")]
                     Event::Press(Key::C) => {
                         if self.state.modifiers.ctrl {
-                            let (a, b) = (from.min(to), from.max(to));
-                            let (a, b) = (codepoint(&self.state.value, a), codepoint(&self.state.value, b));
-                            let copy_text = self.state.value[a..b].to_string();
+                            let (a, b) = (codepoint(self.value, from.min(to)), codepoint(self.value, from.max(to)));
+                            let copy_text = self.value[a..b].to_string();
                             ClipboardContext::new()
                                 .and_then(|mut cc| cc.set_contents(copy_text))
                                 .ok();
@@ -312,22 +308,19 @@ impl<'a, T: 'a + Send, F: 'a + Send + Fn(String) -> T> Widget<'a, T> for Input<'
                         if self.state.modifiers.ctrl {
                             context.redraw();
                             let (from, to) = (from.min(to), from.max(to));
-                            let (a, b) = (codepoint(&self.state.value, from), codepoint(&self.state.value, to));
-                            let cut_text = self.state.value[a..b].to_string();
+                            let (a, b) = (codepoint(self.value, from), codepoint(self.value, to));
+                            let cut_text = self.value[a..b].to_string();
                             ClipboardContext::new()
                                 .and_then(|mut cc| cc.set_contents(cut_text))
                                 .ok();
 
-                            let pt = codepoint(&self.state.value, from);
-                            let tail = self.state.value.split_off(pt);
-
-                            if to > from {
-                                self.state.value.push_str(tail.split_at(codepoint(&tail, to - from)).1);
-                            } else if !tail.is_empty() {
-                                self.state.value.push_str(tail.split_at(codepoint(&tail, 1)).1);
-                            }
                             self.state.inner = InnerState::Focused(from, from, Instant::now());
-                            context.push((self.on_change)(self.state.value.clone()));
+                            let (head, tail) = self.value.split_at(codepoint(self.value, from));
+                            if to > from {
+                                new_text.replace(format!("{}{}", head, tail.split_at(codepoint(tail, to - from)).1));
+                            } else if !tail.is_empty() {
+                                new_text.replace(format!("{}{}", head, tail.split_at(codepoint(tail, 1)).1));
+                            }
                         }
                     }
 
@@ -339,22 +332,22 @@ impl<'a, T: 'a + Send, F: 'a + Send + Fn(String) -> T> Widget<'a, T> for Input<'
                             let paste_text = ClipboardContext::new().and_then(|mut cc| cc.get_contents()).ok();
 
                             if let Some(paste_text) = paste_text {
-                                let pt = codepoint(&self.state.value, from);
-                                let mut tail = self.state.value.split_off(pt);
-                                self.state.value.push_str(&paste_text);
-
-                                if to > from {
-                                    let pt = codepoint(&tail, to - from);
-                                    self.state.value.push_str(&tail.split_off(pt));
-                                } else {
-                                    self.state.value.push_str(&tail);
-                                }
+                                let (head, tail) = self.value.split_at(codepoint(self.value, from));
                                 self.state.inner = InnerState::Focused(
                                     from + paste_text.len(),
                                     from + paste_text.len(),
                                     Instant::now(),
                                 );
-                                context.push((self.on_change)(self.state.value.clone()));
+                                if to > from {
+                                    new_text.replace(format!(
+                                        "{}{}{}",
+                                        head,
+                                        paste_text,
+                                        tail.split_at(codepoint(tail, to - from)).1
+                                    ));
+                                } else {
+                                    new_text.replace(format!("{}{}{}", head, paste_text, tail));
+                                }
                             }
                         }
                     }
@@ -377,11 +370,10 @@ impl<'a, T: 'a + Send, F: 'a + Send + Fn(String) -> T> Widget<'a, T> for Input<'
                     Event::Press(Key::Right) => {
                         context.redraw();
                         if self.state.modifiers.shift {
-                            let count = self.state.value.chars().count();
-                            self.state.inner = InnerState::Focused(from, (to + 1).min(count), Instant::now());
+                            self.state.inner = InnerState::Focused(from, (to + 1).min(value_len), Instant::now());
                         } else {
                             let (from, to) = (from.min(to), from.max(to));
-                            if from != to || to >= self.state.value.chars().count() {
+                            if from != to || to >= value_len {
                                 self.state.inner = InnerState::Focused(to, to, Instant::now());
                             } else {
                                 self.state.inner = InnerState::Focused(to + 1, to + 1, Instant::now());
@@ -401,11 +393,9 @@ impl<'a, T: 'a + Send, F: 'a + Send + Fn(String) -> T> Widget<'a, T> for Input<'
                     Event::Press(Key::End) => {
                         context.redraw();
                         if self.state.modifiers.shift {
-                            let count = self.state.value.chars().count();
-                            self.state.inner = InnerState::Focused(from, count, Instant::now());
+                            self.state.inner = InnerState::Focused(from, value_len, Instant::now());
                         } else {
-                            let count = self.state.value.chars().count();
-                            self.state.inner = InnerState::Focused(count, count, Instant::now());
+                            self.state.inner = InnerState::Focused(value_len, value_len, Instant::now());
                         }
                     }
 
@@ -419,9 +409,21 @@ impl<'a, T: 'a + Send, F: 'a + Send + Fn(String) -> T> Widget<'a, T> for Input<'
         // update scroll state for current text and caret position
         match self.state.inner {
             InnerState::Dragging(_, pos, _) | InnerState::Focused(_, pos, _) => {
-                let (caret, range) =
-                    self.text(stylesheet)
-                        .measure_range(pos, self.state.value.chars().count(), content_rect);
+                let mut measure_text = Text {
+                    text: Cow::Borrowed(new_text.as_ref().map(String::as_str).unwrap_or(self.value)),
+                    font: stylesheet.font.clone(),
+                    size: stylesheet.text_size,
+                    wrap: TextWrap::NoWrap,
+                    color: stylesheet.color,
+                };
+
+                let measure_text_len = measure_text.text.chars().count();
+
+                if self.password {
+                    measure_text.text = Cow::Owned("\u{25cf}".repeat(measure_text_len));
+                }
+
+                let (caret, range) = measure_text.measure_range(pos, measure_text_len, content_rect);
 
                 if self.state.scroll_x + content_rect.width() > range.0 + 2.0 {
                     context.redraw();
@@ -446,6 +448,10 @@ impl<'a, T: 'a + Send, F: 'a + Send + Fn(String) -> T> Widget<'a, T> for Input<'
             }
             _ => (),
         };
+
+        if let Some(new_text) = new_text {
+            context.push((self.on_change)(new_text));
+        }
     }
 
     fn draw(&mut self, layout: Rectangle, clip: Rectangle, stylesheet: &Stylesheet) -> Vec<Primitive<'a>> {
@@ -500,7 +506,7 @@ impl<'a, T: 'a + Send, F: 'a + Send + Fn(String) -> T> Widget<'a, T> for Input<'
                 }
                 _ => (),
             }
-            if self.state.value.is_empty() {
+            if self.value.is_empty() {
                 result.push(Primitive::DrawText(self.placeholder(stylesheet).to_owned(), text_rect));
             } else {
                 result.push(Primitive::DrawText(text, text_rect));
@@ -531,22 +537,11 @@ impl Default for State {
             },
             inner: InnerState::Idle,
             cursor: (0.0, 0.0),
-            value: String::new(),
         }
     }
 }
 
 impl State {
-    /// Sets the current value of the input state. Returns the old value.
-    pub fn set_value(&mut self, value: impl Into<String>) -> String {
-        std::mem::replace(&mut self.value, value.into())
-    }
-
-    /// Returns a reference to the current value of the input state.
-    pub fn get_value(&self) -> &str {
-        self.value.as_str()
-    }
-
     /// Returns whether the input state is currently focused and accepting input
     pub fn is_focused(&self) -> bool {
         matches!(self.inner, InnerState::Focused(_, _, _))
