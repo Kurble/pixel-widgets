@@ -27,19 +27,24 @@ enum InnerState {
 }
 
 /// Editable text input
-pub struct Input<'a, T, F> {
+pub struct Input<'a, T, F, S> {
     placeholder: &'a str,
     state: &'a mut State,
     password: bool,
-    value: &'a str,
+    value: S,
     on_change: F,
     on_submit: Option<T>,
     trigger: Option<Key>,
 }
 
-impl<'a, T, F: Fn(String) -> T> Input<'a, T, F> {
+impl<'a, T, F, S> Input<'a, T, F, S>
+where
+    T: 'a + Send,
+    F: 'a + Send + Fn(String) -> T,
+    S: 'a + Send + AsRef<str>,
+{
     /// Construct a new `Input`
-    pub fn new(state: &'a mut State, placeholder: &'a str, value: &'a str, on_change: F) -> Self {
+    pub fn new(state: &'a mut State, placeholder: &'a str, value: S, on_change: F) -> Self {
         Input {
             placeholder,
             state,
@@ -52,7 +57,7 @@ impl<'a, T, F: Fn(String) -> T> Input<'a, T, F> {
     }
 
     /// Construct a new `Input` that renders the text as dots, for passwords.
-    pub fn password(state: &'a mut State, placeholder: &'a str, value: &'a str, on_change: F) -> Self {
+    pub fn password(state: &'a mut State, placeholder: &'a str, value: S, on_change: F) -> Self {
         Input {
             placeholder,
             state,
@@ -78,7 +83,7 @@ impl<'a, T, F: Fn(String) -> T> Input<'a, T, F> {
 
     fn text(&self, stylesheet: &Stylesheet) -> Text {
         Text {
-            text: Cow::Borrowed(self.value),
+            text: Cow::Borrowed(self.value.as_ref()),
             font: stylesheet.font.clone(),
             size: stylesheet.text_size,
             wrap: TextWrap::NoWrap,
@@ -101,7 +106,12 @@ impl<'a, T, F: Fn(String) -> T> Input<'a, T, F> {
     }
 }
 
-impl<'a, T: 'a + Send, F: 'a + Send + Fn(String) -> T> Widget<'a, T> for Input<'a, T, F> {
+impl<'a, T, F, S> Widget<'a, T> for Input<'a, T, F, S>
+where
+    T: 'a + Send,
+    F: 'a + Send + Fn(String) -> T,
+    S: 'a + Send + AsRef<str>,
+{
     fn widget(&self) -> &'static str {
         "input"
     }
@@ -149,7 +159,7 @@ impl<'a, T: 'a + Send, F: 'a + Send + Fn(String) -> T> Widget<'a, T> for Input<'
         context: &mut Context<T>,
     ) {
         let content_rect = self.content_rect(layout, stylesheet);
-        let value_len = self.value.chars().count();
+        let value_len = self.value.as_ref().chars().count();
         let mut new_text = None;
 
         // sanity check on the state
@@ -229,7 +239,7 @@ impl<'a, T: 'a + Send, F: 'a + Send + Fn(String) -> T> Widget<'a, T> for Input<'
             event => match self.state.inner {
                 InnerState::Idle => match event {
                     Event::Press(key) if Some(key) == self.trigger => {
-                        self.state.inner = InnerState::Focused(0, self.value.len(), Instant::now());
+                        self.state.inner = InnerState::Focused(0, self.value.as_ref().len(), Instant::now());
                         context.redraw();
                     }
                     _ => (),
@@ -243,11 +253,12 @@ impl<'a, T: 'a + Send, F: 'a + Send + Fn(String) -> T> Widget<'a, T> for Input<'
 
                             if to > from {
                                 self.state.inner = InnerState::Focused(from, from, Instant::now());
-                                let (head, tail) = self.value.split_at(codepoint(self.value, from));
+                                let (head, tail) = self.value.as_ref().split_at(codepoint(self.value.as_ref(), from));
                                 new_text.replace(format!("{}{}", head, tail.split_at(codepoint(tail, to - from)).1));
                             } else if from > 0 {
                                 self.state.inner = InnerState::Focused(from - 1, from - 1, Instant::now());
-                                let (head, tail) = self.value.split_at(codepoint(self.value, from - 1));
+                                let (head, tail) =
+                                    self.value.as_ref().split_at(codepoint(self.value.as_ref(), from - 1));
                                 new_text.replace(format!("{}{}", head, tail.split_at(codepoint(tail, 1)).1));
                             }
                         }
@@ -256,7 +267,7 @@ impl<'a, T: 'a + Send, F: 'a + Send + Fn(String) -> T> Widget<'a, T> for Input<'
                             let (from, to) = (from.min(to), from.max(to));
                             self.state.inner = InnerState::Focused(from, from, Instant::now());
 
-                            let (head, tail) = self.value.split_at(codepoint(self.value, from));
+                            let (head, tail) = self.value.as_ref().split_at(codepoint(self.value.as_ref(), from));
                             if to > from {
                                 new_text.replace(format!("{}{}", head, tail.split_at(codepoint(tail, to - from)).1));
                             } else if !tail.is_empty() {
@@ -269,7 +280,7 @@ impl<'a, T: 'a + Send, F: 'a + Send + Fn(String) -> T> Widget<'a, T> for Input<'
                                 let (from, to) = (from.min(to), from.max(to));
                                 self.state.inner = InnerState::Focused(from + 1, from + 1, Instant::now());
 
-                                let (head, tail) = self.value.split_at(codepoint(self.value, from));
+                                let (head, tail) = self.value.as_ref().split_at(codepoint(self.value.as_ref(), from));
                                 if to > from {
                                     new_text.replace(format!(
                                         "{}{}{}",
@@ -295,8 +306,11 @@ impl<'a, T: 'a + Send, F: 'a + Send + Fn(String) -> T> Widget<'a, T> for Input<'
                     #[cfg(feature = "clipboard")]
                     Event::Press(Key::C) => {
                         if self.state.modifiers.ctrl {
-                            let (a, b) = (codepoint(self.value, from.min(to)), codepoint(self.value, from.max(to)));
-                            let copy_text = self.value[a..b].to_string();
+                            let (a, b) = (
+                                codepoint(self.value.as_ref(), from.min(to)),
+                                codepoint(self.value.as_ref(), from.max(to)),
+                            );
+                            let copy_text = self.value.as_ref()[a..b].to_string();
                             ClipboardContext::new()
                                 .and_then(|mut cc| cc.set_contents(copy_text))
                                 .ok();
@@ -308,14 +322,14 @@ impl<'a, T: 'a + Send, F: 'a + Send + Fn(String) -> T> Widget<'a, T> for Input<'
                         if self.state.modifiers.ctrl {
                             context.redraw();
                             let (from, to) = (from.min(to), from.max(to));
-                            let (a, b) = (codepoint(self.value, from), codepoint(self.value, to));
-                            let cut_text = self.value[a..b].to_string();
+                            let (a, b) = (codepoint(self.value.as_ref(), from), codepoint(self.value.as_ref(), to));
+                            let cut_text = self.value.as_ref()[a..b].to_string();
                             ClipboardContext::new()
                                 .and_then(|mut cc| cc.set_contents(cut_text))
                                 .ok();
 
                             self.state.inner = InnerState::Focused(from, from, Instant::now());
-                            let (head, tail) = self.value.split_at(codepoint(self.value, from));
+                            let (head, tail) = self.value.as_ref().split_at(codepoint(self.value.as_ref(), from));
                             if to > from {
                                 new_text.replace(format!("{}{}", head, tail.split_at(codepoint(tail, to - from)).1));
                             } else if !tail.is_empty() {
@@ -332,7 +346,7 @@ impl<'a, T: 'a + Send, F: 'a + Send + Fn(String) -> T> Widget<'a, T> for Input<'
                             let paste_text = ClipboardContext::new().and_then(|mut cc| cc.get_contents()).ok();
 
                             if let Some(paste_text) = paste_text {
-                                let (head, tail) = self.value.split_at(codepoint(self.value, from));
+                                let (head, tail) = self.value.as_ref().split_at(codepoint(self.value.as_ref(), from));
                                 self.state.inner = InnerState::Focused(
                                     from + paste_text.len(),
                                     from + paste_text.len(),
@@ -410,7 +424,7 @@ impl<'a, T: 'a + Send, F: 'a + Send + Fn(String) -> T> Widget<'a, T> for Input<'
         match self.state.inner {
             InnerState::Dragging(_, pos, _) | InnerState::Focused(_, pos, _) => {
                 let mut measure_text = Text {
-                    text: Cow::Borrowed(new_text.as_ref().map(String::as_str).unwrap_or(self.value)),
+                    text: Cow::Borrowed(new_text.as_ref().map(String::as_str).unwrap_or(self.value.as_ref())),
                     font: stylesheet.font.clone(),
                     size: stylesheet.text_size,
                     wrap: TextWrap::NoWrap,
@@ -506,7 +520,7 @@ impl<'a, T: 'a + Send, F: 'a + Send + Fn(String) -> T> Widget<'a, T> for Input<'
                 }
                 _ => (),
             }
-            if self.value.is_empty() {
+            if self.value.as_ref().is_empty() {
                 result.push(Primitive::DrawText(self.placeholder(stylesheet).to_owned(), text_rect));
             } else {
                 result.push(Primitive::DrawText(text, text_rect));
@@ -518,7 +532,12 @@ impl<'a, T: 'a + Send, F: 'a + Send + Fn(String) -> T> Widget<'a, T> for Input<'
     }
 }
 
-impl<'a, T: 'a + Send, F: 'a + Send + Fn(String) -> T> IntoNode<'a, T> for Input<'a, T, F> {
+impl<'a, T, F, S> IntoNode<'a, T> for Input<'a, T, F, S>
+where
+    T: 'a + Send,
+    F: 'a + Send + Fn(String) -> T,
+    S: 'a + Send + AsRef<str>,
+{
     fn into_node(self) -> Node<'a, T> {
         Node::new(self)
     }
