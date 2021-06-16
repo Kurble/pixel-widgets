@@ -27,38 +27,6 @@ enum Message {
 impl Model for Tour {
     type Message = Message;
 
-    fn update(&mut self, message: Self::Message) -> Vec<Command<Message>> {
-        match message {
-            Message::PlanetSelected(planet) => {
-                println!("{} selected from the planets", planet);
-            }
-            Message::ShowDummy => {
-                self.show_dummy = true;
-            }
-            Message::ShowLogin => {
-                self.show_login = true;
-            }
-            Message::ShowContext(x, y) => {
-                self.context.open(x, y);
-            }
-            Message::LoginPressed => {
-                println!("login pressed!");
-            }
-            Message::NameChanged(name) => {
-                self.name = name;
-            }
-            Message::PasswordChanged(password) => {
-                self.password = password;
-            }
-            Message::SlideChanged(x) => {
-                println!("slide to {}", x);
-                self.slide = x;
-            }
-        }
-
-        Vec::new()
-    }
-
     fn view(&mut self) -> Node<Message> {
         let mut state = self.state.tracker();
 
@@ -133,6 +101,42 @@ impl Model for Tour {
         }
 
         layers.into_node()
+    }
+}
+
+impl UpdateModel<'_> for Tour {
+    type Resources = ();
+
+    fn update(&mut self, message: Self::Message, _: ()) -> Vec<Command<Message>> {
+        match message {
+            Message::PlanetSelected(planet) => {
+                println!("{} selected from the planets", planet);
+            }
+            Message::ShowDummy => {
+                self.show_dummy = true;
+            }
+            Message::ShowLogin => {
+                self.show_login = true;
+            }
+            Message::ShowContext(x, y) => {
+                self.context.open(x, y);
+            }
+            Message::LoginPressed => {
+                println!("login pressed!");
+            }
+            Message::NameChanged(name) => {
+                self.name = name;
+            }
+            Message::PasswordChanged(password) => {
+                self.password = password;
+            }
+            Message::SlideChanged(x) => {
+                println!("slide to {}", x);
+                self.slide = x;
+            }
+        }
+
+        Vec::new()
     }
 }
 

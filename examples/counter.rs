@@ -13,7 +13,7 @@ enum Message {
     DownPressed,
 }
 
-impl Model for Counter {
+impl UpdateModel for Counter {
     type Message = Message;
 
     fn update(&mut self, message: Self::Message) -> Vec<Command<Message>> {

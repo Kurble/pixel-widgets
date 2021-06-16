@@ -34,7 +34,7 @@ impl<M: Model> ModelView<M> {
         &mut self.model
     }
 
-    pub fn view(&mut self, style: Arc<Style>) -> &mut Node<'static, M::Message> {
+    pub fn view(&mut self, style: Arc<Style>) -> &mut Node<'static, <M as Model>::Message> {
         if self.view.is_none() {
             unsafe {
                 let mut root = (self.model.as_mut() as *mut M).as_mut().unwrap().view();

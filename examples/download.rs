@@ -18,7 +18,7 @@ enum Message {
     ProgressUpdated(usize, usize),
 }
 
-impl Model for Download {
+impl UpdateModel for Download {
     type Message = Message;
 
     fn update(&mut self, message: Self::Message) -> Vec<Command<Message>> {

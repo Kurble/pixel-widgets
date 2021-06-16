@@ -56,7 +56,7 @@ enum Message {
     CombinePlayground(usize, usize),
 }
 
-impl Model for Alchemy {
+impl UpdateModel for Alchemy {
     type Message = Message;
 
     fn update(&mut self, message: Self::Message) -> Vec<Command<Message>> {

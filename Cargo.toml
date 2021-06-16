@@ -1,6 +1,6 @@
 [package]
 name = "pixel-widgets"
-version = "0.7.0"
+version = "0.8.0"
 authors = ["Bram Buurlage <brambuurlage@gmail.com>"]
 edition = "2018"
 readme = "README.md"

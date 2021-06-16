@@ -1,5 +1,9 @@
 # Changelog
 
+### v0.8.0
+- Moved `Model::update` to a separate trait `UpdateModel`. 
+  This allows the `UpdateModel::update` to receive a custom argument with temporary resources behind a nonstatic lifetime.
+
 ### v0.7.0
 - Upgraded winit backend to version 0.25
 - Moved some state management responsibility to the caller:

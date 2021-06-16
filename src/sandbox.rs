@@ -8,10 +8,10 @@ use crate::loader::Loader;
 use crate::prelude::*;
 
 /// Sandbox for quick prototyping of pixel widgets applications
-pub struct Sandbox<M: 'static + Model, L: 'static + Loader> {
+pub struct Sandbox<M: Model + for<'a> UpdateModel<'a>, L: 'static + Loader> {
     /// The `Ui` being used in the sandbox
-    pub ui: crate::backend::wgpu::Ui<M, EventLoopProxy<Command<M::Message>>, L>,
-    event_loop: Option<EventLoop<Command<M::Message>>>,
+    pub ui: crate::backend::wgpu::Ui<M, EventLoopProxy<Command<<M as Model>::Message>>, L>,
+    event_loop: Option<EventLoop<Command<<M as Model>::Message>>>,
     surface: wgpu::Surface,
     #[allow(unused)]
     adapter: wgpu::Adapter,
@@ -22,7 +22,7 @@ pub struct Sandbox<M: 'static + Model, L: 'static + Loader> {
     window: Window,
 }
 
-impl<T: 'static + Model, L: 'static + Loader> Sandbox<T, L> {
+impl<T, L> Sandbox<T, L> where T: Model + for<'a> UpdateModel<'a, Resources=()>, L: 'static + Loader {
     /// Construct a new `Sandbox`
     pub async fn new(model: T, loader: L, builder: WindowBuilder) -> Self {
         let event_loop = EventLoop::<Command<T::Message>>::with_user_event();
@@ -94,7 +94,7 @@ impl<T: 'static + Model, L: 'static + Loader> Sandbox<T, L> {
             *control_flow = ControlFlow::Wait;
             match event {
                 Event::UserEvent(command) => {
-                    self.ui.command(command);
+                    self.ui.command(command, ());
                 }
                 Event::WindowEvent {
                     event: WindowEvent::Resized(size),
@@ -140,7 +140,7 @@ impl<T: 'static + Model, L: 'static + Loader> Sandbox<T, L> {
                 } => *control_flow = ControlFlow::Exit,
                 other => {
                     if let Some(event) = crate::backend::winit::convert_event(other) {
-                        self.ui.event(event);
+                        self.ui.event(event, ());
                     }
                 }
             }
