@@ -56,10 +56,85 @@ enum Message {
     CombinePlayground(usize, usize),
 }
 
-impl UpdateModel for Alchemy {
+impl Model for Alchemy {
     type Message = Message;
 
-    fn update(&mut self, message: Self::Message) -> Vec<Command<Message>> {
+    fn view(&mut self) -> Node<Message> {
+        match self {
+            &mut Self::Loading { progress, total } => Column::new()
+                .push(Space)
+                .push(Progress::new(progress as f32 / total as f32))
+                .class("loading"),
+            &mut Self::Game {
+                ref mut state,
+                ref context,
+                ref items,
+                ref playground,
+                ..
+            } => {
+                let mut state = state.tracker();
+
+                let playground = Layers::with_background(
+                    state.get(&Id::Playground),
+                    Drop::new(
+                        state.get(&Id::Playground),
+                        context,
+                        |_| true,
+                        move |drag_item, pos| match drag_item {
+                            DragItem::FromInventory(i) => Message::Place(items[i].clone(), pos),
+                            DragItem::FromPlayground(i) => Message::MovePlaygroundItem(i, pos),
+                        },
+                        Space,
+                    ),
+                )
+                .extend(playground.iter().map(|(item, id, pos)| {
+                    let drag = Drag::new(
+                        state.get(&Id::PlaygroundItem(*id)),
+                        context,
+                        DragItem::FromPlayground(*id),
+                        &item.image,
+                    );
+                    let drop = Drop::new(
+                        state.get(&Id::PlaygroundItem(*id)),
+                        context,
+                        |_| true,
+                        move |drag_item, _| match drag_item {
+                            DragItem::FromInventory(other_id) => Message::CombineInventory(*id, other_id),
+                            DragItem::FromPlayground(other_id) => Message::CombinePlayground(*id, other_id),
+                        },
+                        drag,
+                    );
+                    let widget = Panel::new(*pos, Anchor::TopLeft, drop);
+                    (*id, widget)
+                }));
+
+                let filtered: Vec<(usize, &Item)> =
+                    items.iter().enumerate().filter(|(_, item)| item.discovered).collect();
+
+                let inventory = Column::new().extend(filtered.chunks(4).map(|row| {
+                    Row::new().extend(row.iter().map(|&(i, item)| {
+                        Drag::new(
+                            state.get(&Id::InventoryItem(i)),
+                            context,
+                            DragItem::FromInventory(i),
+                            &item.image,
+                        )
+                    }))
+                }));
+
+                Row::new()
+                    .push(playground)
+                    .push(Scroll::new(state.get(&Id::Inventory), inventory))
+                    .class("game")
+            }
+        }
+    }
+}
+
+impl<'a> UpdateModel<'a> for Alchemy {
+    type State = ();
+
+    fn update(&mut self, message: Self::Message, _: &mut ()) -> Vec<Command<Message>> {
         match message {
             Message::Void => (),
             Message::LoadItems(total) => {
@@ -152,77 +227,6 @@ impl UpdateModel for Alchemy {
 
         Vec::new()
     }
-
-    fn view(&mut self) -> Node<Message> {
-        match self {
-            &mut Self::Loading { progress, total } => Column::new()
-                .push(Space)
-                .push(Progress::new(progress as f32 / total as f32))
-                .class("loading"),
-            &mut Self::Game {
-                ref mut state,
-                ref context,
-                ref items,
-                ref playground,
-                ..
-            } => {
-                let mut state = state.tracker();
-
-                let playground = Layers::with_background(
-                    state.get(&Id::Playground),
-                    Drop::new(
-                        state.get(&Id::Playground),
-                        context,
-                        |_| true,
-                        move |drag_item, pos| match drag_item {
-                            DragItem::FromInventory(i) => Message::Place(items[i].clone(), pos),
-                            DragItem::FromPlayground(i) => Message::MovePlaygroundItem(i, pos),
-                        },
-                        Space,
-                    ),
-                )
-                .extend(playground.iter().map(|(item, id, pos)| {
-                    let drag = Drag::new(
-                        state.get(&Id::PlaygroundItem(*id)),
-                        context,
-                        DragItem::FromPlayground(*id),
-                        &item.image,
-                    );
-                    let drop = Drop::new(
-                        state.get(&Id::PlaygroundItem(*id)),
-                        context,
-                        |_| true,
-                        move |drag_item, _| match drag_item {
-                            DragItem::FromInventory(other_id) => Message::CombineInventory(*id, other_id),
-                            DragItem::FromPlayground(other_id) => Message::CombinePlayground(*id, other_id),
-                        },
-                        drag,
-                    );
-                    let widget = Panel::new(*pos, Anchor::TopLeft, drop);
-                    (*id, widget)
-                }));
-
-                let filtered: Vec<(usize, &Item)> =
-                    items.iter().enumerate().filter(|(_, item)| item.discovered).collect();
-
-                let inventory = Column::new().extend(filtered.chunks(4).map(|row| {
-                    Row::new().extend(row.iter().map(|&(i, item)| {
-                        Drag::new(
-                            state.get(&Id::InventoryItem(i)),
-                            context,
-                            DragItem::FromInventory(i),
-                            &item.image,
-                        )
-                    }))
-                }));
-
-                Row::new()
-                    .push(playground)
-                    .push(Scroll::new(state.get(&Id::Inventory), inventory))
-                    .class("game")
-            }
-        }
-    }
 }
 
 #[tokio::main]
@@ -240,55 +244,58 @@ async fn main() {
 
     let graphics = sandbox.ui.graphics();
     let (tx, rx) = futures::channel::mpsc::unbounded();
-    sandbox.ui.command(Command::from_stream(rx));
-    sandbox.ui.command(Command::from_future_message(async move {
-        let graphics = graphics.clone();
-        tx.unbounded_send(Message::LoadItems(1)).ok();
-
-        #[derive(Deserialize)]
-        struct Definition {
-            image: String,
-            name: String,
-            unlocked: bool,
-            recipe: Option<(String, String)>,
-        }
-
-        let bytes = graphics.loader().load("recipes.ron").await.unwrap();
-        let defs: Vec<Definition> = ron::de::from_bytes(bytes.as_slice()).unwrap();
-        tx.unbounded_send(Message::LoadItems(defs.len() + 1)).ok();
-        tx.unbounded_send(Message::LoadedItem).ok();
-
-        let mut items = futures::future::join_all(defs.iter().enumerate().map(|(id, def)| {
+    sandbox.ui.command(Command::from_stream(rx), &mut ());
+    sandbox.ui.command(
+        Command::from_future_message(async move {
             let graphics = graphics.clone();
-            let tx = tx.clone();
-            async move {
-                let image = graphics.load_image(def.image.as_str()).await.unwrap();
-                tx.unbounded_send(Message::LoadedItem).ok();
-                Item {
-                    id,
-                    image,
-                    name: def.name.clone(),
-                    discovered: def.unlocked,
-                    combinations: HashMap::new(),
+            tx.unbounded_send(Message::LoadItems(1)).ok();
+
+            #[derive(Deserialize)]
+            struct Definition {
+                image: String,
+                name: String,
+                unlocked: bool,
+                recipe: Option<(String, String)>,
+            }
+
+            let bytes = graphics.loader().load("recipes.ron").await.unwrap();
+            let defs: Vec<Definition> = ron::de::from_bytes(bytes.as_slice()).unwrap();
+            tx.unbounded_send(Message::LoadItems(defs.len() + 1)).ok();
+            tx.unbounded_send(Message::LoadedItem).ok();
+
+            let mut items = futures::future::join_all(defs.iter().enumerate().map(|(id, def)| {
+                let graphics = graphics.clone();
+                let tx = tx.clone();
+                async move {
+                    let image = graphics.load_image(def.image.as_str()).await.unwrap();
+                    tx.unbounded_send(Message::LoadedItem).ok();
+                    Item {
+                        id,
+                        image,
+                        name: def.name.clone(),
+                        discovered: def.unlocked,
+                        combinations: HashMap::new(),
+                    }
+                }
+            }))
+            .await;
+
+            for (index, def) in defs.into_iter().enumerate() {
+                if let Some((a, b)) = def.recipe {
+                    let a = items.iter().position(|i| i.name == a);
+                    let b = items.iter().position(|i| i.name == b);
+                    if let (Some(a), Some(b)) = (a, b) {
+                        items[a].combinations.insert(b, index);
+                        items[b].combinations.insert(a, index);
+                    }
                 }
             }
-        }))
-        .await;
 
-        for (index, def) in defs.into_iter().enumerate() {
-            if let Some((a, b)) = def.recipe {
-                let a = items.iter().position(|i| i.name == a);
-                let b = items.iter().position(|i| i.name == b);
-                if let (Some(a), Some(b)) = (a, b) {
-                    items[a].combinations.insert(b, index);
-                    items[b].combinations.insert(a, index);
-                }
-            }
-        }
-
-        tx.unbounded_send(Message::Loaded(items)).ok();
-        Message::Void
-    }));
+            tx.unbounded_send(Message::Loaded(items)).ok();
+            Message::Void
+        }),
+        &mut (),
+    );
 
     sandbox.run().await;
 }

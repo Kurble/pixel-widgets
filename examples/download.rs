@@ -18,10 +18,32 @@ enum Message {
     ProgressUpdated(usize, usize),
 }
 
-impl UpdateModel for Download {
+impl Model for Download {
     type Message = Message;
 
-    fn update(&mut self, message: Self::Message) -> Vec<Command<Message>> {
+    fn view(&mut self) -> Node<Message> {
+        let mut state = self.state.tracker();
+        Column::new()
+            .push(Input::new(
+                state.get("url"),
+                "download link",
+                self.url.as_str(),
+                Message::UrlChanged,
+            ))
+            .push(Button::new(state.get("download"), Text::new("Download")).on_clicked(Message::DownloadPressed))
+            .push(Text::new(format!(
+                "Downloaded: {} / {} bytes",
+                self.progress, self.size
+            )))
+            .push(Progress::new(self.progress as f32 / self.size as f32))
+            .into_node()
+    }
+}
+
+impl<'a> UpdateModel<'a> for Download {
+    type State = ();
+
+    fn update(&mut self, message: Self::Message, _: &mut ()) -> Vec<Command<Message>> {
         match message {
             Message::UrlChanged(url) => {
                 self.url = url;
@@ -59,28 +81,6 @@ impl UpdateModel for Download {
                 Vec::new()
             }
         }
-    }
-
-    fn view(&mut self) -> Node<Message> {
-        let mut state = self.state.tracker();
-        let url = self.url.clone();
-        Column::new()
-            .push(Input::new(
-                state.get_or_default_with("url", || {
-                    let mut state = pixel_widgets::widget::input::State::default();
-                    state.set_value(url);
-                    state
-                }),
-                "download link",
-                Message::UrlChanged,
-            ))
-            .push(Button::new(state.get("download"), Text::new("Download")).on_clicked(Message::DownloadPressed))
-            .push(Text::new(format!(
-                "Downloaded: {} / {} bytes",
-                self.progress, self.size
-            )))
-            .push(Progress::new(self.progress as f32 / self.size as f32))
-            .into_node()
     }
 }
 

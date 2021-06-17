@@ -22,7 +22,11 @@ pub struct Sandbox<M: Model + for<'a> UpdateModel<'a>, L: 'static + Loader> {
     window: Window,
 }
 
-impl<T, L> Sandbox<T, L> where T: Model + for<'a> UpdateModel<'a, Resources=()>, L: 'static + Loader {
+impl<T, L> Sandbox<T, L>
+where
+    T: Model + for<'a> UpdateModel<'a, State = ()>,
+    L: 'static + Loader,
+{
     /// Construct a new `Sandbox`
     pub async fn new(model: T, loader: L, builder: WindowBuilder) -> Self {
         let event_loop = EventLoop::<Command<T::Message>>::with_user_event();
@@ -94,7 +98,7 @@ impl<T, L> Sandbox<T, L> where T: Model + for<'a> UpdateModel<'a, Resources=()>,
             *control_flow = ControlFlow::Wait;
             match event {
                 Event::UserEvent(command) => {
-                    self.ui.command(command, ());
+                    self.ui.command(command, &mut ());
                 }
                 Event::WindowEvent {
                     event: WindowEvent::Resized(size),
@@ -140,7 +144,7 @@ impl<T, L> Sandbox<T, L> where T: Model + for<'a> UpdateModel<'a, Resources=()>,
                 } => *control_flow = ControlFlow::Exit,
                 other => {
                     if let Some(event) = crate::backend::winit::convert_event(other) {
-                        self.ui.event(event, ());
+                        self.ui.event(event, &mut ());
                     }
                 }
             }

@@ -38,17 +38,27 @@ impl Model for Tour {
                     .push(Button::new(state.get("dummy"), Text::new("Open dummy")).on_clicked(Message::ShowDummy))
                     .push(Button::new(state.get("login"), Text::new("Open login")).on_clicked(Message::ShowLogin)),
             )
-            .on_event(NodeEvent::MouseClick(Key::RightMouseButton), |ctx| ctx.push(Message::ShowContext(ctx.cursor().0, ctx.cursor().1)));
+            .on_event(NodeEvent::MouseClick(Key::RightMouseButton), |ctx| {
+                ctx.push(Message::ShowContext(ctx.cursor().0, ctx.cursor().1))
+            });
 
         let mut layers = Layers::<Message, &'static str>::with_background(state.get("layers"), background);
 
-        let options = ["Mercury", "Venus", "Earth", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto"];
+        let options = [
+            "Mercury", "Venus", "Earth", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto",
+        ];
 
         layers = layers.push(
             "menu",
             Menu::new(&mut self.context).extend(vec![
-                MenuItem::Item { content: Text::new("Open Dummy").into_node(), on_select: Some(Message::ShowDummy) },
-                MenuItem::Item { content: Text::new("Open Login").into_node(), on_select: Some(Message::ShowLogin) },
+                MenuItem::Item {
+                    content: Text::new("Open Dummy").into_node(),
+                    on_select: Some(Message::ShowDummy),
+                },
+                MenuItem::Item {
+                    content: Text::new("Open Login").into_node(),
+                    on_select: Some(Message::ShowLogin),
+                },
                 MenuItem::Menu {
                     content: Text::new("Planets").into_node(),
                     items: options
@@ -59,7 +69,10 @@ impl Model for Tour {
                         })
                         .collect(),
                 },
-                MenuItem::Item { content: Text::new("Option D").into_node(), on_select: None },
+                MenuItem::Item {
+                    content: Text::new("Option D").into_node(),
+                    on_select: None,
+                },
             ]),
         );
 
@@ -68,13 +81,26 @@ impl Model for Tour {
                 "dummy_window",
                 Window::new(
                     state.get("dummy_window"),
-                    Row::new().push(Text::new("Dummy window").class("title")).push(Space).push(Space.class("close")).class("title"),
+                    Row::new()
+                        .push(Text::new("Dummy window").class("title"))
+                        .push(Space)
+                        .push(Space.class("close"))
+                        .class("title"),
                     Column::new()
-                        .push(Slider::new(state.get("slider"), 0.0, 100.0, self.slide, Message::SlideChanged))
+                        .push(Slider::new(
+                            state.get("slider"),
+                            0.0,
+                            100.0,
+                            self.slide,
+                            Message::SlideChanged,
+                        ))
                         .push(Text::new("Select a planet from the dropdown list: "))
                         .push(
-                            Dropdown::new(state.get("dd"))
-                                .extend(options.iter().map(|&option| (Text::new(option), Message::PlanetSelected(option)))),
+                            Dropdown::new(state.get("dd")).extend(
+                                options
+                                    .iter()
+                                    .map(|&option| (Text::new(option), Message::PlanetSelected(option))),
+                            ),
                         ),
                 ),
             );
@@ -85,7 +111,11 @@ impl Model for Tour {
                 "login_window",
                 Window::new(
                     state.get("login_window"),
-                    Row::new().push(Text::new("Login window").class("title")).push(Space).push(Space.class("close")).class("title"),
+                    Row::new()
+                        .push(Text::new("Login window").class("title"))
+                        .push(Space)
+                        .push(Space.class("close"))
+                        .class("title"),
                     Scroll::new(
                         state.get("scroll"),
                         Column::new()
@@ -93,8 +123,15 @@ impl Model for Tour {
                                 Input::new(state.get("name"), "username", self.name.as_str(), Message::NameChanged)
                                     .with_trigger_key(Key::Enter),
                             )
-                            .push(Input::password(state.get("password"), "password", self.password.as_str(), Message::PasswordChanged))
-                            .push(Button::new(state.get("login"), Text::new("Login")).on_clicked(Message::LoginPressed)),
+                            .push(Input::password(
+                                state.get("password"),
+                                "password",
+                                self.password.as_str(),
+                                Message::PasswordChanged,
+                            ))
+                            .push(
+                                Button::new(state.get("login"), Text::new("Login")).on_clicked(Message::LoginPressed),
+                            ),
                     ),
                 ),
             );
@@ -105,9 +142,9 @@ impl Model for Tour {
 }
 
 impl UpdateModel<'_> for Tour {
-    type Resources = ();
+    type State = ();
 
-    fn update(&mut self, message: Self::Message, _: ()) -> Vec<Command<Message>> {
+    fn update(&mut self, message: Self::Message, _: &mut ()) -> Vec<Command<Message>> {
         match message {
             Message::PlanetSelected(planet) => {
                 println!("{} selected from the planets", planet);
@@ -152,13 +189,19 @@ async fn main() {
         slide: 33.0,
     };
 
-    let window = winit::window::WindowBuilder::new().with_title("Tour").with_inner_size(winit::dpi::LogicalSize::new(960, 480));
+    let window = winit::window::WindowBuilder::new()
+        .with_title("Tour")
+        .with_inner_size(winit::dpi::LogicalSize::new(960, 480));
 
     let loader = pixel_widgets::loader::FsLoader::new("./examples".into()).unwrap();
 
     let mut sandbox = Sandbox::new(model, loader, window).await;
 
-    sandbox.ui.set_stylesheet("tour.pwss").await.expect("Unable to load stylesheet");
+    sandbox
+        .ui
+        .set_stylesheet("tour.pwss")
+        .await
+        .expect("Unable to load stylesheet");
 
     sandbox.run().await;
 }

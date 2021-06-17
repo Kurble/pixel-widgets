@@ -13,10 +13,23 @@ enum Message {
     DownPressed,
 }
 
-impl UpdateModel for Counter {
+impl Model for Counter {
     type Message = Message;
 
-    fn update(&mut self, message: Self::Message) -> Vec<Command<Message>> {
+    fn view(&mut self) -> Node<Message> {
+        let mut state = self.state.tracker();
+        Column::new()
+            .push(Button::new(state.get("up"), Text::new("Up")).on_clicked(Message::UpPressed))
+            .push(Text::new(format!("Count: {}", self.value)))
+            .push(Button::new(state.get("down"), Text::new("Down")).on_clicked(Message::DownPressed))
+            .into_node()
+    }
+}
+
+impl<'a> UpdateModel<'a> for Counter {
+    type State = ();
+
+    fn update(&mut self, message: Self::Message, _: &mut ()) -> Vec<Command<Message>> {
         match message {
             Message::UpPressed => {
                 self.value += 1;
@@ -27,15 +40,6 @@ impl UpdateModel for Counter {
                 Vec::new()
             }
         }
-    }
-
-    fn view(&mut self) -> Node<Message> {
-        let mut state = self.state.tracker();
-        Column::new()
-            .push(Button::new(state.get("up"), Text::new("Up")).on_clicked(Message::UpPressed))
-            .push(Text::new(format!("Count: {}", self.value)))
-            .push(Button::new(state.get("down"), Text::new("Down")).on_clicked(Message::DownPressed))
-            .into_node()
     }
 }
 

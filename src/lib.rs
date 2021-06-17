@@ -174,12 +174,16 @@ pub trait Model: 'static {
 
 /// Update a model after a message is received.
 pub trait UpdateModel<'a>: Model {
-    /// Some user arguments to pass to update()
-    type Resources: Copy;
+    /// Some user state to modify in update()
+    type State;
 
     /// Called when a message is fired from the view or some other source.
     /// This is where you should update your gui state.
-    fn update(&mut self, message: <Self as Model>::Message, resources: Self::Resources) -> Vec<Command<<Self as Model>::Message>>;
+    fn update(
+        &mut self,
+        message: <Self as Model>::Message,
+        resources: &mut Self::State,
+    ) -> Vec<Command<<Self as Model>::Message>>;
 }
 
 /// Trait for sending custom events to the event loop of the application
@@ -218,7 +222,12 @@ pub enum Command<Message> {
     Stylesheet(Task<Result<Style, stylesheet::Error>>),
 }
 
-impl<M: Model + for<'a> UpdateModel<'a>, E: 'static + EventLoop<Command<<M as Model>::Message>>, L: 'static + Loader> Ui<M, E, L> {
+impl<
+        M: Model + for<'a> UpdateModel<'a>,
+        E: 'static + EventLoop<Command<<M as Model>::Message>>,
+        L: 'static + Loader,
+    > Ui<M, E, L>
+{
     /// Constructs a new `Ui` using the default style.
     /// This is not recommended as the default style is very empty and only renders white text.
     pub fn new(model: M, event_loop: E, loader: L, viewport: Rectangle) -> Self {
@@ -245,13 +254,16 @@ impl<M: Model + for<'a> UpdateModel<'a>, E: 'static + EventLoop<Command<<M as Mo
 
         let loader = self.loader.clone();
         let url = url.as_ref().to_string();
-        self.command_inner(Command::from_future_style(async move {
-            loader
-                .wait(&url)
-                .await
-                .map_err(|e| stylesheet::Error::Io(Box::new(e)))?;
-            Style::load(&*loader, url, 512, 0).await
-        }), None);
+        self.command_inner(
+            Command::from_future_style(async move {
+                loader
+                    .wait(&url)
+                    .await
+                    .map_err(|e| stylesheet::Error::Io(Box::new(e)))?;
+                Style::load(&*loader, url, 512, 0).await
+            }),
+            None,
+        );
 
         Ok(())
     }
@@ -269,9 +281,10 @@ impl<M: Model + for<'a> UpdateModel<'a>, E: 'static + EventLoop<Command<<M as Mo
     pub fn reload_stylesheet<U: 'static + AsRef<str> + Send>(&mut self, url: U) {
         let loader = self.loader.clone();
         self.hot_reload_style = Some(url.as_ref().to_string());
-        self.command_inner(Command::from_future_style(async move {
-            Style::load(&*loader, url, 512, 0).await
-        }), None);
+        self.command_inner(
+            Command::from_future_style(async move { Style::load(&*loader, url, 512, 0).await }),
+            None,
+        );
     }
 
     /// Get a `Graphics` loader
@@ -291,11 +304,15 @@ impl<M: Model + for<'a> UpdateModel<'a>, E: 'static + EventLoop<Command<<M as Mo
     }
 
     /// Updates the model after a `Command` has resolved.
-    pub fn command(&mut self, command: Command<<M as Model>::Message>, resources: <M as UpdateModel>::Resources) {
+    pub fn command(&mut self, command: Command<<M as Model>::Message>, resources: &mut <M as UpdateModel>::State) {
         self.command_inner(command, Some(resources));
     }
 
-    fn command_inner(&mut self, command: Command<<M as Model>::Message>, resources: Option<<M as UpdateModel>::Resources>) {
+    fn command_inner(
+        &mut self,
+        command: Command<<M as Model>::Message>,
+        resources: Option<&mut <M as UpdateModel>::State>,
+    ) {
         match command {
             Command::Await(mut task) => {
                 let complete = task.complete.clone();
@@ -341,13 +358,16 @@ impl<M: Model + for<'a> UpdateModel<'a>, E: 'static + EventLoop<Command<<M as Mo
 
                         if let Some(url) = self.hot_reload_style.clone() {
                             let loader = self.loader.clone();
-                            self.command_inner(Command::from_future_style(async move {
-                                loader
-                                    .wait(&url)
-                                    .await
-                                    .map_err(|e| stylesheet::Error::Io(Box::new(e)))?;
-                                Style::load(&*loader, url, 512, 0).await
-                            }), None);
+                            self.command_inner(
+                                Command::from_future_style(async move {
+                                    loader
+                                        .wait(&url)
+                                        .await
+                                        .map_err(|e| stylesheet::Error::Io(Box::new(e)))?;
+                                    Style::load(&*loader, url, 512, 0).await
+                                }),
+                                None,
+                            );
                         }
                     }
                 }
@@ -357,14 +377,14 @@ impl<M: Model + for<'a> UpdateModel<'a>, E: 'static + EventLoop<Command<<M as Mo
 
     /// Updates the model with a message.
     /// This forces the view to be rerendered.
-    pub fn update(&mut self, message: <M as Model>::Message, resources: <M as UpdateModel>::Resources) {
+    pub fn update(&mut self, message: <M as Model>::Message, resources: &mut <M as UpdateModel>::State) {
         for command in self.model_view.model_mut().update(message, resources) {
             self.command(command, resources);
         }
     }
 
     /// Handles an [`Event`](event/struct.Event.html).
-    pub fn event(&mut self, event: Event, resources: <M as UpdateModel>::Resources) {
+    pub fn event(&mut self, event: Event, resources: &mut <M as UpdateModel>::State) {
         if let Event::Cursor(x, y) = event {
             self.cursor = (x, y);
         }
@@ -769,7 +789,9 @@ impl<T: Send, E: EventLoop<T>> ArcWake for EventLoopWaker<T, E> {
     }
 }
 
-impl<M: Model + for<'a> UpdateModel<'a>, E: EventLoop<Command<<M as Model>::Message>>, L: Loader> Deref for Ui<M, E, L> {
+impl<M: Model + for<'a> UpdateModel<'a>, E: EventLoop<Command<<M as Model>::Message>>, L: Loader> Deref
+    for Ui<M, E, L>
+{
     type Target = M;
 
     fn deref(&self) -> &Self::Target {
@@ -777,7 +799,9 @@ impl<M: Model + for<'a> UpdateModel<'a>, E: EventLoop<Command<<M as Model>::Mess
     }
 }
 
-impl<M: Model + for<'a> UpdateModel<'a>, E: EventLoop<Command<<M as Model>::Message>>, L: Loader> DerefMut for Ui<M, E, L> {
+impl<M: Model + for<'a> UpdateModel<'a>, E: EventLoop<Command<<M as Model>::Message>>, L: Loader> DerefMut
+    for Ui<M, E, L>
+{
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.model_view.model_mut()
     }
@@ -812,5 +836,7 @@ pub mod prelude {
     #[cfg(feature = "winit")]
     #[cfg(feature = "wgpu")]
     pub use crate::sandbox::Sandbox;
-    pub use crate::{layout::Rectangle, stylesheet::Style, tracker::ManagedState, widget::*, Command, UpdateModel, Model, Ui};
+    pub use crate::{
+        layout::Rectangle, stylesheet::Style, tracker::ManagedState, widget::*, Command, Model, Ui, UpdateModel,
+    };
 }
