@@ -201,7 +201,7 @@ pub trait EventLoop<T: Send>: Clone + Send {
 /// `Ui` manages a [`Model`](trait.Model.html) and processes it to a [`DrawList`](draw/struct.DrawList.html) that can be rendered using your
 ///  own renderer implementation. Alternatively, you can use one of the following included wrappers:
 /// - [`WgpuUi`](backend/wgpu/struct.WgpuUi.html) Renders using [wgpu-rs](https://github.com/gfx-rs/wgpu-rs).
-pub struct Ui<M: Model + for<'a> UpdateModel<'a>, E: EventLoop<Command<<M as Model>::Message>>, L: Loader> {
+pub struct Ui<M: Model, E: EventLoop<Command<<M as Model>::Message>>, L: Loader> {
     model_view: ModelView<M>,
     style: Arc<Style>,
     viewport: Rectangle,
@@ -222,11 +222,11 @@ pub enum Command<Message> {
     Stylesheet(Task<Result<Style, stylesheet::Error>>),
 }
 
-impl<
-        M: Model + for<'a> UpdateModel<'a>,
-        E: 'static + EventLoop<Command<<M as Model>::Message>>,
-        L: 'static + Loader,
-    > Ui<M, E, L>
+impl<'a, M, E, L> Ui<M, E, L>
+where
+    M: Model + UpdateModel<'a>,
+    E: 'static + EventLoop<Command<<M as Model>::Message>>,
+    L: 'static + Loader,
 {
     /// Constructs a new `Ui` using the default style.
     /// This is not recommended as the default style is very empty and only renders white text.
@@ -304,14 +304,14 @@ impl<
     }
 
     /// Updates the model after a `Command` has resolved.
-    pub fn command(&mut self, command: Command<<M as Model>::Message>, resources: &mut <M as UpdateModel>::State) {
+    pub fn command(&mut self, command: Command<<M as Model>::Message>, resources: &mut <M as UpdateModel<'a>>::State) {
         self.command_inner(command, Some(resources));
     }
 
     fn command_inner(
         &mut self,
         command: Command<<M as Model>::Message>,
-        resources: Option<&mut <M as UpdateModel>::State>,
+        resources: Option<&mut <M as UpdateModel<'a>>::State>,
     ) {
         match command {
             Command::Await(mut task) => {
@@ -377,14 +377,14 @@ impl<
 
     /// Updates the model with a message.
     /// This forces the view to be rerendered.
-    pub fn update(&mut self, message: <M as Model>::Message, resources: &mut <M as UpdateModel>::State) {
+    pub fn update(&mut self, message: <M as Model>::Message, resources: &mut <M as UpdateModel<'a>>::State) {
         for command in self.model_view.model_mut().update(message, resources) {
             self.command(command, resources);
         }
     }
 
     /// Handles an [`Event`](event/struct.Event.html).
-    pub fn event(&mut self, event: Event, resources: &mut <M as UpdateModel>::State) {
+    pub fn event(&mut self, event: Event, resources: &mut <M as UpdateModel<'a>>::State) {
         if let Event::Cursor(x, y) = event {
             self.cursor = (x, y);
         }
