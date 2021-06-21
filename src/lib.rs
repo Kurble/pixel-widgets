@@ -174,8 +174,8 @@ pub trait Model: 'static {
 
 /// Update a model after a message is received.
 pub trait UpdateModel<'a>: Model {
-    /// Some user state to modify in update()
-    type State;
+    /// Custom state for update
+    type State: 'a;
 
     /// Called when a message is fired from the view or some other source.
     /// This is where you should update your gui state.
@@ -222,9 +222,9 @@ pub enum Command<Message> {
     Stylesheet(Task<Result<Style, stylesheet::Error>>),
 }
 
-impl<'a, M, E, L> Ui<M, E, L>
+impl<M, E, L> Ui<M, E, L>
 where
-    M: Model + UpdateModel<'a>,
+    M: Model,
     E: 'static + EventLoop<Command<<M as Model>::Message>>,
     L: 'static + Loader,
 {
@@ -245,29 +245,6 @@ where
         }
     }
 
-    /// Constructs a new `Ui` asynchronously by first fetching a stylesheet from a
-    /// [.pwss](stylesheet/index.html) data source.
-    pub async fn set_stylesheet<U: AsRef<str>>(&mut self, url: U) -> Result<(), stylesheet::Error> {
-        let style = Style::load(&*self.loader, url.as_ref(), 512, 0).await?;
-        self.style = Arc::new(style);
-        self.hot_reload_style = Some(url.as_ref().to_string());
-
-        let loader = self.loader.clone();
-        let url = url.as_ref().to_string();
-        self.command_inner(
-            Command::from_future_style(async move {
-                loader
-                    .wait(&url)
-                    .await
-                    .map_err(|e| stylesheet::Error::Io(Box::new(e)))?;
-                Style::load(&*loader, url, 512, 0).await
-            }),
-            None,
-        );
-
-        Ok(())
-    }
-
     /// Replace the current stylesheet with a loaded new stylesheet
     pub fn replace_stylesheet(&mut self, style: Arc<Style>) {
         if !Arc::ptr_eq(&self.style, &style) {
@@ -277,14 +254,33 @@ where
         }
     }
 
+    /// Constructs a new `Ui` asynchronously by first fetching a stylesheet from a
+    /// [.pwss](stylesheet/index.html) data source.
+    pub async fn set_stylesheet<U: AsRef<str>>(&mut self, url: U) -> Result<(), stylesheet::Error> {
+        let style = Style::load(&*self.loader, url.as_ref(), 512, 0).await?;
+        self.style = Arc::new(style);
+        self.hot_reload_style = Some(url.as_ref().to_string());
+
+        let loader = self.loader.clone();
+        let url = url.as_ref().to_string();
+        self.command_stylesheet(Command::from_future_style(async move {
+            loader
+                .wait(&url)
+                .await
+                .map_err(|e| stylesheet::Error::Io(Box::new(e)))?;
+            Style::load(&*loader, url, 512, 0).await
+        }));
+
+        Ok(())
+    }
+
     /// Replace the current stylesheet with a new one
     pub fn reload_stylesheet<U: 'static + AsRef<str> + Send>(&mut self, url: U) {
         let loader = self.loader.clone();
         self.hot_reload_style = Some(url.as_ref().to_string());
-        self.command_inner(
-            Command::from_future_style(async move { Style::load(&*loader, url, 512, 0).await }),
-            None,
-        );
+        self.command_stylesheet(Command::from_future_style(async move {
+            Style::load(&*loader, url, 512, 0).await
+        }));
     }
 
     /// Get a `Graphics` loader
@@ -303,40 +299,14 @@ where
         self.viewport = viewport;
     }
 
-    /// Updates the model after a `Command` has resolved.
-    pub fn command(&mut self, command: Command<<M as Model>::Message>, resources: &mut <M as UpdateModel<'a>>::State) {
-        self.command_inner(command, Some(resources));
+    /// Returns true if the ui needs to be redrawn. If the ui doesn't need to be redrawn the
+    /// [`Command`s](draw/struct.Command.html) from the last [`draw`](#method.draw) may be used again.
+    pub fn needs_redraw(&self) -> bool {
+        self.redraw || self.model_view.dirty()
     }
 
-    fn command_inner(
-        &mut self,
-        command: Command<<M as Model>::Message>,
-        resources: Option<&mut <M as UpdateModel<'a>>::State>,
-    ) {
+    fn command_stylesheet(&mut self, command: Command<<M as Model>::Message>) {
         match command {
-            Command::Await(mut task) => {
-                let complete = task.complete.clone();
-                if !complete.load(Relaxed) {
-                    let ptr = task.future.deref_mut() as *mut dyn Future<Output = M::Message>;
-                    let pin = unsafe { std::pin::Pin::new_unchecked(ptr.as_mut().unwrap()) };
-                    let waker = EventLoopWaker::new(self.event_loop.clone(), Command::Await(task));
-                    if let Poll::Ready(message) = pin.poll(&mut std::task::Context::from_waker(&waker)) {
-                        complete.store(true, Relaxed);
-                        self.update(message, resources.unwrap());
-                    }
-                }
-            }
-
-            Command::Subscribe(mut stream) => {
-                let ptr = stream.deref_mut() as *mut dyn Stream<Item = M::Message>;
-                let pin = unsafe { std::pin::Pin::new_unchecked(ptr.as_mut().unwrap()) };
-                let waker = EventLoopWaker::new(self.event_loop.clone(), Command::Subscribe(stream));
-                if let Poll::Ready(Some(message)) = pin.poll_next(&mut std::task::Context::from_waker(&waker)) {
-                    waker.wake();
-                    self.update(message, resources.unwrap());
-                }
-            }
-
             Command::Stylesheet(mut task) => {
                 let complete = task.complete.clone();
                 if !complete.load(Relaxed) {
@@ -358,33 +328,70 @@ where
 
                         if let Some(url) = self.hot_reload_style.clone() {
                             let loader = self.loader.clone();
-                            self.command_inner(
-                                Command::from_future_style(async move {
-                                    loader
-                                        .wait(&url)
-                                        .await
-                                        .map_err(|e| stylesheet::Error::Io(Box::new(e)))?;
-                                    Style::load(&*loader, url, 512, 0).await
-                                }),
-                                None,
-                            );
+                            self.command_stylesheet(Command::from_future_style(async move {
+                                loader
+                                    .wait(&url)
+                                    .await
+                                    .map_err(|e| stylesheet::Error::Io(Box::new(e)))?;
+                                Style::load(&*loader, url, 512, 0).await
+                            }));
                         }
                     }
                 }
             }
+            _ => unreachable!(),
+        }
+    }
+
+    /// Updates the model after a `Command` has resolved.
+    pub fn command<'a, S: 'a>(&mut self, command: Command<<M as Model>::Message>, resources: &mut S)
+    where
+        M: UpdateModel<'a, State = S>,
+    {
+        match command {
+            Command::Await(mut task) => {
+                let complete = task.complete.clone();
+                if !complete.load(Relaxed) {
+                    let ptr = task.future.deref_mut() as *mut dyn Future<Output = M::Message>;
+                    let pin = unsafe { std::pin::Pin::new_unchecked(ptr.as_mut().unwrap()) };
+                    let waker = EventLoopWaker::new(self.event_loop.clone(), Command::Await(task));
+                    if let Poll::Ready(message) = pin.poll(&mut std::task::Context::from_waker(&waker)) {
+                        complete.store(true, Relaxed);
+                        self.update(message, resources);
+                    }
+                }
+            }
+
+            Command::Subscribe(mut stream) => {
+                let ptr = stream.deref_mut() as *mut dyn Stream<Item = M::Message>;
+                let pin = unsafe { std::pin::Pin::new_unchecked(ptr.as_mut().unwrap()) };
+                let waker = EventLoopWaker::new(self.event_loop.clone(), Command::Subscribe(stream));
+                if let Poll::Ready(Some(message)) = pin.poll_next(&mut std::task::Context::from_waker(&waker)) {
+                    waker.wake();
+                    self.update(message, resources);
+                }
+            }
+
+            command => self.command_stylesheet(command),
         }
     }
 
     /// Updates the model with a message.
     /// This forces the view to be rerendered.
-    pub fn update(&mut self, message: <M as Model>::Message, resources: &mut <M as UpdateModel<'a>>::State) {
+    pub fn update<'a, S: 'a>(&mut self, message: <M as Model>::Message, resources: &mut S)
+    where
+        M: UpdateModel<'a, State = S>,
+    {
         for command in self.model_view.model_mut().update(message, resources) {
             self.command(command, resources);
         }
     }
 
     /// Handles an [`Event`](event/struct.Event.html).
-    pub fn event(&mut self, event: Event, resources: &mut <M as UpdateModel<'a>>::State) {
+    pub fn event<'a, S: 'a>(&mut self, event: Event, resources: &mut S)
+    where
+        M: UpdateModel<'a, State = S>,
+    {
         if let Event::Cursor(x, y) = event {
             self.cursor = (x, y);
         }
@@ -408,12 +415,6 @@ where
                 self.command(command, resources);
             }
         }
-    }
-
-    /// Returns true if the ui needs to be redrawn. If the ui doesn't need to be redrawn the
-    /// [`Command`s](draw/struct.Command.html) from the last [`draw`](#method.draw) may be used again.
-    pub fn needs_redraw(&self) -> bool {
-        self.redraw || self.model_view.dirty()
     }
 
     /// Generate a [`DrawList`](draw/struct.DrawList.html) for the view.
@@ -789,9 +790,7 @@ impl<T: Send, E: EventLoop<T>> ArcWake for EventLoopWaker<T, E> {
     }
 }
 
-impl<M: Model + for<'a> UpdateModel<'a>, E: EventLoop<Command<<M as Model>::Message>>, L: Loader> Deref
-    for Ui<M, E, L>
-{
+impl<M: Model, E: EventLoop<Command<<M as Model>::Message>>, L: Loader> Deref for Ui<M, E, L> {
     type Target = M;
 
     fn deref(&self) -> &Self::Target {
@@ -799,9 +798,7 @@ impl<M: Model + for<'a> UpdateModel<'a>, E: EventLoop<Command<<M as Model>::Mess
     }
 }
 
-impl<M: Model + for<'a> UpdateModel<'a>, E: EventLoop<Command<<M as Model>::Message>>, L: Loader> DerefMut
-    for Ui<M, E, L>
-{
+impl<M: Model, E: EventLoop<Command<<M as Model>::Message>>, L: Loader> DerefMut for Ui<M, E, L> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.model_view.model_mut()
     }
