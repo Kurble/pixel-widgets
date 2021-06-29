@@ -13,7 +13,7 @@ enum Message {
     DownPressed,
 }
 
-impl Model for Counter {
+impl Component for Counter {
     type Message = Message;
 
     fn view(&mut self) -> Node<Message> {
@@ -26,7 +26,7 @@ impl Model for Counter {
     }
 }
 
-impl<'a> UpdateModel<'a> for Counter {
+impl<'a> UpdateComponent<'a> for Counter {
     type State = ();
 
     fn update(&mut self, message: Self::Message, _: &mut ()) -> Vec<Command<Message>> {

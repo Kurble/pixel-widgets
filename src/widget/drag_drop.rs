@@ -8,7 +8,7 @@ use crate::draw::Primitive;
 use crate::event::{Event, Key, NodeEvent};
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::{StyleState, Stylesheet};
-use crate::widget::{Context, Frame, IntoNode, Node, StateVec, Widget};
+use crate::widget::{ApplyStyle, Context, Frame, IntoNode, Node, StateVec, Widget};
 
 /// Message type for communicating between `Drag` and `Drop` widgets
 pub trait DragDropId: 'static + Copy + Send {}
@@ -106,7 +106,7 @@ impl<'a, T: DragDropId + Send, Message: 'a> Widget<'a, Message> for Drag<'a, T, 
         self.content.len()
     }
 
-    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut Node<'a, Message>)) {
+    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn ApplyStyle)) {
         self.content.visit_children(visitor);
     }
 
@@ -188,7 +188,7 @@ where
         self.content.len()
     }
 
-    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut Node<'a, Message>)) {
+    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn ApplyStyle)) {
         self.content.visit_children(visitor);
     }
 

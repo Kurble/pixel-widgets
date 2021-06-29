@@ -8,10 +8,10 @@ use crate::loader::Loader;
 use crate::prelude::*;
 
 /// Sandbox for quick prototyping of pixel widgets applications
-pub struct Sandbox<M: Model + for<'a> UpdateModel<'a>, L: 'static + Loader> {
+pub struct Sandbox<M: Component + for<'a> UpdateComponent<'a>, L: 'static + Loader> {
     /// The `Ui` being used in the sandbox
-    pub ui: crate::backend::wgpu::Ui<M, EventLoopProxy<Command<<M as Model>::Message>>, L>,
-    event_loop: Option<EventLoop<Command<<M as Model>::Message>>>,
+    pub ui: crate::backend::wgpu::Ui<M, EventLoopProxy<Command<<M as Component>::Message>>, L>,
+    event_loop: Option<EventLoop<Command<<M as Component>::Message>>>,
     surface: wgpu::Surface,
     #[allow(unused)]
     adapter: wgpu::Adapter,
@@ -24,7 +24,7 @@ pub struct Sandbox<M: Model + for<'a> UpdateModel<'a>, L: 'static + Loader> {
 
 impl<T, L> Sandbox<T, L>
 where
-    T: Model + for<'a> UpdateModel<'a, State = ()>,
+    T: Component + for<'a> UpdateComponent<'a, State = ()>,
     L: 'static + Loader,
 {
     /// Construct a new `Sandbox`

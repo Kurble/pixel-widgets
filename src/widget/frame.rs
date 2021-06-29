@@ -26,7 +26,7 @@ impl<'a, T: 'a> Widget<'a, T> for Frame<'a, T> {
         1
     }
 
-    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut Node<'a, T>)) {
+    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn ApplyStyle)) {
         visitor(&mut self.content);
     }
 

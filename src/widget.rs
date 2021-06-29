@@ -115,7 +115,7 @@ pub trait Widget<'a, Message>: Send {
     /// be able to resolve their stylesheet, resulting in a panic when calling [`size`](struct.Node.html#method.size),
     /// [`hit`](struct.Node.html#method.hit), [`event`](struct.Node.html#method.event) or
     /// [`draw`](struct.Node.html#method.draw).
-    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut Node<'a, Message>));
+    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn ApplyStyle));
 
     /// Returns the `(width, height)` of this widget.
     /// The extents are defined as a [`Size`](../layout/struct.Size.html),
@@ -208,6 +208,14 @@ pub trait IntoNode<'a, Message: 'a>: 'a + Sized {
     }
 }
 
+pub trait ApplyStyle {
+    fn style(&mut self, query: &mut Query, position: (usize, usize));
+
+    fn add_matches(&mut self, query: &mut Query);
+
+    fn remove_matches(&mut self, query: &mut Query);
+}
+
 /// Storage for style states
 pub type StateVec = SmallVec<[StyleState<&'static str>; 3]>;
 
@@ -275,82 +283,6 @@ impl<'a, Message> Node<'a, Message> {
             result.push(StyleState::Pressed);
         }
         result
-    }
-
-    pub(crate) fn style(&mut self, query: &mut Query) {
-        // remember style
-        self.style = Some(query.style.clone());
-
-        // resolve own stylesheet
-        self.state = self.state();
-        self.selector_matches = query.match_widget(
-            self.widget.widget(),
-            self.class.unwrap_or(""),
-            self.state.as_slice(),
-            self.position.0,
-            self.position.1,
-        );
-        self.stylesheet.replace(query.style.get(&self.selector_matches));
-
-        // resolve children style
-        query.ancestors.push(self.selector_matches.clone());
-        let own_siblings = std::mem::replace(&mut query.siblings, Vec::new());
-        let mut i = 0;
-        let len = self.widget.len();
-        self.widget.visit_children(&mut |child| {
-            child.position = (i, len);
-            child.style(&mut *query);
-            i += 1;
-        });
-        query.siblings = own_siblings;
-        query.siblings.push(query.ancestors.pop().unwrap());
-    }
-
-    fn add_matches(&mut self, query: &mut Query) {
-        let additions = query.match_widget(
-            self.widget.widget(),
-            self.class.unwrap_or(""),
-            self.state.as_slice(),
-            self.position.0,
-            self.position.1,
-        );
-
-        let new_style = self.selector_matches.union(&additions);
-        if new_style != self.selector_matches {
-            self.selector_matches = new_style;
-            self.stylesheet
-                .replace(self.style.as_ref().unwrap().get(&self.selector_matches));
-        }
-
-        query.ancestors.push(additions);
-        let own_siblings = std::mem::replace(&mut query.siblings, Vec::new());
-        self.widget.visit_children(&mut |child| child.add_matches(&mut *query));
-        query.siblings = own_siblings;
-        query.siblings.push(query.ancestors.pop().unwrap());
-    }
-
-    fn remove_matches(&mut self, query: &mut Query) {
-        let removals = query.match_widget(
-            self.widget.widget(),
-            self.class.unwrap_or(""),
-            self.state.as_slice(),
-            self.position.0,
-            self.position.1,
-        );
-
-        let new_style = self.selector_matches.difference(&removals);
-        if new_style != self.selector_matches {
-            self.selector_matches = new_style;
-            self.stylesheet
-                .replace(self.style.as_ref().unwrap().get(&self.selector_matches));
-        }
-
-        query.ancestors.push(removals);
-        let own_siblings = std::mem::replace(&mut query.siblings, Vec::new());
-        self.widget
-            .visit_children(&mut |child| child.remove_matches(&mut *query));
-        query.siblings = own_siblings;
-        query.siblings.push(query.ancestors.pop().unwrap());
     }
 
     /// Returns the `(width, height)` of this widget.
@@ -457,7 +389,6 @@ impl<'a, Message> Node<'a, Message> {
         let layout = layout.after_padding(stylesheet.margin);
 
         self.widget.event(layout, clip, stylesheet, event, context);
-        self.focused.replace(Some(self.widget.focused()));
 
         let next_state = self.state();
         if next_state != self.state {
@@ -504,6 +435,8 @@ impl<'a, Message> Node<'a, Message> {
                     .replace(self.style.as_ref().unwrap().get(&self.selector_matches));
             }
         }
+
+        self.focused.replace(Some(self.widget.focused()));
     }
 
     /// Draw the widget. Returns a list of [`Primitive`s](../draw/enum.Primitive.html) that should be drawn.
@@ -516,6 +449,85 @@ impl<'a, Message> Node<'a, Message> {
         let layout = layout.after_padding(stylesheet.margin);
 
         self.widget.draw(layout, clip, stylesheet)
+    }
+}
+
+impl<'a, Message> ApplyStyle for Node<'a, Message> {
+    fn style(&mut self, query: &mut Query, position: (usize, usize)) {
+        self.position = position;
+
+        // remember style
+        self.style = Some(query.style.clone());
+
+        // resolve own stylesheet
+        self.state = self.state();
+        self.selector_matches = query.match_widget(
+            self.widget.widget(),
+            self.class.unwrap_or(""),
+            self.state.as_slice(),
+            self.position.0,
+            self.position.1,
+        );
+        self.stylesheet.replace(query.style.get(&self.selector_matches));
+
+        // resolve children style
+        query.ancestors.push(self.selector_matches.clone());
+        let own_siblings = std::mem::replace(&mut query.siblings, Vec::new());
+        let mut i = 0;
+        let len = self.widget.len();
+        self.widget.visit_children(&mut |child| {
+            child.style(&mut *query, (i, len));
+            i += 1;
+        });
+        query.siblings = own_siblings;
+        query.siblings.push(query.ancestors.pop().unwrap());
+    }
+
+    fn add_matches(&mut self, query: &mut Query) {
+        let additions = query.match_widget(
+            self.widget.widget(),
+            self.class.unwrap_or(""),
+            self.state.as_slice(),
+            self.position.0,
+            self.position.1,
+        );
+
+        let new_style = self.selector_matches.union(&additions);
+        if new_style != self.selector_matches {
+            self.selector_matches = new_style;
+            self.stylesheet
+                .replace(self.style.as_ref().unwrap().get(&self.selector_matches));
+        }
+
+        query.ancestors.push(additions);
+        let own_siblings = std::mem::replace(&mut query.siblings, Vec::new());
+        self.widget.visit_children(&mut |child| child.add_matches(&mut *query));
+        query.siblings = own_siblings;
+        query.siblings.push(query.ancestors.pop().unwrap());
+    }
+
+    fn remove_matches(&mut self, query: &mut Query) {
+        let removals = query.match_widget(
+            self.widget.widget(),
+            self.class.unwrap_or(""),
+            self.state.as_slice(),
+            self.position.0,
+            self.position.1,
+        );
+
+        let new_style = self.selector_matches.difference(&removals);
+        if new_style != self.selector_matches {
+            self.selector_matches = new_style;
+            self.stylesheet
+                .replace(self.style.as_ref().unwrap().get(&self.selector_matches));
+        }
+
+        query.ancestors.push(removals);
+        let own_siblings = std::mem::replace(&mut query.siblings, Vec::new());
+        self.widget
+            .visit_children(&mut |child| child.remove_matches(&mut *query));
+        query.siblings = own_siblings;
+        query.siblings.push(query.ancestors.pop().unwrap());
     }
 }
 

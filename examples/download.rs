@@ -18,7 +18,7 @@ enum Message {
     ProgressUpdated(usize, usize),
 }
 
-impl Model for Download {
+impl Component for Download {
     type Message = Message;
 
     fn view(&mut self) -> Node<Message> {
@@ -40,7 +40,7 @@ impl Model for Download {
     }
 }
 
-impl<'a> UpdateModel<'a> for Download {
+impl<'a> UpdateComponent<'a> for Download {
     type State = ();
 
     fn update(&mut self, message: Self::Message, _: &mut ()) -> Vec<Command<Message>> {

@@ -2,7 +2,7 @@ use crate::draw::*;
 use crate::event::{Event, Key};
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
-use crate::widget::{Context, Dummy, IntoNode, Node, Widget};
+use crate::widget::{ApplyStyle, Context, Dummy, IntoNode, Node, Widget};
 
 /// View a small section of larger widget, with scrollbars.
 /// The scrollbars are only rendered if the content is larger than the view in that direction.
@@ -111,7 +111,7 @@ impl<'a, T: 'a> Widget<'a, T> for Scroll<'a, T> {
         1
     }
 
-    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut Node<'a, T>)) {
+    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn ApplyStyle)) {
         visitor(&mut self.content);
         visitor(&mut self.scrollbar_h);
         visitor(&mut self.scrollbar_v);

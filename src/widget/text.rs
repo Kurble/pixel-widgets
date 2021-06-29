@@ -27,7 +27,7 @@ impl<'a, T> Widget<'a, T> for Text {
         0
     }
 
-    fn visit_children(&mut self, _: &mut dyn FnMut(&mut Node<'a, T>)) {}
+    fn visit_children(&mut self, _: &mut dyn FnMut(&mut dyn ApplyStyle)) {}
 
     fn size(&self, style: &Stylesheet) -> (Size, Size) {
         let width = style.width;

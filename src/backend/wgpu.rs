@@ -8,13 +8,13 @@ use wgpu::*;
 use crate::draw::{Command as DrawCommand, DrawList, Update, Vertex};
 use crate::layout::Rectangle;
 use crate::loader::Loader;
-use crate::{Command, EventLoop, UpdateModel, Model};
+use crate::{Command, Component, EventLoop, UpdateComponent};
 use std::num::NonZeroU32;
 use wgpu::util::DeviceExt;
 
 /// Wrapper for [`Ui`](../../struct.Ui.html) that adds wgpu rendering.
 /// Requires the "wgpu" feature.
-pub struct Ui<M: Model + for<'a> UpdateModel<'a>, E: EventLoop<Command<<M as Model>::Message>>, L: Loader> {
+pub struct Ui<M: Component + for<'a> UpdateComponent<'a>, E: EventLoop<Command<<M as Component>::Message>>, L: Loader> {
     inner: crate::Ui<M, E, L>,
     pipeline: RenderPipeline,
     bind_group_layout: BindGroupLayout,
@@ -29,7 +29,12 @@ struct TextureEntry {
     bind_group: BindGroup,
 }
 
-impl<M: Model + for<'a> UpdateModel<'a>, E: 'static + EventLoop<Command<<M as Model>::Message>>, L: 'static + Loader> Ui<M, E, L> {
+impl<
+        M: Component + for<'a> UpdateComponent<'a>,
+        E: 'static + EventLoop<Command<<M as Component>::Message>>,
+        L: 'static + Loader,
+    > Ui<M, E, L>
+{
     /// Constructs a new `Ui` using the default style.
     /// This is not recommended as the default style is very empty and only renders white text.
     pub fn new(
@@ -310,7 +315,9 @@ impl<M: Model + for<'a> UpdateModel<'a>, E: 'static + EventLoop<Command<<M as Mo
     }
 }
 
-impl<M: Model + for<'a> UpdateModel<'a>, E: EventLoop<Command<<M as Model>::Message>>, L: Loader> Deref for Ui<M, E, L> {
+impl<M: Component + for<'a> UpdateComponent<'a>, E: EventLoop<Command<<M as Component>::Message>>, L: Loader> Deref
+    for Ui<M, E, L>
+{
     type Target = crate::Ui<M, E, L>;
 
     fn deref(&self) -> &Self::Target {
@@ -318,7 +325,9 @@ impl<M: Model + for<'a> UpdateModel<'a>, E: EventLoop<Command<<M as Model>::Mess
     }
 }
 
-impl<M: Model + for<'a> UpdateModel<'a>, E: EventLoop<Command<<M as Model>::Message>>, L: Loader> DerefMut for Ui<M, E, L> {
+impl<M: Component + for<'a> UpdateComponent<'a>, E: EventLoop<Command<<M as Component>::Message>>, L: Loader> DerefMut
+    for Ui<M, E, L>
+{
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.inner
     }

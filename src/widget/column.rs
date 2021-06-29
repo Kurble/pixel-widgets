@@ -3,7 +3,7 @@ use crate::draw::Primitive;
 use crate::event::Event;
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
-use crate::widget::{Context, IntoNode};
+use crate::widget::{ApplyStyle, Context, IntoNode};
 
 /// Layout child widgets vertically
 pub struct Column<'a, T> {
@@ -79,7 +79,7 @@ impl<'a, T: 'a + Send> Widget<'a, T> for Column<'a, T> {
         self.children.len()
     }
 
-    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut Node<'a, T>)) {
+    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn ApplyStyle)) {
         self.children.iter_mut().for_each(|child| visitor(child));
     }
 

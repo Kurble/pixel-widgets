@@ -56,7 +56,7 @@ enum Message {
     CombinePlayground(usize, usize),
 }
 
-impl Model for Alchemy {
+impl Component for Alchemy {
     type Message = Message;
 
     fn view(&mut self) -> Node<Message> {
@@ -131,7 +131,7 @@ impl Model for Alchemy {
     }
 }
 
-impl<'a> UpdateModel<'a> for Alchemy {
+impl<'a> UpdateComponent<'a> for Alchemy {
     type State = ();
 
     fn update(&mut self, message: Self::Message, _: &mut ()) -> Vec<Command<Message>> {

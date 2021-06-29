@@ -3,7 +3,7 @@ use crate::event::{Event, Key, Modifiers};
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
 use crate::text::{Text, TextWrap};
-use crate::widget::{Context, IntoNode, Node, Widget};
+use crate::widget::{ApplyStyle, Context, IntoNode, Node, Widget};
 #[cfg(feature = "clipboard")]
 use clipboard::{ClipboardContext, ClipboardProvider};
 use rusttype::Scale;
@@ -120,7 +120,7 @@ where
         0
     }
 
-    fn visit_children(&mut self, _: &mut dyn FnMut(&mut Node<'a, T>)) {}
+    fn visit_children(&mut self, _: &mut dyn FnMut(&mut dyn ApplyStyle)) {}
 
     fn size(&self, stylesheet: &Stylesheet) -> (Size, Size) {
         match (stylesheet.width, stylesheet.height) {

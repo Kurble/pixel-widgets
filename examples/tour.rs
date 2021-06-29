@@ -24,7 +24,7 @@ enum Message {
     PlanetSelected(&'static str),
 }
 
-impl Model for Tour {
+impl Component for Tour {
     type Message = Message;
 
     fn view(&mut self) -> Node<Message> {
@@ -141,7 +141,7 @@ impl Model for Tour {
     }
 }
 
-impl UpdateModel<'_> for Tour {
+impl UpdateComponent<'_> for Tour {
     type State = ();
 
     fn update(&mut self, message: Self::Message, _: &mut ()) -> Vec<Command<Message>> {

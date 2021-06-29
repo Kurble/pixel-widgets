@@ -2,7 +2,7 @@ use crate::draw::Primitive;
 use crate::event::Event;
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
-use crate::widget::{Context, IntoNode, Node, Widget};
+use crate::widget::{ApplyStyle, Context, IntoNode, Node, Widget};
 
 /// The anchor from which to apply the offset of a `Panel`
 #[allow(missing_docs)]
@@ -84,7 +84,7 @@ impl<'a, T: 'a> Widget<'a, T> for Panel<'a, T> {
         1
     }
 
-    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut Node<'a, T>)) {
+    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn ApplyStyle)) {
         visitor(&mut self.content);
     }
 

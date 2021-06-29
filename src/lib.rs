@@ -56,7 +56,7 @@
 //!     DownClicked,
 //! }
 //!
-//! impl UpdateModel for Counter {
+//! impl UpdateComponent for Counter {
 //!     // define our message type
 //!     type Message = Message;
 //!
@@ -105,7 +105,7 @@
 //! }
 //! ```
 //!
-#![deny(missing_docs)]
+//#![deny(missing_docs)]
 
 use std::future::Future;
 use std::ops::{Deref, DerefMut};
@@ -121,9 +121,9 @@ use crate::event::Event;
 use crate::graphics::Graphics;
 use crate::layout::Rectangle;
 use crate::loader::Loader;
-use crate::model_view::ModelView;
+use crate::mount::Mount;
 use crate::stylesheet::Style;
-use crate::widget::{Context, Node};
+use crate::widget::{Context, Node, Widget};
 
 mod atlas;
 /// Backend specific code
@@ -141,7 +141,7 @@ pub mod graphics;
 pub mod layout;
 /// Asynchronous resource loading
 pub mod loader;
-mod model_view;
+mod mount;
 /// Simple windowing system for those who want to render _just_ widgets.
 #[cfg(feature = "winit")]
 #[cfg(feature = "wgpu")]
@@ -162,28 +162,18 @@ pub mod widget;
 /// # Examples
 /// The examples in this repository all implement some kind of [`Model`](trait.Model.html), check them out if you just want to read
 /// some code.
-pub trait Model: 'static {
-    /// The type of message your GUI will produce.
-    type Message;
+pub trait Component {
+    type Message: 'static;
 
-    /// Called after [`update`](#tymethod.update) or after the model has been accessed mutably from the [`Ui`](struct.Ui.html).
-    /// This is where you should build all of your ui widgets based on the current gui state.
-    /// The returned ui widgets produce messages of the type `Self::Message`.
-    fn view(&mut self) -> Node<Self::Message>;
-}
+    type State: 'static;
 
-/// Update a model after a message is received.
-pub trait UpdateModel<'a>: Model {
-    /// Custom state for update
-    type State: 'a;
+    type Output: 'static;
 
-    /// Called when a message is fired from the view or some other source.
-    /// This is where you should update your gui state.
-    fn update(
-        &mut self,
-        message: <Self as Model>::Message,
-        resources: &mut Self::State,
-    ) -> Vec<Command<<Self as Model>::Message>>;
+    fn mount(&self) -> Self::State;
+
+    fn view(&self, state: &mut Self::State) -> Box<dyn Widget<Self::Message>>;
+
+    fn update(&self, message: Self::Message, state: &mut Self::State) -> Vec<Self::Output>;
 }
 
 /// Trait for sending custom events to the event loop of the application
@@ -201,8 +191,8 @@ pub trait EventLoop<T: Send>: Clone + Send {
 /// `Ui` manages a [`Model`](trait.Model.html) and processes it to a [`DrawList`](draw/struct.DrawList.html) that can be rendered using your
 ///  own renderer implementation. Alternatively, you can use one of the following included wrappers:
 /// - [`WgpuUi`](backend/wgpu/struct.WgpuUi.html) Renders using [wgpu-rs](https://github.com/gfx-rs/wgpu-rs).
-pub struct Ui<M: Model, E: EventLoop<Command<<M as Model>::Message>>, L: Loader> {
-    model_view: ModelView<M>,
+pub struct Ui<M: Component, E: EventLoop<Command<<M as Component>::Message>>, L: Loader> {
+    model_view: Mount<M>,
     style: Arc<Style>,
     viewport: Rectangle,
     redraw: bool,
@@ -224,8 +214,8 @@ pub enum Command<Message> {
 
 impl<M, E, L> Ui<M, E, L>
 where
-    M: Model,
-    E: 'static + EventLoop<Command<<M as Model>::Message>>,
+    M: Component,
+    E: 'static + EventLoop<Command<<M as Component>::Message>>,
     L: 'static + Loader,
 {
     /// Constructs a new `Ui` using the default style.
@@ -234,7 +224,7 @@ where
         let style = Arc::new(Style::new(512, 0));
 
         Self {
-            model_view: ModelView::new(model),
+            model_view: Mount::new(model),
             style,
             viewport,
             redraw: true,
@@ -305,7 +295,7 @@ where
         self.redraw || self.model_view.dirty()
     }
 
-    fn command_stylesheet(&mut self, command: Command<<M as Model>::Message>) {
+    fn command_stylesheet(&mut self, command: Command<<M as Component>::Message>) {
         match command {
             Command::Stylesheet(mut task) => {
                 let complete = task.complete.clone();
@@ -344,9 +334,9 @@ where
     }
 
     /// Updates the model after a `Command` has resolved.
-    pub fn command<'a, S: 'a>(&mut self, command: Command<<M as Model>::Message>, resources: &mut S)
+    pub fn command<'a, S: 'a>(&mut self, command: Command<<M as Component>::Message>, resources: &mut S)
     where
-        M: UpdateModel<'a, State = S>,
+        M: UpdateComponent<'a, State = S>,
     {
         match command {
             Command::Await(mut task) => {
@@ -378,9 +368,9 @@ where
 
     /// Updates the model with a message.
     /// This forces the view to be rerendered.
-    pub fn update<'a, S: 'a>(&mut self, message: <M as Model>::Message, resources: &mut S)
+    pub fn update<'a, S: 'a>(&mut self, message: <M as Component>::Message, resources: &mut S)
     where
-        M: UpdateModel<'a, State = S>,
+        M: UpdateComponent<'a, State = S>,
     {
         for command in self.model_view.model_mut().update(message, resources) {
             self.command(command, resources);
@@ -390,7 +380,7 @@ where
     /// Handles an [`Event`](event/struct.Event.html).
     pub fn event<'a, S: 'a>(&mut self, event: Event, resources: &mut S)
     where
-        M: UpdateModel<'a, State = S>,
+        M: UpdateComponent<'a, State = S>,
     {
         if let Event::Cursor(x, y) = event {
             self.cursor = (x, y);
@@ -790,7 +780,7 @@ impl<T: Send, E: EventLoop<T>> ArcWake for EventLoopWaker<T, E> {
     }
 }
 
-impl<M: Model, E: EventLoop<Command<<M as Model>::Message>>, L: Loader> Deref for Ui<M, E, L> {
+impl<M: Component, E: EventLoop<Command<<M as Component>::Message>>, L: Loader> Deref for Ui<M, E, L> {
     type Target = M;
 
     fn deref(&self) -> &Self::Target {
@@ -798,7 +788,7 @@ impl<M: Model, E: EventLoop<Command<<M as Model>::Message>>, L: Loader> Deref fo
     }
 }
 
-impl<M: Model, E: EventLoop<Command<<M as Model>::Message>>, L: Loader> DerefMut for Ui<M, E, L> {
+impl<M: Component, E: EventLoop<Command<<M as Component>::Message>>, L: Loader> DerefMut for Ui<M, E, L> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.model_view.model_mut()
     }
@@ -834,6 +824,6 @@ pub mod prelude {
     #[cfg(feature = "wgpu")]
     pub use crate::sandbox::Sandbox;
     pub use crate::{
-        layout::Rectangle, stylesheet::Style, tracker::ManagedState, widget::*, Command, Model, Ui, UpdateModel,
+        layout::Rectangle, stylesheet::Style, tracker::ManagedState, widget::*, Command, Component, Ui, UpdateComponent,
     };
 }

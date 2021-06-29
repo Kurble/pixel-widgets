@@ -5,7 +5,7 @@ use crate::draw::*;
 use crate::event::{Event, Key};
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::{StyleState, Stylesheet};
-use crate::widget::{Context, IntoNode, Node, StateVec, Widget};
+use crate::widget::{ApplyStyle, Context, IntoNode, Node, StateVec, Widget};
 
 /// A clickable button
 pub struct Button<'a, T> {
@@ -58,7 +58,7 @@ impl<'a, T: 'a + Send> Widget<'a, T> for Button<'a, T> {
         1
     }
 
-    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut Node<'a, T>)) {
+    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn ApplyStyle)) {
         visitor(&mut self.content);
     }
 

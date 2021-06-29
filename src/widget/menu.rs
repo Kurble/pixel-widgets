@@ -2,7 +2,7 @@ use crate::draw::Primitive;
 use crate::event::{Event, Key};
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
-use crate::widget::{Context, IntoNode, Node, Widget};
+use crate::widget::{ApplyStyle, Context, IntoNode, Node, Widget};
 
 use std::marker::PhantomData;
 
@@ -190,7 +190,7 @@ impl<'a, T: 'a + Send, S: Send + AsRef<[MenuItem<'a, T>]> + AsMut<[MenuItem<'a, 
     }
 }
 
-fn visit<'a, T>(items: &mut [MenuItem<'a, T>], visitor: &mut dyn FnMut(&mut Node<'a, T>)) {
+fn visit<'a, T>(items: &mut [MenuItem<'a, T>], visitor: &mut dyn FnMut(&mut dyn ApplyStyle)) {
     for item in items.iter_mut() {
         match item {
             MenuItem::Item { ref mut content, .. } => visitor(content),
@@ -214,7 +214,7 @@ impl<'a, T: 'a + Send, S: Send + AsRef<[MenuItem<'a, T>]> + AsMut<[MenuItem<'a, 
         self.items.as_ref().len()
     }
 
-    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut Node<'a, T>)) {
+    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn ApplyStyle)) {
         visit(self.items.as_mut(), visitor);
     }
 

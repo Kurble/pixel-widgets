@@ -4,7 +4,7 @@ use crate::draw::Primitive;
 use crate::event::{Event, Key};
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::{StyleState, Stylesheet};
-use crate::widget::{Context, IntoNode, Node, StateVec, Widget};
+use crate::widget::{ApplyStyle, Context, IntoNode, Node, StateVec, Widget};
 
 /// Pick an item from a dropdown box
 pub struct Dropdown<'a, T> {
@@ -81,7 +81,7 @@ impl<'a, T: Send + 'a> Widget<'a, T> for Dropdown<'a, T> {
         self.items.len()
     }
 
-    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut Node<'a, T>)) {
+    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn ApplyStyle)) {
         for item in self.items.iter_mut() {
             visitor(&mut item.node);
         }

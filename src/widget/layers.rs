@@ -2,7 +2,7 @@ use crate::draw::Primitive;
 use crate::event::{Event, Key};
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
-use crate::widget::{Context, IntoNode, Node, Widget};
+use crate::widget::{ApplyStyle, Context, IntoNode, Node, Widget};
 
 /// Stack child widgets on top of each other, while only the topmost receives events.
 pub struct Layers<'a, T, Id> {
@@ -71,7 +71,7 @@ impl<'a, T: 'a + Send, Id: 'a + Send> Widget<'a, T> for Layers<'a, T, Id> {
         self.layers.len()
     }
 
-    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut Node<'a, T>)) {
+    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn ApplyStyle)) {
         for background in self.background.iter_mut() {
             visitor(background);
         }

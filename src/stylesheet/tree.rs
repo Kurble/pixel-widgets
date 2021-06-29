@@ -20,7 +20,7 @@ pub(crate) struct RuleTreeBuilder {
 }
 
 #[derive(Clone)]
-pub(crate) struct Query {
+pub struct Query {
     pub style: Arc<Style>,
     pub ancestors: Vec<BitSet>,
     pub siblings: Vec<BitSet>,

@@ -2,7 +2,7 @@ use crate::draw::*;
 use crate::event::{Event, Key};
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
-use crate::widget::{Context, Dummy, IntoNode, Node, Widget};
+use crate::widget::{ApplyStyle, Context, Dummy, IntoNode, Node, Widget};
 
 /// Select a number using a sliding handle
 /// The handle can be styled using the `handle` child widget of this widget.
@@ -72,7 +72,7 @@ impl<'a, T: 'a, F: 'a + Send + Fn(f32) -> T> Widget<'a, T> for Slider<'a, T, F> 
         1
     }
 
-    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut Node<'a, T>)) {
+    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn ApplyStyle)) {
         visitor(&mut self.scrollbar);
     }
 
