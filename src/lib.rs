@@ -116,15 +116,15 @@ use std::task::{Poll, Waker};
 use futures::task::ArcWake;
 use futures::Stream;
 
+use crate::component_node::ComponentNode;
 use crate::draw::DrawList;
 use crate::event::Event;
 use crate::graphics::Graphics;
 use crate::layout::Rectangle;
 use crate::loader::Loader;
-use crate::mount::Mount;
 use crate::stylesheet::Style;
+use crate::tracker::{ManagedState, ManagedStateTracker};
 use crate::widget::{Context, Node, Widget};
-use crate::tracker::ManagedStateTracker;
 
 mod atlas;
 /// Backend specific code
@@ -132,6 +132,7 @@ pub mod backend;
 mod bitset;
 /// Texture cache for styles and text
 pub mod cache;
+mod component_node;
 /// Primitives used for drawing
 pub mod draw;
 /// User input events
@@ -142,7 +143,6 @@ pub mod graphics;
 pub mod layout;
 /// Asynchronous resource loading
 pub mod loader;
-mod mount;
 /// Simple windowing system for those who want to render _just_ widgets.
 #[cfg(feature = "winit")]
 #[cfg(feature = "wgpu")]
@@ -172,7 +172,7 @@ pub trait Component {
 
     fn mount(&self) -> Self::State;
 
-    fn view(&self, state: &Self::State) -> Box<dyn Widget<Self::Message>>;
+    fn view<'a>(&'a self, state: &'a Self::State) -> Node<'a, Self::Message>;
 
     fn update(&self, message: Self::Message, state: &mut Self::State) -> Vec<Self::Output>;
 }
@@ -193,7 +193,7 @@ pub trait EventLoop<T: Send>: Clone + Send {
 ///  own renderer implementation. Alternatively, you can use one of the following included wrappers:
 /// - [`WgpuUi`](backend/wgpu/struct.WgpuUi.html) Renders using [wgpu-rs](https://github.com/gfx-rs/wgpu-rs).
 pub struct Ui<M: Component, E: EventLoop<Command<<M as Component>::Message>>, L: Loader> {
-    model_view: Mount<M>,
+    model_view: ComponentNode<'static, M, ManagedState>,
     style: Arc<Style>,
     viewport: Rectangle,
     redraw: bool,
@@ -225,7 +225,7 @@ where
         let style = Arc::new(Style::new(512, 0));
 
         Self {
-            model_view: Mount::new(model),
+            model_view: ComponentNode::new(model),
             style,
             viewport,
             redraw: true,

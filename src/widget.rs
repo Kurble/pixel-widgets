@@ -52,7 +52,7 @@ pub use self::space::Space;
 pub use self::text::Text;
 pub use self::toggle::Toggle;
 pub use self::window::Window;
-use crate::mount::Mount;
+use crate::component_node::ComponentNode;
 use crate::tracker::ManagedStateTracker;
 use std::any::Any;
 use std::hash::Hash;
@@ -100,13 +100,14 @@ pub mod window;
 pub trait Widget<'a, Message>: Send {
     type State: Any + Send + Sync;
 
+    /// The key of this widget, used for resolving state.
+    fn key(&self) -> u64;
+
+    /// Create a new state
     fn mount(&self) -> Self::State;
 
     /// The name of this widget, used to identify widgets of this type in stylesheets.
-    fn widget(&self, state: &Self::State) -> &'static str;
-
-    /// The key of this widget, used for resolving state.
-    fn key(&self, state: &Self::State) -> u64;
+    fn widget(&self) -> &'static str;
 
     /// The state of this widget, used for computing the style.
     /// If `None` is returned, `Node` will automatically compute a state, such as "hover" and "pressed".
@@ -116,11 +117,11 @@ pub trait Widget<'a, Message>: Send {
 
     /// Should return the amount of children this widget has. Must be consistent with
     /// [`visit_children()`](#tymethod.visit_children).
-    fn len(&self, state: &Self::State) -> usize;
+    fn len(&self) -> usize;
 
     /// Returns whether this children has no children. Must be consistent with
     /// [`visit_children()`](#tymethod.visit_children).
-    fn is_empty(&self, _state: &Self::State) -> bool {
+    fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
@@ -128,7 +129,7 @@ pub trait Widget<'a, Message>: Send {
     /// be able to resolve their stylesheet, resulting in a panic when calling [`size`](struct.Node.html#method.size),
     /// [`hit`](struct.Node.html#method.hit), [`event`](struct.Node.html#method.event) or
     /// [`draw`](struct.Node.html#method.draw).
-    fn visit_children(&mut self, state: &mut Self::State, visitor: &mut dyn FnMut(&mut dyn GenericNode));
+    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn GenericNode));
 
     /// Returns the `(width, height)` of this widget.
     /// The extents are defined as a [`Size`](../layout/struct.Size.html),
@@ -343,11 +344,10 @@ impl<'a, Message, W: Widget<'a, Message>> WidgetNode<'a, Message, W> {
 impl<'a, Message, W: Widget<'a, Message>> GenericNode<'a> for WidgetNode<'a, Message, W> {
     fn acquire_state(&mut self, tracker: &mut ManagedStateTracker) {
         self.widget_state = Some(tracker.get_or_default_with(self.widget.key(), || self.widget.mount()));
-        self.widget
-            .visit_children(&mut **self.widget_state.as_mut().unwrap(), &mut |child| {
-                child.acquire_state(&mut *tracker);
-                i += 1;
-            });
+        self.widget.visit_children(&mut |child| {
+            child.acquire_state(&mut *tracker);
+            i += 1;
+        });
     }
 
     fn size(&self) -> (Size, Size) {
