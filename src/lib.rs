@@ -124,6 +124,7 @@ use crate::loader::Loader;
 use crate::mount::Mount;
 use crate::stylesheet::Style;
 use crate::widget::{Context, Node, Widget};
+use crate::tracker::ManagedStateTracker;
 
 mod atlas;
 /// Backend specific code
@@ -171,7 +172,7 @@ pub trait Component {
 
     fn mount(&self) -> Self::State;
 
-    fn view(&self, state: &mut Self::State) -> Box<dyn Widget<Self::Message>>;
+    fn view(&self, state: &Self::State) -> Box<dyn Widget<Self::Message>>;
 
     fn update(&self, message: Self::Message, state: &mut Self::State) -> Vec<Self::Output>;
 }

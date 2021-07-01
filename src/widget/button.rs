@@ -5,11 +5,14 @@ use crate::draw::*;
 use crate::event::{Event, Key};
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::{StyleState, Stylesheet};
+use crate::tracker::ManagedStateTracker;
 use crate::widget::{ApplyStyle, Context, IntoNode, Node, StateVec, Widget};
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 
 /// A clickable button
 pub struct Button<'a, T> {
-    state: &'a mut State,
+    state: Option<&'a mut State>,
     content: Node<'a, T>,
     on_clicked: Option<T>,
 }
@@ -25,9 +28,9 @@ pub enum State {
 
 impl<'a, T: 'a> Button<'a, T> {
     /// Construct a new button
-    pub fn new<C: IntoNode<'a, T> + 'a>(state: &'a mut State, content: C) -> Self {
+    pub fn new<C: IntoNode<'a, T> + 'a>(content: C) -> Self {
         Self {
-            state,
+            state: None,
             content: content.into_node(),
             on_clicked: None,
         }
@@ -41,12 +44,22 @@ impl<'a, T: 'a> Button<'a, T> {
 }
 
 impl<'a, T: 'a + Send> Widget<'a, T> for Button<'a, T> {
-    fn widget(&self) -> &'static str {
+    type State = State;
+
+    fn mount(&self) -> State {
+        State::Idle
+    }
+
+    fn widget(&self, _: &State) -> &'static str {
         "button"
     }
 
-    fn state(&self) -> StateVec {
-        match self.state {
+    fn key(&self, _: &State) -> u64 {
+        "button".get_hash(DefaultHasher::new())
+    }
+
+    fn state(&self, _: &State) -> StateVec {
+        match self.state.unwrap() {
             State::Idle => StateVec::new(),
             State::Hover => smallvec![StyleState::Hover],
             State::Pressed => smallvec![StyleState::Pressed],
@@ -54,24 +67,32 @@ impl<'a, T: 'a + Send> Widget<'a, T> for Button<'a, T> {
         }
     }
 
-    fn len(&self) -> usize {
+    fn len(&self, _: &State) -> usize {
         1
     }
 
-    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn ApplyStyle)) {
+    fn visit_children(&mut self, _: &mut State, visitor: &mut dyn FnMut(&mut dyn ApplyStyle)) {
         visitor(&mut self.content);
     }
 
-    fn size(&self, style: &Stylesheet) -> (Size, Size) {
+    fn size(&self, _: &State, style: &Stylesheet) -> (Size, Size) {
         style
             .background
             .resolve_size((style.width, style.height), self.content.size(), style.padding)
     }
 
-    fn event(&mut self, layout: Rectangle, clip: Rectangle, _: &Stylesheet, event: Event, context: &mut Context<T>) {
+    fn event(
+        &mut self,
+        state: &mut State,
+        layout: Rectangle,
+        clip: Rectangle,
+        _: &Stylesheet,
+        event: Event,
+        context: &mut Context<T>,
+    ) {
         match event {
             Event::Cursor(x, y) => {
-                *self.state = match replace(self.state, State::Idle) {
+                *state = match replace(state, State::Idle) {
                     State::Idle => {
                         if layout.point_inside(x, y) && clip.point_inside(x, y) {
                             context.redraw();
@@ -101,7 +122,7 @@ impl<'a, T: 'a + Send> Widget<'a, T> for Button<'a, T> {
             }
 
             Event::Press(Key::LeftMouseButton) => {
-                *self.state = match replace(self.state, State::Idle) {
+                *state = match replace(state, State::Idle) {
                     State::Hover => {
                         context.redraw();
                         State::Pressed
@@ -111,7 +132,7 @@ impl<'a, T: 'a + Send> Widget<'a, T> for Button<'a, T> {
             }
 
             Event::Release(Key::LeftMouseButton) => {
-                *self.state = match replace(self.state, State::Idle) {
+                *state = match replace(state, State::Idle) {
                     State::Pressed => {
                         context.redraw();
                         context.extend(self.on_clicked.take());
@@ -125,7 +146,7 @@ impl<'a, T: 'a + Send> Widget<'a, T> for Button<'a, T> {
         }
     }
 
-    fn draw(&mut self, layout: Rectangle, clip: Rectangle, style: &Stylesheet) -> Vec<Primitive<'a>> {
+    fn draw(&mut self, _: &mut State, layout: Rectangle, clip: Rectangle, style: &Stylesheet) -> Vec<Primitive<'a>> {
         let content_rect = style.background.content_rect(layout, style.padding);
 
         style

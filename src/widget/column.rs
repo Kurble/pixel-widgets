@@ -4,6 +4,8 @@ use crate::event::Event;
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::Stylesheet;
 use crate::widget::{ApplyStyle, Context, IntoNode};
+use crate::tracker::ManagedStateTracker;
+use std::hash::{Hash, Hasher};
 
 /// Layout child widgets vertically
 pub struct Column<'a, T> {
@@ -70,10 +72,18 @@ impl<'a, T: 'a> Default for Column<'a, T> {
     }
 }
 
+impl<'a, T> Hash for Column<'a, T> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        "column".hash(state)
+    }
+}
+
 impl<'a, T: 'a + Send> Widget<'a, T> for Column<'a, T> {
     fn widget(&self) -> &'static str {
         "column"
     }
+
+    fn acquire_state(&mut self, _: &mut ManagedStateTracker<'a>) { }
 
     fn len(&self) -> usize {
         self.children.len()

@@ -4,53 +4,46 @@ use crate::layout::{Rectangle, Size};
 use crate::prelude::{Context, StateVec};
 use crate::stylesheet::tree::Query;
 use crate::stylesheet::{Style, Stylesheet};
-use crate::widget::{ApplyStyle, Node, Widget};
+use crate::tracker::{ManagedState, ManagedStateTracker};
+use crate::widget::{ApplyStyle, GenericNode, Node, Widget};
 use crate::Component;
 use std::cell::{RefCell, RefMut};
 use std::ops::DerefMut;
 use std::sync::{Arc, Mutex};
 
-pub struct Mount<M: Component, S> {
+pub struct Mount<'a, M: Component> {
     props: Box<M>,
     view: RefCell<Option<Box<dyn Widget<'static, M::Message>>>>,
-    state: S,
-    style: Arc<Style>,
+    state: Option<&'a mut ManagedState>,
 }
 
 impl<M: Component, S: AsMut<M::State>> Mount<M, S> {
-    pub fn new(props: M, state: S, style: Arc<Style>) -> Self {
+    pub fn new(props: M, state: S) -> Self {
         Self {
             props: Box::new(props),
             state,
             view: RefCell::new(None),
-            style,
         }
     }
 
-    pub fn set_dirty(&mut self) {
+    pub fn state(&self) -> &M::State {
+        self.state.as_ref()
+    }
+
+    pub fn state_mut(&mut self) -> &mut M::State {
         self.view.replace(None);
-    }
-
-    pub fn dirty(&self) -> bool {
-        self.view.borrow().is_none()
-    }
-
-    pub fn model(&self) -> &M {
-        &self.props
-    }
-
-    pub fn model_mut(&mut self) -> &mut M {
-        self.view.replace(None);
-        &mut self.props
+        self.state.as_mut()
     }
 
     pub fn view(&self) -> impl DerefMut<Target = dyn Widget<'static, <M as Component>::Message>> {
         if self.view.is_none() {
             unsafe {
-                let mut root = (self.props.as_ref() as *const M)
-                    .as_ref()
-                    .unwrap()
-                    .view(self.state.as_ref());
+                let mut tracker = self.state.unwrap().tracker();
+                let state = tracker.get_or_default_with(0, || self.props.mount());
+
+                let mut root = (self.props.as_ref() as *const M).as_ref().unwrap().view(state);
+                //root.
+
                 self.view.replace(Some(root));
             }
         }
@@ -58,76 +51,37 @@ impl<M: Component, S: AsMut<M::State>> Mount<M, S> {
     }
 }
 
-impl<M: Component, S: AsMut<M::State>> Widget<M::Output> for Mount<M, S> {
-    fn widget(&self) -> &'static str {
-        self.view().widget()
+impl<'a, M: Component> GenericNode<'a> for Mount<M> {
+    fn acquire_state(&mut self, tracker: &mut ManagedStateTracker<'a>) {
+        self.state = Some(tracker.get(0));
     }
 
-    fn state(&self) -> StateVec {
-        self.view().state()
+    fn size(&self) -> (Size, Size) {
+        todo!()
     }
 
-    fn len(&self) -> usize {
-        self.view().len()
-    }
-
-    fn is_empty(&self) -> bool {
-        self.view().is_empty()
-    }
-
-    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn ApplyStyle)) {
-        self.view().visit_children(visitor)
-    }
-
-    fn size(&self, style: &Stylesheet) -> (Size, Size) {
-        self.view().size(style)
-    }
-
-    fn hit(&self, layout: Rectangle, clip: Rectangle, style: &Stylesheet, x: f32, y: f32) -> bool {
-        self.view().hit(layout, clip, style, x, y)
+    fn hit(&self, layout: Rectangle, clip: Rectangle, x: f32, y: f32) -> bool {
+        todo!()
     }
 
     fn focused(&self) -> bool {
-        self.view().focused()
+        todo!()
     }
 
-    fn event(
-        &mut self,
-        layout: Rectangle,
-        clip: Rectangle,
-        style: &Stylesheet,
-        event: Event,
-        context: &mut Context<M::Output>,
-    ) {
-        let mut sub_context = Context::<M::Message>::new(context.redraw_requested(), context.cursor());
-        self.view().event(layout, clip, style, event, &mut sub_context);
-        if sub_context.redraw_requested() {
-            context.redraw();
-        }
-        for message in sub_context {
-            context.extend(self.model_mut().update(message, self.state.as_mut()));
-        }
+    fn draw(&mut self, layout: Rectangle, clip: Rectangle) -> Vec<Primitive<'a>> {
+        todo!()
     }
 
-    fn node_event(
-        &mut self,
-        layout: Rectangle,
-        style: &Stylesheet,
-        event: NodeEvent,
-        context: &mut Context<M::Output>,
-    ) {
-        let mut sub_context = Context::<M::Message>::new(context.redraw_requested(), context.cursor());
-        self.view().node_event(layout, style, event, &mut sub_context);
-        if sub_context.redraw_requested() {
-            context.redraw();
-        }
-        for message in sub_context {
-            context.extend(self.model_mut().update(message, self.state.as_mut()));
-        }
+    fn style(&mut self, query: &mut Query, position: (usize, usize)) {
+        todo!()
     }
 
-    fn draw(&mut self, layout: Rectangle, clip: Rectangle, style: &Stylesheet) -> Vec<Primitive> {
-        self.view().draw(layout, clip, style)
+    fn add_matches(&mut self, query: &mut Query) {
+        todo!()
+    }
+
+    fn remove_matches(&mut self, query: &mut Query) {
+        todo!()
     }
 }
 

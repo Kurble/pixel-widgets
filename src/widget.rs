@@ -21,6 +21,9 @@
 //! Widgets like [`Scroll`](scroll/struct.Scroll.html) can change the layout without needing a rebuild of the ui.
 use std::cell::Cell;
 use std::ops::Deref;
+use std::sync::Arc;
+
+use smallvec::SmallVec;
 
 use crate::bitset::BitSet;
 use crate::draw::Primitive;
@@ -28,6 +31,7 @@ use crate::event::{Event, Key, NodeEvent};
 use crate::layout::*;
 use crate::stylesheet::tree::Query;
 use crate::stylesheet::*;
+use crate::Component;
 
 pub use self::button::Button;
 pub use self::column::Column;
@@ -48,8 +52,10 @@ pub use self::space::Space;
 pub use self::text::Text;
 pub use self::toggle::Toggle;
 pub use self::window::Window;
-use smallvec::SmallVec;
-use std::sync::Arc;
+use crate::mount::Mount;
+use crate::tracker::ManagedStateTracker;
+use std::any::Any;
+use std::hash::Hash;
 
 /// A clickable button
 pub mod button;
@@ -92,22 +98,29 @@ pub mod window;
 
 /// A user interface widget.
 pub trait Widget<'a, Message>: Send {
+    type State: Any + Send + Sync;
+
+    fn mount(&self) -> Self::State;
+
     /// The name of this widget, used to identify widgets of this type in stylesheets.
-    fn widget(&self) -> &'static str;
+    fn widget(&self, state: &Self::State) -> &'static str;
+
+    /// The key of this widget, used for resolving state.
+    fn key(&self, state: &Self::State) -> u64;
 
     /// The state of this widget, used for computing the style.
     /// If `None` is returned, `Node` will automatically compute a state, such as "hover" and "pressed".
-    fn state(&self) -> StateVec {
+    fn state(&self, _state: &Self::State) -> StateVec {
         StateVec::new()
     }
 
     /// Should return the amount of children this widget has. Must be consistent with
     /// [`visit_children()`](#tymethod.visit_children).
-    fn len(&self) -> usize;
+    fn len(&self, state: &Self::State) -> usize;
 
     /// Returns whether this children has no children. Must be consistent with
     /// [`visit_children()`](#tymethod.visit_children).
-    fn is_empty(&self) -> bool {
+    fn is_empty(&self, _state: &Self::State) -> bool {
         self.len() == 0
     }
 
@@ -115,12 +128,12 @@ pub trait Widget<'a, Message>: Send {
     /// be able to resolve their stylesheet, resulting in a panic when calling [`size`](struct.Node.html#method.size),
     /// [`hit`](struct.Node.html#method.hit), [`event`](struct.Node.html#method.event) or
     /// [`draw`](struct.Node.html#method.draw).
-    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn ApplyStyle));
+    fn visit_children(&mut self, state: &mut Self::State, visitor: &mut dyn FnMut(&mut dyn GenericNode));
 
     /// Returns the `(width, height)` of this widget.
     /// The extents are defined as a [`Size`](../layout/struct.Size.html),
     /// which will later be resolved to actual dimensions.
-    fn size(&self, style: &Stylesheet) -> (Size, Size);
+    fn size(&self, state: &Self::State, style: &Stylesheet) -> (Size, Size);
 
     /// Perform a hit detect on the widget. Most widgets are fine with the default implementation, but some
     /// widgets (like [`Window`](window/struct.Window.html) need to report a _miss_ (`false`) even when the queried
@@ -133,7 +146,15 @@ pub trait Widget<'a, Message>: Send {
     /// currently visible rect.
     /// - `x`: x mouse coordinate being queried
     /// - `y`: y mouse coordinate being queried
-    fn hit(&self, layout: Rectangle, clip: Rectangle, _style: &Stylesheet, x: f32, y: f32) -> bool {
+    fn hit(
+        &self,
+        _state: &Self::State,
+        layout: Rectangle,
+        clip: Rectangle,
+        _style: &Stylesheet,
+        x: f32,
+        y: f32,
+    ) -> bool {
         layout.point_inside(x, y) && clip.point_inside(x, y)
     }
 
@@ -142,7 +163,7 @@ pub trait Widget<'a, Message>: Send {
     /// In all other cases, it should return `false`. When a widget is in an exclusive focus state it is
     /// the only widget that is allowed to receive events in [`event`](#tymethod.event).
     /// Widgets that intended to use this behaviour are modal dialogs, dropdown boxes, context menu's, etc.
-    fn focused(&self) -> bool {
+    fn focused(&self, _state: &Self::State) -> bool {
         false
     }
 
@@ -159,26 +180,11 @@ pub trait Widget<'a, Message>: Send {
     /// - `context`: context for submitting messages and requesting redraws of the ui.
     fn event(
         &mut self,
+        _state: &mut Self::State,
         _layout: Rectangle,
         _clip: Rectangle,
         _style: &Stylesheet,
         _event: Event,
-        _context: &mut Context<Message>,
-    ) {
-    }
-
-    /// Handle a node event. If an event changes the graphical appearance of an `Widget`,
-    /// [`redraw`](struct.Context.html#method.redraw) should be called to let the [`Ui`](../struct.Ui.html) know that
-    /// the ui should be redrawn.
-    ///
-    /// Arguments:
-    /// - `event`: the event that needs to be handled
-    /// - `context`: context for submitting messages and requesting redraws of the ui.
-    fn node_event(
-        &mut self,
-        _layout: Rectangle,
-        _style: &Stylesheet,
-        _event: NodeEvent,
         _context: &mut Context<Message>,
     ) {
     }
@@ -188,8 +194,38 @@ pub trait Widget<'a, Message>: Send {
     /// Arguments:
     /// - `layout`: the layout assigned to the widget
     /// - `clip`: a clipping rect for use with [`Primitive::PushClip`](../draw/enum.Primitive.html#variant.PushClip).
-    fn draw(&mut self, layout: Rectangle, clip: Rectangle, style: &Stylesheet) -> Vec<Primitive<'a>>;
+    fn draw(
+        &mut self,
+        state: &mut Self::State,
+        layout: Rectangle,
+        clip: Rectangle,
+        style: &Stylesheet,
+    ) -> Vec<Primitive<'a>>;
 }
+
+pub trait GenericNode<'a> {
+    fn acquire_state(&mut self, tracker: &mut ManagedStateTracker<'a>);
+
+    fn size(&self) -> (Size, Size);
+
+    fn hit(&self, layout: Rectangle, clip: Rectangle, x: f32, y: f32) -> bool;
+
+    fn focused(&self) -> bool;
+
+    fn draw(&mut self, layout: Rectangle, clip: Rectangle) -> Vec<Primitive<'a>>;
+
+    fn style(&mut self, query: &mut Query, position: (usize, usize));
+
+    fn add_matches(&mut self, query: &mut Query);
+
+    fn remove_matches(&mut self, query: &mut Query);
+}
+
+pub trait GenericNodeEvent<'a, Message>: GenericNode<'a> {
+    fn event(&mut self, layout: Rectangle, clip: Rectangle, event: Event, context: &mut Context<Message>);
+}
+
+pub type Node<'a, Message> = Box<dyn GenericNodeEvent<'a, Message>>;
 
 /// Convert to a generic widget. All widgets should implement this trait. It is also implemented by `Node` itself,
 /// which simply returns self.
@@ -208,22 +244,13 @@ pub trait IntoNode<'a, Message: 'a>: 'a + Sized {
     }
 }
 
-pub trait ApplyStyle {
-    fn style(&mut self, query: &mut Query, position: (usize, usize));
-
-    fn add_matches(&mut self, query: &mut Query);
-
-    fn remove_matches(&mut self, query: &mut Query);
-}
-
 /// Storage for style states
 pub type StateVec = SmallVec<[StyleState<&'static str>; 3]>;
 
 /// Generic ui widget.
-pub struct Node<'a, Message> {
-    widget: Box<dyn Widget<'a, Message> + 'a>,
-    #[allow(clippy::type_complexity)]
-    event_handlers: Vec<(NodeEvent, Box<dyn 'a + Fn(&mut Context<Message>) + Send>)>,
+pub struct WidgetNode<'a, Message, W: Widget<'a, Message>> {
+    widget: W,
+    widget_state: Option<&'a mut W::State>,
     clicks: Vec<Key>,
     hovered: bool,
     size: Cell<Option<(Size, Size)>>,
@@ -243,12 +270,56 @@ pub struct Context<Message> {
     messages: Vec<Message>,
 }
 
-impl<'a, Message> Node<'a, Message> {
+impl<Message> Context<Message> {
+    pub(crate) fn new(redraw: bool, cursor: (f32, f32)) -> Self {
+        Self {
+            cursor,
+            redraw,
+            messages: Vec::new(),
+        }
+    }
+
+    /// Push a message to the current [`Model`].
+    pub fn push(&mut self, message: Message) {
+        self.messages.push(message);
+    }
+
+    /// Push multiple messages to the current [`Model`] using an iterator.
+    pub fn extend<I: IntoIterator<Item = Message>>(&mut self, iter: I) {
+        self.messages.extend(iter);
+    }
+
+    /// Request a redraw of the ui.
+    pub fn redraw(&mut self) {
+        self.redraw = true;
+    }
+
+    /// Returns the redraw flag.
+    pub fn redraw_requested(&self) -> bool {
+        self.redraw
+    }
+
+    /// Returns the cursor position
+    pub fn cursor(&self) -> (f32, f32) {
+        self.cursor
+    }
+}
+
+impl<Message> IntoIterator for Context<Message> {
+    type Item = Message;
+    type IntoIter = std::vec::IntoIter<Message>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.messages.into_iter()
+    }
+}
+
+impl<'a, Message, W: Widget<'a, Message>> WidgetNode<'a, Message, W> {
     /// Construct a new `Node` from an [`Widget`](trait.Widget.html).
     pub fn new<T: 'a + Widget<'a, Message>>(widget: T) -> Self {
-        Node {
+        Self {
             widget: Box::new(widget),
-            event_handlers: Vec::new(),
+            widget_state: None,
             clicks: Vec::new(),
             hovered: false,
             size: Cell::new(None),
@@ -267,31 +338,23 @@ impl<'a, Message> Node<'a, Message> {
         self.class = Some(class);
         self
     }
+}
 
-    /// Sets a handler for when a node event occurs
-    pub fn on_event(mut self, event: NodeEvent, f: impl 'a + Send + Fn(&mut Context<Message>)) -> Self {
-        self.event_handlers.push((event, Box::new(f)));
-        self
+impl<'a, Message, W: Widget<'a, Message>> GenericNode<'a> for WidgetNode<'a, Message, W> {
+    fn acquire_state(&mut self, tracker: &mut ManagedStateTracker) {
+        self.widget_state = Some(tracker.get_or_default_with(self.widget.key(), || self.widget.mount()));
+        self.widget
+            .visit_children(&mut **self.widget_state.as_mut().unwrap(), &mut |child| {
+                child.acquire_state(&mut *tracker);
+                i += 1;
+            });
     }
 
-    fn state(&self) -> StateVec {
-        let mut result = self.widget.state();
-        if self.hovered {
-            result.push(StyleState::Hover);
-        }
-        if !self.clicks.is_empty() {
-            result.push(StyleState::Pressed);
-        }
-        result
-    }
-
-    /// Returns the `(width, height)` of this widget.
-    /// The extents are defined as a [`Size`](../layout/struct.Size.html),
-    /// which will later be resolved to actual dimensions.
-    pub fn size(&self) -> (Size, Size) {
+    fn size(&self) -> (Size, Size) {
         if self.size.get().is_none() {
+            let state = self.widget_state.as_ref().unwrap();
             let style = self.stylesheet.as_ref().unwrap().deref();
-            let mut size = self.widget.size(style);
+            let mut size = self.widget.size(&**state, style);
             size.0 = match size.0 {
                 Size::Exact(size) => Size::Exact(size + style.margin.left + style.margin.right),
                 other => other,
@@ -305,154 +368,29 @@ impl<'a, Message> Node<'a, Message> {
         self.size.get().unwrap()
     }
 
-    /// Perform a hit detect on the widget. Most widgets are fine with the default implementation, but some
-    /// widgets (like [`Window`](window/struct.Window.html) need to report a _miss_ (`false`) even when the queried
-    /// position is within their layout.
-    ///
-    /// Arguments:
-    /// - `layout`: the layout assigned to the widget
-    /// - `clip`: a clipping rect for mouse events. Mouse events outside of this rect should be considered invalid,
-    /// such as with [`Scroll`](scroll/struct.Scroll.html), where the widget would not be visible outside of the
-    /// currently visible rect.
-    /// - `x`: x mouse coordinate being queried
-    /// - `y`: y mouse coordinate being queried
-    pub fn hit(&self, layout: Rectangle, clip: Rectangle, x: f32, y: f32) -> bool {
+    fn hit(&self, layout: Rectangle, clip: Rectangle, x: f32, y: f32) -> bool {
+        let state = self.widget_state.as_ref().unwrap();
         let stylesheet = self.stylesheet.as_ref().unwrap().deref();
         let layout = layout.after_padding(stylesheet.margin);
-        self.widget.hit(layout, clip, stylesheet, x, y)
+        self.widget.hit(&**state, layout, clip, stylesheet, x, y)
     }
 
-    /// Test the widget for focus exclusivity.
-    /// If the widget or one of it's descendants is in an exclusive focus state, this function should return `true`.
-    /// In all other cases, it should return `false`. When a widget is in an exclusive focus state it is
-    /// the only widget that is allowed to receive events in [`event`](#tymethod.event).
-    /// Widgets that intended to use this behaviour are modal dialogs, dropdown boxes, context menu's, etc.
-    pub fn focused(&self) -> bool {
+    fn focused(&self) -> bool {
         if self.focused.get().is_none() {
-            self.focused.replace(Some(self.widget.focused()));
+            let state = self.widget_state.as_ref().unwrap();
+            self.focused.replace(Some(self.widget.focused(&**state)));
         }
         self.focused.get().unwrap()
     }
 
-    fn dispatch(&mut self, layout: Rectangle, event: NodeEvent, context: &mut Context<Message>) {
-        self.widget
-            .node_event(layout, self.stylesheet.as_ref().unwrap().deref(), event, context);
-
-        for (handler_event, handler) in self.event_handlers.iter_mut() {
-            if *handler_event == event {
-                (handler)(context);
-            }
-        }
-    }
-
-    /// Handle an event.
-    ///
-    /// Arguments:
-    /// - `layout`: the layout assigned to the widget
-    /// - `clip`: a clipping rect for mouse events. Mouse events outside of this rect should be considered invalid,
-    /// such as with [`Scroll`](scroll/struct.Scroll.html), where the widget would not be visible outside of the
-    /// currently visible rect.
-    /// - `event`: the event that needs to be handled
-    /// - `context`: context for submitting messages and requesting redraws of the ui.
-    pub fn event(&mut self, layout: Rectangle, clip: Rectangle, event: Event, context: &mut Context<Message>) {
-        // generate higher level events
-        match event {
-            Event::Cursor(x, y) => {
-                let hovered = self.hit(layout, clip, x, y);
-                if hovered != self.hovered {
-                    self.hovered = hovered;
-                    if hovered {
-                        self.dispatch(layout, NodeEvent::MouseEnter, context);
-                    } else {
-                        self.dispatch(layout, NodeEvent::MouseLeave, context);
-                        self.clicks.clear();
-                    }
-                }
-            }
-            Event::Press(button) if self.hovered => {
-                self.dispatch(layout, NodeEvent::MouseDown(button), context);
-                self.clicks.push(button);
-            }
-            Event::Release(button) if self.hovered => {
-                self.dispatch(layout, NodeEvent::MouseUp(button), context);
-                let len = self.clicks.len();
-                self.clicks.retain(|click| click != &button);
-                if len != self.clicks.len() {
-                    self.dispatch(layout, NodeEvent::MouseClick(button), context);
-                }
-            }
-
-            _ => (),
-        }
-
+    fn draw(&mut self, layout: Rectangle, clip: Rectangle) -> Vec<Primitive<'a>> {
+        let state = self.widget_state.as_mut().unwrap();
         let stylesheet = self.stylesheet.as_ref().unwrap().deref();
         let layout = layout.after_padding(stylesheet.margin);
 
-        self.widget.event(layout, clip, stylesheet, event, context);
-
-        let next_state = self.state();
-        if next_state != self.state {
-            self.state = next_state;
-
-            // find out if the style changed as a result of the state change
-            let new_style = self.style.as_ref().unwrap().rule_tree().rematch(
-                &self.selector_matches,
-                self.state.as_slice(),
-                self.class.unwrap_or(""),
-                self.position.0,
-                self.position.1,
-            );
-
-            // apply the style change to self and any children that have styles living down the same rule tree paths.
-            if new_style != self.selector_matches {
-                context.redraw();
-
-                let difference = new_style.difference(&self.selector_matches);
-                let additions = difference.intersection(&new_style);
-                let removals = difference.intersection(&self.selector_matches);
-
-                if !additions.is_empty() {
-                    let mut query = Query {
-                        style: self.style.clone().unwrap(),
-                        ancestors: vec![additions],
-                        siblings: vec![],
-                    };
-                    self.widget.visit_children(&mut |child| child.add_matches(&mut query));
-                }
-
-                if !removals.is_empty() {
-                    let mut query = Query {
-                        style: self.style.clone().unwrap(),
-                        ancestors: vec![removals],
-                        siblings: vec![],
-                    };
-                    self.widget
-                        .visit_children(&mut |child| child.remove_matches(&mut query));
-                }
-
-                self.selector_matches = new_style;
-                self.stylesheet
-                    .replace(self.style.as_ref().unwrap().get(&self.selector_matches));
-            }
-        }
-
-        self.focused.replace(Some(self.widget.focused()));
+        self.widget.draw(&mut **state, layout, clip, stylesheet)
     }
 
-    /// Draw the widget. Returns a list of [`Primitive`s](../draw/enum.Primitive.html) that should be drawn.
-    ///
-    /// Arguments:
-    /// - `layout`: the layout assigned to the widget
-    /// - `clip`: a clipping rect for use with [`Primitive::PushClip`](../draw/enum.Primitive.html#variant.PushClip).
-    pub fn draw(&mut self, layout: Rectangle, clip: Rectangle) -> Vec<Primitive<'a>> {
-        let stylesheet = self.stylesheet.as_ref().unwrap().deref();
-        let layout = layout.after_padding(stylesheet.margin);
-
-        self.widget.draw(layout, clip, stylesheet)
-    }
-}
-
-impl<'a, Message> ApplyStyle for Node<'a, Message> {
     fn style(&mut self, query: &mut Query, position: (usize, usize)) {
         self.position = position;
 
@@ -531,52 +469,67 @@ impl<'a, Message> ApplyStyle for Node<'a, Message> {
     }
 }
 
+impl<'a, Message, W: Widget<'a, Message>> GenericNodeEvent<'a, Message> for WidgetNode<'a, Message, W> {
+    fn event(&mut self, layout: Rectangle, clip: Rectangle, event: Event, context: &mut Context<Message>) {
+        let state = self.widget_state.as_mut().unwrap();
+        let stylesheet = self.stylesheet.as_ref().unwrap().deref();
+        let layout = layout.after_padding(stylesheet.margin);
+
+        self.widget
+            .event(&mut **state, layout, clip, stylesheet, event, context);
+
+        let next_state = self.widget.state(&**state);
+        if next_state != self.state {
+            self.state = next_state;
+
+            // find out if the style changed as a result of the state change
+            let new_style = self.style.as_ref().unwrap().rule_tree().rematch(
+                &self.selector_matches,
+                self.state.as_slice(),
+                self.class.unwrap_or(""),
+                self.position.0,
+                self.position.1,
+            );
+
+            // apply the style change to self and any children that have styles living down the same rule tree paths.
+            if new_style != self.selector_matches {
+                context.redraw();
+
+                let difference = new_style.difference(&self.selector_matches);
+                let additions = difference.intersection(&new_style);
+                let removals = difference.intersection(&self.selector_matches);
+
+                if !additions.is_empty() {
+                    let mut query = Query {
+                        style: self.style.clone().unwrap(),
+                        ancestors: vec![additions],
+                        siblings: vec![],
+                    };
+                    self.widget.visit_children(&mut |child| child.add_matches(&mut query));
+                }
+
+                if !removals.is_empty() {
+                    let mut query = Query {
+                        style: self.style.clone().unwrap(),
+                        ancestors: vec![removals],
+                        siblings: vec![],
+                    };
+                    self.widget
+                        .visit_children(&mut |child| child.remove_matches(&mut query));
+                }
+
+                self.selector_matches = new_style;
+                self.stylesheet
+                    .replace(self.style.as_ref().unwrap().get(&self.selector_matches));
+            }
+        }
+
+        self.focused.replace(Some(self.widget.focused()));
+    }
+}
+
 impl<'a, Message: 'a> IntoNode<'a, Message> for Node<'a, Message> {
     fn into_node(self) -> Node<'a, Message> {
         self
-    }
-}
-
-impl<Message> Context<Message> {
-    pub(crate) fn new(redraw: bool, cursor: (f32, f32)) -> Self {
-        Self {
-            cursor,
-            redraw,
-            messages: Vec::new(),
-        }
-    }
-
-    /// Push a message to the current [`Model`].
-    pub fn push(&mut self, message: Message) {
-        self.messages.push(message);
-    }
-
-    /// Push multiple messages to the current [`Model`] using an iterator.
-    pub fn extend<I: IntoIterator<Item = Message>>(&mut self, iter: I) {
-        self.messages.extend(iter);
-    }
-
-    /// Request a redraw of the ui.
-    pub fn redraw(&mut self) {
-        self.redraw = true;
-    }
-
-    /// Returns the redraw flag.
-    pub fn redraw_requested(&self) -> bool {
-        self.redraw
-    }
-
-    /// Returns the cursor position
-    pub fn cursor(&self) -> (f32, f32) {
-        self.cursor
-    }
-}
-
-impl<Message> IntoIterator for Context<Message> {
-    type Item = Message;
-    type IntoIter = std::vec::IntoIter<Message>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.messages.into_iter()
     }
 }
