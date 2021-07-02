@@ -27,74 +27,71 @@ use smallvec::SmallVec;
 
 use crate::bitset::BitSet;
 use crate::draw::Primitive;
-use crate::event::{Event, Key, NodeEvent};
+use crate::event::Event;
 use crate::layout::*;
 use crate::stylesheet::tree::Query;
 use crate::stylesheet::*;
-use crate::Component;
 
 pub use self::button::Button;
 pub use self::column::Column;
-pub use self::drag_drop::{Drag, Drop};
-pub use self::dropdown::Dropdown;
-pub use self::dummy::Dummy;
-pub use self::frame::Frame;
-pub use self::image::Image;
-pub use self::input::Input;
-pub use self::layers::Layers;
-pub use self::menu::Menu;
-pub use self::panel::Panel;
-pub use self::progress::Progress;
-pub use self::row::Row;
-pub use self::scroll::Scroll;
-pub use self::slider::Slider;
-pub use self::space::Space;
+//pub use self::drag_drop::{Drag, Drop};
+//pub use self::dropdown::Dropdown;
+//pub use self::dummy::Dummy;
+//pub use self::frame::Frame;
+//pub use self::image::Image;
+//pub use self::input::Input;
+//pub use self::layers::Layers;
+//pub use self::menu::Menu;
+//pub use self::panel::Panel;
+//pub use self::progress::Progress;
+//pub use self::row::Row;
+//pub use self::scroll::Scroll;
+//pub use self::slider::Slider;
+//pub use self::space::Space;
 pub use self::text::Text;
-pub use self::toggle::Toggle;
-pub use self::window::Window;
-use crate::component_node::ComponentNode;
+//pub use self::toggle::Toggle;
+//pub use self::window::Window;
 use crate::tracker::ManagedStateTracker;
 use std::any::Any;
-use std::hash::Hash;
 
 /// A clickable button
 pub mod button;
 /// Layout child widgets vertically
 pub mod column;
 /// Drag and drop zones
-pub mod drag_drop;
+//pub mod drag_drop;
 /// Pick an item from a dropdown box
-pub mod dropdown;
+//pub mod dropdown;
 /// Dummy widget that has a custom widget name
-pub mod dummy;
+//pub mod dummy;
 /// A widget that wraps around a content widget
-pub mod frame;
+//pub mod frame;
 /// Just an image
-pub mod image;
+//pub mod image;
 /// Editable text input
-pub mod input;
+//pub mod input;
 /// Stack child widgets on top of each other, while only the topmost receives events.
-pub mod layers;
+//pub mod layers;
 /// A context menu with nestable items
-pub mod menu;
+//pub mod menu;
 /// A panel with a fixed size and location within it's parent
-pub mod panel;
+//pub mod panel;
 /// A bar that fills up according to a value.
-pub mod progress;
+//pub mod progress;
 /// Layout child widgets horizontally
-pub mod row;
+//pub mod row;
 /// View a small section of larger widget, with scrollbars.
-pub mod scroll;
+//pub mod scroll;
 /// A slider for easily picking some number
-pub mod slider;
+//pub mod slider;
 /// Empty widget
-pub mod space;
+//pub mod space;
 /// Widget that renders a paragraph of text.
 pub mod text;
 /// A clickable button that toggles some `bool`.
-pub mod toggle;
+//pub mod toggle;
 /// A window with a title and a content widget that can be moved by dragging the title.
-pub mod window;
+//pub mod window;
 
 /// A user interface widget.
 pub trait Widget<'a, Message>: Send {
@@ -129,7 +126,7 @@ pub trait Widget<'a, Message>: Send {
     /// be able to resolve their stylesheet, resulting in a panic when calling [`size`](struct.Node.html#method.size),
     /// [`hit`](struct.Node.html#method.hit), [`event`](struct.Node.html#method.event) or
     /// [`draw`](struct.Node.html#method.draw).
-    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn GenericNode));
+    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn GenericNode<'a, Message>));
 
     /// Returns the `(width, height)` of this widget.
     /// The extents are defined as a [`Size`](../layout/struct.Size.html),
@@ -204,7 +201,9 @@ pub trait Widget<'a, Message>: Send {
     ) -> Vec<Primitive<'a>>;
 }
 
-pub trait GenericNode<'a> {
+pub trait GenericNode<'a, Message>: Send {
+    fn key(&self) -> u64;
+
     fn acquire_state(&mut self, tracker: &mut ManagedStateTracker<'a>);
 
     fn size(&self) -> (Size, Size);
@@ -220,13 +219,11 @@ pub trait GenericNode<'a> {
     fn add_matches(&mut self, query: &mut Query);
 
     fn remove_matches(&mut self, query: &mut Query);
-}
 
-pub trait GenericNodeEvent<'a, Message>: GenericNode<'a> {
     fn event(&mut self, layout: Rectangle, clip: Rectangle, event: Event, context: &mut Context<Message>);
 }
 
-pub type Node<'a, Message> = Box<dyn GenericNodeEvent<'a, Message>>;
+pub type Node<'a, Message> = Box<dyn GenericNode<'a, Message> + 'a>;
 
 /// Convert to a generic widget. All widgets should implement this trait. It is also implemented by `Node` itself,
 /// which simply returns self.
@@ -238,11 +235,6 @@ pub trait IntoNode<'a, Message: 'a>: 'a + Sized {
     fn class(self, class: &'a str) -> Node<'a, Message> {
         self.into_node().class(class)
     }
-
-    /// Convenience function that converts to a node and then sets a handler for when a node event occurs.
-    fn on_event(self, event: NodeEvent, f: impl 'a + Send + Fn(&mut Context<Message>)) -> Node<'a, Message> {
-        self.into_node().on_event(event, f)
-    }
 }
 
 /// Storage for style states
@@ -251,9 +243,8 @@ pub type StateVec = SmallVec<[StyleState<&'static str>; 3]>;
 /// Generic ui widget.
 pub struct WidgetNode<'a, Message, W: Widget<'a, Message>> {
     widget: W,
+    key: Cell<u64>,
     widget_state: Option<&'a mut W::State>,
-    clicks: Vec<Key>,
-    hovered: bool,
     size: Cell<Option<(Size, Size)>>,
     focused: Cell<Option<bool>>,
     position: (usize, usize),
@@ -317,12 +308,11 @@ impl<Message> IntoIterator for Context<Message> {
 
 impl<'a, Message, W: Widget<'a, Message>> WidgetNode<'a, Message, W> {
     /// Construct a new `Node` from an [`Widget`](trait.Widget.html).
-    pub fn new<T: 'a + Widget<'a, Message>>(widget: T) -> Self {
+    pub fn new(widget: W) -> Self {
         Self {
-            widget: Box::new(widget),
+            widget,
+            key: Cell::new(0),
             widget_state: None,
-            clicks: Vec::new(),
-            hovered: false,
             size: Cell::new(None),
             focused: Cell::new(None),
             position: (0, 1),
@@ -341,12 +331,18 @@ impl<'a, Message, W: Widget<'a, Message>> WidgetNode<'a, Message, W> {
     }
 }
 
-impl<'a, Message, W: Widget<'a, Message>> GenericNode<'a> for WidgetNode<'a, Message, W> {
-    fn acquire_state(&mut self, tracker: &mut ManagedStateTracker) {
-        self.widget_state = Some(tracker.get_or_default_with(self.widget.key(), || self.widget.mount()));
+impl<'a, Message, W: Widget<'a, Message>> GenericNode<'a, Message> for WidgetNode<'a, Message, W> {
+    fn key(&self) -> u64 {
+        if self.key.get() == 0 {
+            self.key.replace(self.widget.key());
+        }
+        self.key.get()
+    }
+
+    fn acquire_state(&mut self, tracker: &mut ManagedStateTracker<'a>) {
+        self.widget_state = Some(tracker.get_or_default_with(self.key(), || self.widget.mount()));
         self.widget.visit_children(&mut |child| {
             child.acquire_state(&mut *tracker);
-            i += 1;
         });
     }
 
@@ -398,7 +394,7 @@ impl<'a, Message, W: Widget<'a, Message>> GenericNode<'a> for WidgetNode<'a, Mes
         self.style = Some(query.style.clone());
 
         // resolve own stylesheet
-        self.state = self.state();
+        self.state = self.widget.state(&**self.widget_state.as_ref().unwrap());
         self.selector_matches = query.match_widget(
             self.widget.widget(),
             self.class.unwrap_or(""),
@@ -467,9 +463,7 @@ impl<'a, Message, W: Widget<'a, Message>> GenericNode<'a> for WidgetNode<'a, Mes
         query.siblings = own_siblings;
         query.siblings.push(query.ancestors.pop().unwrap());
     }
-}
 
-impl<'a, Message, W: Widget<'a, Message>> GenericNodeEvent<'a, Message> for WidgetNode<'a, Message, W> {
     fn event(&mut self, layout: Rectangle, clip: Rectangle, event: Event, context: &mut Context<Message>) {
         let state = self.widget_state.as_mut().unwrap();
         let stylesheet = self.stylesheet.as_ref().unwrap().deref();
@@ -524,7 +518,8 @@ impl<'a, Message, W: Widget<'a, Message>> GenericNodeEvent<'a, Message> for Widg
             }
         }
 
-        self.focused.replace(Some(self.widget.focused()));
+        self.focused
+            .replace(Some(self.widget.focused(&**self.widget_state.as_ref().unwrap())));
     }
 }
 

@@ -3,10 +3,12 @@ use crate::stylesheet::{Declaration, Selector, SelectorWidget, Style, StyleState
 use std::iter::FromIterator;
 use std::sync::Arc;
 
+#[derive(Debug)]
 pub(crate) struct RuleTree {
     rules: Vec<Rule>,
 }
 
+#[derive(Debug)]
 pub(crate) struct Rule {
     selector: Selector,
     declarations: Vec<Declaration>,

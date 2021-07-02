@@ -12,7 +12,7 @@ pub enum Size {
 
 /// Alignment
 #[allow(missing_docs)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum Align {
     Begin,
     Center,
@@ -21,7 +21,7 @@ pub enum Align {
 
 /// Layout direction
 #[allow(missing_docs)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum Direction {
     TopToBottom,
     LeftToRight,
@@ -31,7 +31,7 @@ pub enum Direction {
 
 /// A rectangle
 #[allow(missing_docs)]
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Rectangle {
     pub left: f32,
     pub top: f32,

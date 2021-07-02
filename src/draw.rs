@@ -82,7 +82,7 @@ pub struct Patch {
 }
 
 /// Generic background definition
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Background {
     /// Draw no background
     None,

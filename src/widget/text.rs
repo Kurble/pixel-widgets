@@ -5,6 +5,8 @@ use crate::stylesheet::Stylesheet;
 use crate::text;
 use crate::widget::*;
 use std::borrow::Cow;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 
 /// Widget that renders a paragraph of text.
 pub struct Text {
@@ -19,6 +21,18 @@ impl Text {
 }
 
 impl<'a, T> Widget<'a, T> for Text {
+    type State = ();
+
+    fn key(&self) -> u64 {
+        let mut h = DefaultHasher::new();
+        self.text.hash(&mut h);
+        h.finish()
+    }
+
+    fn mount(&self) -> Self::State {
+        ()
+    }
+
     fn widget(&self) -> &'static str {
         "text"
     }
@@ -27,9 +41,9 @@ impl<'a, T> Widget<'a, T> for Text {
         0
     }
 
-    fn visit_children(&mut self, _: &mut dyn FnMut(&mut dyn ApplyStyle)) {}
+    fn visit_children(&mut self, _: &mut dyn FnMut(&mut dyn GenericNode<'a, T>)) {}
 
-    fn size(&self, style: &Stylesheet) -> (Size, Size) {
+    fn size(&self, _: &(), style: &Stylesheet) -> (Size, Size) {
         let width = style.width;
         let height = style.height;
         let text = text::Text {
@@ -59,9 +73,9 @@ impl<'a, T> Widget<'a, T> for Text {
             .resolve_size((style.width, style.height), content, style.padding)
     }
 
-    fn event(&mut self, _: Rectangle, _: Rectangle, _: &Stylesheet, _: Event, _: &mut Context<T>) {}
+    fn event(&mut self, _: &mut (), _: Rectangle, _: Rectangle, _: &Stylesheet, _: Event, _: &mut Context<T>) {}
 
-    fn draw(&mut self, layout: Rectangle, _: Rectangle, style: &Stylesheet) -> Vec<Primitive<'a>> {
+    fn draw(&mut self, _: &mut (), layout: Rectangle, _: Rectangle, style: &Stylesheet) -> Vec<Primitive<'a>> {
         let mut result = Vec::new();
         result.extend(style.background.render(layout));
         result.push(Primitive::DrawText(
@@ -80,6 +94,6 @@ impl<'a, T> Widget<'a, T> for Text {
 
 impl<'a, T: 'a> IntoNode<'a, T> for Text {
     fn into_node(self) -> Node<'a, T> {
-        Node::new(self)
+        Box::new(WidgetNode::new(self)) as Box<_>
     }
 }

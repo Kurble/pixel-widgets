@@ -21,6 +21,12 @@ pub struct Font {
     pub(crate) tex_slot: usize,
 }
 
+impl std::fmt::Debug for Font {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        formatter.debug_struct("Font").finish()
+    }
+}
+
 /// A styled paragraph of text
 #[derive(Clone)]
 pub struct Text<'a> {

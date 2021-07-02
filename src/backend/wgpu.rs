@@ -7,15 +7,14 @@ use wgpu::*;
 
 use crate::draw::{Command as DrawCommand, DrawList, Update, Vertex};
 use crate::layout::Rectangle;
-use crate::loader::Loader;
-use crate::{Command, Component, EventLoop, UpdateComponent};
+use crate::Component;
 use std::num::NonZeroU32;
 use wgpu::util::DeviceExt;
 
 /// Wrapper for [`Ui`](../../struct.Ui.html) that adds wgpu rendering.
 /// Requires the "wgpu" feature.
-pub struct Ui<M: Component + for<'a> UpdateComponent<'a>, E: EventLoop<Command<<M as Component>::Message>>, L: Loader> {
-    inner: crate::Ui<M, E, L>,
+pub struct Ui<M: 'static + Component> {
+    inner: crate::Ui<M>,
     pipeline: RenderPipeline,
     bind_group_layout: BindGroupLayout,
     sampler: Sampler,
@@ -29,26 +28,14 @@ struct TextureEntry {
     bind_group: BindGroup,
 }
 
-impl<
-        M: Component + for<'a> UpdateComponent<'a>,
-        E: 'static + EventLoop<Command<<M as Component>::Message>>,
-        L: 'static + Loader,
-    > Ui<M, E, L>
-{
+impl<M: Component> Ui<M> {
     /// Constructs a new `Ui` using the default style.
     /// This is not recommended as the default style is very empty and only renders white text.
-    pub fn new(
-        model: M,
-        event_loop: E,
-        loader: L,
-        viewport: Rectangle,
-        format: wgpu::TextureFormat,
-        device: &Device,
-    ) -> Self {
-        Self::new_inner(crate::Ui::new(model, event_loop, loader, viewport), format, device)
+    pub fn new(root_component: M, viewport: Rectangle, format: wgpu::TextureFormat, device: &Device) -> Self {
+        Self::new_inner(crate::Ui::new(root_component, viewport), format, device)
     }
 
-    fn new_inner(inner: crate::Ui<M, E, L>, format: wgpu::TextureFormat, device: &Device) -> Self {
+    fn new_inner(inner: crate::Ui<M>, format: wgpu::TextureFormat, device: &Device) -> Self {
         let shader_module = device.create_shader_module(&ShaderModuleDescriptor {
             label: Some("wgpu.wgsl"),
             source: wgpu::ShaderSource::Wgsl(include_str!("wgpu.wgsl").into()),
@@ -315,19 +302,15 @@ impl<
     }
 }
 
-impl<M: Component + for<'a> UpdateComponent<'a>, E: EventLoop<Command<<M as Component>::Message>>, L: Loader> Deref
-    for Ui<M, E, L>
-{
-    type Target = crate::Ui<M, E, L>;
+impl<M: Component> Deref for Ui<M> {
+    type Target = crate::Ui<M>;
 
     fn deref(&self) -> &Self::Target {
         &self.inner
     }
 }
 
-impl<M: Component + for<'a> UpdateComponent<'a>, E: EventLoop<Command<<M as Component>::Message>>, L: Loader> DerefMut
-    for Ui<M, E, L>
-{
+impl<M: Component> DerefMut for Ui<M> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.inner
     }

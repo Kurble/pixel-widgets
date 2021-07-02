@@ -170,21 +170,3 @@ pub enum Event {
     /// The application exited it's main event loop
     Exit,
 }
-
-/// Events that can be subscribed to on a node
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum NodeEvent {
-    /// Occurs when the mouse starts hovering the widget
-    MouseEnter,
-    /// Occurs when the mouse stops hovering the widget
-    MouseLeave,
-    /// Occurs when the mouse moves while hovering the widget
-    MouseMove,
-    /// Occurs when a mouse button goes down while hovering the widget
-    MouseDown(Key),
-    /// Occurs when a mouse button goes up while hovering the widget
-    MouseUp(Key),
-    /// Occurs when a mouse button goes up while hovering the widget, but only if the mouse didn't stop hovering for
-    /// the entire duration of the click.
-    MouseClick(Key),
-}

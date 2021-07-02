@@ -1,7 +1,4 @@
 use std::any::Any;
-use std::borrow::Borrow;
-use std::hash::{Hash, Hasher};
-use std::collections::hash_map::DefaultHasher;
 
 /// An [`Widget`](../widget/trait.Widget.html) state tracker.
 pub struct ManagedState {
@@ -62,7 +59,6 @@ impl<'a> ManagedStateTracker<'a> {
     pub fn get_or_default<'i, T>(&mut self, id: u64, default: T) -> &'i mut T
     where
         T: Any + Send + Sync,
-
     {
         self.get_or_default_with(id, move || default)
     }

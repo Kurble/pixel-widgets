@@ -159,7 +159,7 @@ pub struct Style {
 
 /// A fully resolved stylesheet, passed by reference to [`Widget::draw`](../widget/trait.Widget.html).
 /// Contains the final versions of all possible rules.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Stylesheet {
     /// Widget width
     pub width: Size,
@@ -190,6 +190,7 @@ pub struct Stylesheet {
 }
 
 /// A property and a value
+#[derive(Debug)]
 pub enum Declaration {
     /// background
     Background(Background),
@@ -238,7 +239,7 @@ pub enum Declaration {
 }
 
 /// A stylesheet selector, which widgets have to match against.
-#[derive(Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Selector {
     /// Match a widget
     Widget(SelectorWidget),
@@ -267,7 +268,7 @@ pub enum Selector {
 }
 
 /// Widget name as used in a `Selector`.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SelectorWidget {
     /// Match any widget
     Any,
@@ -276,7 +277,7 @@ pub enum SelectorWidget {
 }
 
 /// Widget states
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum StyleState<S: AsRef<str>> {
     /// When the mouse is over the widget
     Hover,
@@ -371,6 +372,12 @@ impl Style {
     ) -> Result<Self, Error> {
         let text = String::from_utf8(bytes.to_vec()).unwrap();
         parse(tokenize(text)?, loader, cache_size, cache_offset).await
+    }
+}
+
+impl std::fmt::Debug for Style {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        fmt.debug_struct("Style").field("rule_tree", &self.rule_tree).finish()
     }
 }
 

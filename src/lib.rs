@@ -107,24 +107,18 @@
 //!
 //#![deny(missing_docs)]
 
-use std::future::Future;
+use std::any::Any;
 use std::ops::{Deref, DerefMut};
-use std::sync::atomic::{AtomicBool, Ordering::Relaxed};
-use std::sync::{Arc, Mutex};
-use std::task::{Poll, Waker};
-
-use futures::task::ArcWake;
-use futures::Stream;
+use std::sync::Arc;
 
 use crate::component_node::ComponentNode;
 use crate::draw::DrawList;
 use crate::event::Event;
-use crate::graphics::Graphics;
 use crate::layout::Rectangle;
-use crate::loader::Loader;
+use crate::stylesheet::tree::Query;
 use crate::stylesheet::Style;
-use crate::tracker::{ManagedState, ManagedStateTracker};
-use crate::widget::{Context, Node, Widget};
+use crate::tracker::ManagedState;
+use crate::widget::{Context, GenericNode, Node};
 
 mod atlas;
 /// Backend specific code
@@ -166,7 +160,7 @@ pub mod widget;
 pub trait Component {
     type Message: 'static;
 
-    type State: 'static;
+    type State: 'static + Any + Send + Sync;
 
     type Output: 'static;
 
@@ -177,115 +171,52 @@ pub trait Component {
     fn update(&self, message: Self::Message, state: &mut Self::State) -> Vec<Self::Output>;
 }
 
-/// Trait for sending custom events to the event loop of the application
-pub trait EventLoop<T: Send>: Clone + Send {
-    /// The error returned when send_event fails
-    type Error;
-
-    /// Sends custom event to the event loop.
-    /// Returns an `Err` if sending failed, for example when the event loop doesn't exist anymore.
-    fn send_event(&self, event: T) -> Result<(), Self::Error>;
-}
-
 /// Entry point for pixel-widgets.
 ///
 /// `Ui` manages a [`Model`](trait.Model.html) and processes it to a [`DrawList`](draw/struct.DrawList.html) that can be rendered using your
 ///  own renderer implementation. Alternatively, you can use one of the following included wrappers:
 /// - [`WgpuUi`](backend/wgpu/struct.WgpuUi.html) Renders using [wgpu-rs](https://github.com/gfx-rs/wgpu-rs).
-pub struct Ui<M: Component, E: EventLoop<Command<<M as Component>::Message>>, L: Loader> {
-    model_view: ComponentNode<'static, M, ManagedState>,
-    style: Arc<Style>,
+pub struct Ui<M: 'static + Component> {
+    root_node: ComponentNode<'static, M>,
+    _state: ManagedState,
     viewport: Rectangle,
     redraw: bool,
     cursor: (f32, f32),
-    event_loop: E,
-    loader: Arc<L>,
-    hot_reload_style: Option<String>,
+    style: Arc<Style>,
 }
 
-/// Some asynchronous work that will update the ui later.
-pub enum Command<Message> {
-    /// Wait for a future to resolve
-    Await(Task<Message>),
-    /// Handle all messages coming out of stream
-    Subscribe(Box<dyn Stream<Item = Message> + Send>),
-    /// Swap the stylesheet
-    Stylesheet(Task<Result<Style, stylesheet::Error>>),
-}
-
-impl<M, E, L> Ui<M, E, L>
-where
-    M: Component,
-    E: 'static + EventLoop<Command<<M as Component>::Message>>,
-    L: 'static + Loader,
-{
+impl<M: 'static + Component> Ui<M> {
     /// Constructs a new `Ui` using the default style.
     /// This is not recommended as the default style is very empty and only renders white text.
-    pub fn new(model: M, event_loop: E, loader: L, viewport: Rectangle) -> Self {
+    pub fn new(model: M, viewport: Rectangle) -> Self {
+        let mut state = ManagedState::default();
+        let mut root_node = ComponentNode::new(model);
+        root_node.acquire_state(&mut unsafe { (&mut state as *mut ManagedState).as_mut() }.unwrap().tracker());
+
         let style = Arc::new(Style::new(512, 0));
 
-        Self {
-            model_view: ComponentNode::new(model),
-            style,
+        let mut result = Self {
+            root_node,
+            _state: state,
             viewport,
             redraw: true,
             cursor: (0.0, 0.0),
-            event_loop,
-            hot_reload_style: None,
-            loader: Arc::new(loader),
-        }
+            style: style.clone(),
+        };
+        result.set_style(style);
+        result
     }
 
-    /// Replace the current stylesheet with a loaded new stylesheet
-    pub fn replace_stylesheet(&mut self, style: Arc<Style>) {
-        if !Arc::ptr_eq(&self.style, &style) {
-            self.style = style;
-            self.hot_reload_style = None;
-            self.model_view.set_dirty();
-        }
-    }
-
-    /// Constructs a new `Ui` asynchronously by first fetching a stylesheet from a
-    /// [.pwss](stylesheet/index.html) data source.
-    pub async fn set_stylesheet<U: AsRef<str>>(&mut self, url: U) -> Result<(), stylesheet::Error> {
-        let style = Style::load(&*self.loader, url.as_ref(), 512, 0).await?;
-        self.style = Arc::new(style);
-        self.hot_reload_style = Some(url.as_ref().to_string());
-
-        let loader = self.loader.clone();
-        let url = url.as_ref().to_string();
-        self.command_stylesheet(Command::from_future_style(async move {
-            loader
-                .wait(&url)
-                .await
-                .map_err(|e| stylesheet::Error::Io(Box::new(e)))?;
-            Style::load(&*loader, url, 512, 0).await
-        }));
-
-        Ok(())
-    }
-
-    /// Replace the current stylesheet with a new one
-    pub fn reload_stylesheet<U: 'static + AsRef<str> + Send>(&mut self, url: U) {
-        let loader = self.loader.clone();
-        self.hot_reload_style = Some(url.as_ref().to_string());
-        self.command_stylesheet(Command::from_future_style(async move {
-            Style::load(&*loader, url, 512, 0).await
-        }));
-    }
-
-    /// Get a `Graphics` loader
-    pub fn graphics(&self) -> Graphics<L> {
-        Graphics {
-            cache: self.style.cache(),
-            loader: self.loader.clone(),
-        }
+    pub fn set_style(&mut self, style: Arc<Style>) {
+        self.root_node.set_dirty();
+        self.style = style.clone();
+        self.root_node.style(&mut Query::from_style(style), (0, 1));
     }
 
     /// Resizes the viewport.
     /// This forces the view to be rerendered.
     pub fn resize(&mut self, viewport: Rectangle) {
-        self.model_view.set_dirty();
+        self.root_node.set_dirty();
         self.redraw = true;
         self.viewport = viewport;
     }
@@ -293,96 +224,17 @@ where
     /// Returns true if the ui needs to be redrawn. If the ui doesn't need to be redrawn the
     /// [`Command`s](draw/struct.Command.html) from the last [`draw`](#method.draw) may be used again.
     pub fn needs_redraw(&self) -> bool {
-        self.redraw || self.model_view.dirty()
-    }
-
-    fn command_stylesheet(&mut self, command: Command<<M as Component>::Message>) {
-        match command {
-            Command::Stylesheet(mut task) => {
-                let complete = task.complete.clone();
-                if !complete.load(Relaxed) {
-                    let ptr = task.future.deref_mut() as *mut dyn Future<Output = Result<Style, stylesheet::Error>>;
-                    let pin = unsafe { std::pin::Pin::new_unchecked(ptr.as_mut().unwrap()) };
-                    let waker = EventLoopWaker::new(self.event_loop.clone(), Command::Stylesheet(task));
-                    if let Poll::Ready(style) = pin.poll(&mut std::task::Context::from_waker(&waker)) {
-                        complete.store(true, Relaxed);
-
-                        match style {
-                            Ok(style) => {
-                                self.style = Arc::new(style);
-                                self.model_view.set_dirty();
-                            }
-                            Err(error) => {
-                                eprintln!("Unable to load stylesheet: {}", error);
-                            }
-                        }
-
-                        if let Some(url) = self.hot_reload_style.clone() {
-                            let loader = self.loader.clone();
-                            self.command_stylesheet(Command::from_future_style(async move {
-                                loader
-                                    .wait(&url)
-                                    .await
-                                    .map_err(|e| stylesheet::Error::Io(Box::new(e)))?;
-                                Style::load(&*loader, url, 512, 0).await
-                            }));
-                        }
-                    }
-                }
-            }
-            _ => unreachable!(),
-        }
-    }
-
-    /// Updates the model after a `Command` has resolved.
-    pub fn command<'a, S: 'a>(&mut self, command: Command<<M as Component>::Message>, resources: &mut S)
-    where
-        M: UpdateComponent<'a, State = S>,
-    {
-        match command {
-            Command::Await(mut task) => {
-                let complete = task.complete.clone();
-                if !complete.load(Relaxed) {
-                    let ptr = task.future.deref_mut() as *mut dyn Future<Output = M::Message>;
-                    let pin = unsafe { std::pin::Pin::new_unchecked(ptr.as_mut().unwrap()) };
-                    let waker = EventLoopWaker::new(self.event_loop.clone(), Command::Await(task));
-                    if let Poll::Ready(message) = pin.poll(&mut std::task::Context::from_waker(&waker)) {
-                        complete.store(true, Relaxed);
-                        self.update(message, resources);
-                    }
-                }
-            }
-
-            Command::Subscribe(mut stream) => {
-                let ptr = stream.deref_mut() as *mut dyn Stream<Item = M::Message>;
-                let pin = unsafe { std::pin::Pin::new_unchecked(ptr.as_mut().unwrap()) };
-                let waker = EventLoopWaker::new(self.event_loop.clone(), Command::Subscribe(stream));
-                if let Poll::Ready(Some(message)) = pin.poll_next(&mut std::task::Context::from_waker(&waker)) {
-                    waker.wake();
-                    self.update(message, resources);
-                }
-            }
-
-            command => self.command_stylesheet(command),
-        }
+        self.redraw || self.root_node.dirty()
     }
 
     /// Updates the model with a message.
     /// This forces the view to be rerendered.
-    pub fn update<'a, S: 'a>(&mut self, message: <M as Component>::Message, resources: &mut S)
-    where
-        M: UpdateComponent<'a, State = S>,
-    {
-        for command in self.model_view.model_mut().update(message, resources) {
-            self.command(command, resources);
-        }
+    pub fn update(&mut self, message: M::Message) -> Vec<M::Output> {
+        self.root_node.update(message)
     }
 
     /// Handles an [`Event`](event/struct.Event.html).
-    pub fn event<'a, S: 'a>(&mut self, event: Event, resources: &mut S)
-    where
-        M: UpdateComponent<'a, State = S>,
-    {
+    pub fn event(&mut self, event: Event) -> Vec<M::Output> {
         if let Event::Cursor(x, y) = event {
             self.cursor = (x, y);
         }
@@ -390,7 +242,7 @@ where
         let mut context = Context::new(self.needs_redraw(), self.cursor);
 
         {
-            let view = self.model_view.view(self.style.clone());
+            let mut view = self.root_node.view();
             let (w, h) = view.size();
             let layout = Rectangle::from_wh(
                 w.resolve(self.viewport.width(), w.parts()),
@@ -401,11 +253,11 @@ where
 
         self.redraw = context.redraw_requested();
 
+        let mut result = vec![];
         for message in context {
-            for command in self.model_view.model_mut().update(message, resources) {
-                self.command(command, resources);
-            }
+            result.extend(self.root_node.update(message));
         }
+        result
     }
 
     /// Generate a [`DrawList`](draw/struct.DrawList.html) for the view.
@@ -414,7 +266,7 @@ where
 
         let viewport = self.viewport;
         let primitives = {
-            let view = self.model_view.view(self.style.clone());
+            let mut view = self.root_node.view();
             let (w, h) = view.size();
             let layout = Rectangle::from_wh(
                 w.resolve(viewport.width(), w.parts()),
@@ -753,69 +605,17 @@ where
     }
 }
 
-/// An asynchronous task handled by pixel-widgets
-pub struct Task<T> {
-    future: Box<dyn Future<Output = T> + Send>,
-    complete: Arc<AtomicBool>,
-}
-
-struct EventLoopWaker<T: Send, E: EventLoop<T>> {
-    message: Mutex<(E, Option<T>)>,
-}
-
-impl<T: 'static + Send, E: 'static + EventLoop<T>> EventLoopWaker<T, E> {
-    #[allow(clippy::new_ret_no_self)]
-    fn new(event_loop: E, message: T) -> Waker {
-        futures::task::waker(Arc::new(Self {
-            message: Mutex::new((event_loop, Some(message))),
-        }))
-    }
-}
-
-impl<T: Send, E: EventLoop<T>> ArcWake for EventLoopWaker<T, E> {
-    fn wake_by_ref(arc_self: &Arc<Self>) {
-        let mut guard = arc_self.message.lock().unwrap();
-        if let Some(message) = guard.1.take() {
-            guard.0.send_event(message).ok();
-        }
-    }
-}
-
-impl<M: Component, E: EventLoop<Command<<M as Component>::Message>>, L: Loader> Deref for Ui<M, E, L> {
+impl<M: Component> Deref for Ui<M> {
     type Target = M;
 
     fn deref(&self) -> &Self::Target {
-        &self.model_view.model()
+        &self.root_node.props()
     }
 }
 
-impl<M: Component, E: EventLoop<Command<<M as Component>::Message>>, L: Loader> DerefMut for Ui<M, E, L> {
+impl<M: Component> DerefMut for Ui<M> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        self.model_view.model_mut()
-    }
-}
-
-impl<Message> Command<Message> {
-    /// Construct a new command from a future that generates a message.
-    /// The message will be handled as soon as it is available.
-    pub fn from_future_message<F: 'static + Future<Output = Message> + Send>(fut: F) -> Self {
-        Command::Await(Task {
-            complete: Arc::new(AtomicBool::new(false)),
-            future: Box::new(fut),
-        })
-    }
-
-    /// Construct a new command that will replace the style of the Ui after it completes.
-    pub fn from_future_style<F: 'static + Future<Output = Result<Style, stylesheet::Error>> + Send>(fut: F) -> Self {
-        Command::Stylesheet(Task {
-            complete: Arc::new(AtomicBool::new(false)),
-            future: Box::new(fut),
-        })
-    }
-
-    /// Construct a new command from a stream of messages. Each message will be handled as soon as it's available.
-    pub fn from_stream<S: 'static + Stream<Item = Message> + Send>(stream: S) -> Self {
-        Command::Subscribe(Box::new(stream))
+        self.root_node.props_mut()
     }
 }
 
@@ -824,7 +624,5 @@ pub mod prelude {
     #[cfg(feature = "winit")]
     #[cfg(feature = "wgpu")]
     pub use crate::sandbox::Sandbox;
-    pub use crate::{
-        layout::Rectangle, stylesheet::Style, tracker::ManagedState, widget::*, Command, Component, Ui, UpdateComponent,
-    };
+    pub use crate::{layout::Rectangle, stylesheet::Style, widget::*, Component, Ui};
 }

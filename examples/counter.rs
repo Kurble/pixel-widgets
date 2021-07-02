@@ -1,5 +1,5 @@
 use pixel_widgets::prelude::*;
-use pixel_widgets::Command;
+use std::sync::Arc;
 use winit::window::WindowBuilder;
 
 struct Counter;
@@ -16,7 +16,7 @@ impl Component for Counter {
     type Output = ();
 
     fn mount(&self) -> Self::State {
-        0
+        15
     }
 
     fn view(&self, state: &i32) -> Node<Message> {
@@ -49,7 +49,10 @@ async fn main() {
 
     let loader = pixel_widgets::loader::FsLoader::new("./examples".into()).unwrap();
 
-    let mut sandbox = Sandbox::new(Counter, loader, window).await;
-    sandbox.ui.set_stylesheet("counter.pwss").await.unwrap();
+    let mut sandbox = Sandbox::new(Counter, window).await;
+
+    let style = Arc::new(Style::load(&loader, "counter.pwss", 512, 0).await.unwrap());
+    sandbox.ui.set_style(style);
+
     sandbox.run().await;
 }

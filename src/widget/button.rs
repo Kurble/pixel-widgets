@@ -1,18 +1,17 @@
-use smallvec::smallvec;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 use std::mem::replace;
+
+use smallvec::smallvec;
 
 use crate::draw::*;
 use crate::event::{Event, Key};
 use crate::layout::{Rectangle, Size};
 use crate::stylesheet::{StyleState, Stylesheet};
-use crate::tracker::ManagedStateTracker;
-use crate::widget::{ApplyStyle, Context, IntoNode, Node, StateVec, Widget};
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
+use crate::widget::{Context, GenericNode, IntoNode, Node, StateVec, Widget, WidgetNode};
 
 /// A clickable button
 pub struct Button<'a, T> {
-    state: Option<&'a mut State>,
     content: Node<'a, T>,
     on_clicked: Option<T>,
 }
@@ -30,7 +29,6 @@ impl<'a, T: 'a> Button<'a, T> {
     /// Construct a new button
     pub fn new<C: IntoNode<'a, T> + 'a>(content: C) -> Self {
         Self {
-            state: None,
             content: content.into_node(),
             on_clicked: None,
         }
@@ -50,16 +48,18 @@ impl<'a, T: 'a + Send> Widget<'a, T> for Button<'a, T> {
         State::Idle
     }
 
-    fn widget(&self, _: &State) -> &'static str {
+    fn widget(&self) -> &'static str {
         "button"
     }
 
-    fn key(&self, _: &State) -> u64 {
-        "button".get_hash(DefaultHasher::new())
+    fn key(&self) -> u64 {
+        let mut h = DefaultHasher::new();
+        "button".hash(&mut h);
+        h.finish()
     }
 
-    fn state(&self, _: &State) -> StateVec {
-        match self.state.unwrap() {
+    fn state(&self, state: &State) -> StateVec {
+        match state {
             State::Idle => StateVec::new(),
             State::Hover => smallvec![StyleState::Hover],
             State::Pressed => smallvec![StyleState::Pressed],
@@ -67,12 +67,12 @@ impl<'a, T: 'a + Send> Widget<'a, T> for Button<'a, T> {
         }
     }
 
-    fn len(&self, _: &State) -> usize {
+    fn len(&self) -> usize {
         1
     }
 
-    fn visit_children(&mut self, _: &mut State, visitor: &mut dyn FnMut(&mut dyn ApplyStyle)) {
-        visitor(&mut self.content);
+    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn GenericNode<'a, T>)) {
+        visitor(&mut *self.content);
     }
 
     fn size(&self, _: &State, style: &Stylesheet) -> (Size, Size) {
@@ -160,7 +160,7 @@ impl<'a, T: 'a + Send> Widget<'a, T> for Button<'a, T> {
 
 impl<'a, T: 'a + Send> IntoNode<'a, T> for Button<'a, T> {
     fn into_node(self) -> Node<'a, T> {
-        Node::new(self)
+        Box::new(WidgetNode::new(self)) as Box<_>
     }
 }
 

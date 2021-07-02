@@ -1,17 +1,16 @@
 use winit::{
     event::{Event, WindowEvent},
-    event_loop::{ControlFlow, EventLoop, EventLoopProxy},
+    event_loop::{ControlFlow, EventLoop},
     window::{Window, WindowBuilder},
 };
 
-use crate::loader::Loader;
 use crate::prelude::*;
 
 /// Sandbox for quick prototyping of pixel widgets applications
-pub struct Sandbox<M: Component + for<'a> UpdateComponent<'a>, L: 'static + Loader> {
+pub struct Sandbox<M: 'static + Component> {
     /// The `Ui` being used in the sandbox
-    pub ui: crate::backend::wgpu::Ui<M, EventLoopProxy<Command<<M as Component>::Message>>, L>,
-    event_loop: Option<EventLoop<Command<<M as Component>::Message>>>,
+    pub ui: crate::backend::wgpu::Ui<M>,
+    event_loop: Option<EventLoop<()>>,
     surface: wgpu::Surface,
     #[allow(unused)]
     adapter: wgpu::Adapter,
@@ -22,14 +21,13 @@ pub struct Sandbox<M: Component + for<'a> UpdateComponent<'a>, L: 'static + Load
     window: Window,
 }
 
-impl<T, L> Sandbox<T, L>
+impl<T> Sandbox<T>
 where
-    T: Component + for<'a> UpdateComponent<'a, State = ()>,
-    L: 'static + Loader,
+    T: 'static + Component,
 {
     /// Construct a new `Sandbox`
-    pub async fn new(model: T, loader: L, builder: WindowBuilder) -> Self {
-        let event_loop = EventLoop::<Command<T::Message>>::with_user_event();
+    pub async fn new(root_component: T, builder: WindowBuilder) -> Self {
+        let event_loop = EventLoop::new();
         let window = builder.build(&event_loop).unwrap();
         let size = window.inner_size();
 
@@ -70,9 +68,7 @@ where
         let swap_chain = device.create_swap_chain(&surface, &sc_desc);
 
         let ui = crate::backend::wgpu::Ui::new(
-            model,
-            event_loop.create_proxy(),
-            loader,
+            root_component,
             Rectangle::from_wh(size.width as f32, size.height as f32),
             swapchain_format,
             &device,
@@ -97,9 +93,6 @@ where
         event_loop.run(move |event, _, control_flow| {
             *control_flow = ControlFlow::Wait;
             match event {
-                Event::UserEvent(command) => {
-                    self.ui.command(command, &mut ());
-                }
                 Event::WindowEvent {
                     event: WindowEvent::Resized(size),
                     ..
@@ -144,7 +137,7 @@ where
                 } => *control_flow = ControlFlow::Exit,
                 other => {
                     if let Some(event) = crate::backend::winit::convert_event(other) {
-                        self.ui.event(event, &mut ());
+                        self.ui.event(event);
                     }
                 }
             }
