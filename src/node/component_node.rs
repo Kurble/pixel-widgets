@@ -1,28 +1,31 @@
 use std::cell::{Cell, RefCell, RefMut};
 use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 use std::ptr::null_mut;
 
 use crate::draw::Primitive;
 use crate::event::Event;
 use crate::layout::{Rectangle, Size};
-use crate::prelude::Context;
+use crate::node::{GenericNode, Node};
 use crate::stylesheet::tree::Query;
 use crate::tracker::{ManagedState, ManagedStateTracker};
-use crate::widget::{GenericNode, Node};
-use crate::Component;
-use std::hash::{Hash, Hasher};
+use crate::widget::Context;
+use crate::{Component, Runtime};
 
 pub struct ComponentNode<'a, M: 'a + Component> {
     props: Box<M>,
     state: RefCell<Option<&'a mut ManagedState>>,
     view: RefCell<Option<Node<'a, M::Message>>>,
-    component_state: Cell<*mut M::State>,
+    component_state: Cell<*mut (M::State, Runtime<M::Message>)>,
     style_query: Option<Query>,
     style_position: Option<(usize, usize)>,
+    key: u64,
 }
 
 impl<'a, M: 'a + Component> ComponentNode<'a, M> {
     pub fn new(props: M) -> Self {
+        let mut hasher = DefaultHasher::new();
+        std::any::type_name::<M>().hash(&mut hasher);
         Self {
             props: Box::new(props),
             state: RefCell::new(None),
@@ -30,6 +33,7 @@ impl<'a, M: 'a + Component> ComponentNode<'a, M> {
             component_state: Cell::new(null_mut()),
             style_query: None,
             style_position: None,
+            key: hasher.finish(),
         }
     }
 
@@ -52,8 +56,10 @@ impl<'a, M: 'a + Component> ComponentNode<'a, M> {
 
     pub fn update(&mut self, message: M::Message) -> Vec<M::Output> {
         self.set_dirty();
-        self.props
-            .update(message, unsafe { self.component_state.get().as_mut().unwrap() })
+
+        let (state, runtime) = unsafe { self.component_state.get().as_mut().unwrap() };
+
+        self.props.update(message, state, runtime)
     }
 
     pub fn view(&self) -> RefMut<Node<'a, M::Message>> {
@@ -69,10 +75,10 @@ impl<'a, M: 'a + Component> ComponentNode<'a, M> {
                     .tracker()
             };
 
-            let state = tracker.get_or_default_with(0, || self.props.mount());
+            let state = tracker.begin(0, || (self.props.mount(), Runtime::default()));
             self.component_state.set(state as *mut _);
 
-            let mut root = unsafe { (self.props.as_ref() as *const M).as_ref().unwrap() }.view(&*state);
+            let mut root = unsafe { (self.props.as_ref() as *const M).as_ref().unwrap() }.view(&state.0);
             let mut query = self.style_query.clone().unwrap();
             root.acquire_state(&mut tracker);
             root.style(&mut query, self.style_position.unwrap());
@@ -84,10 +90,21 @@ impl<'a, M: 'a + Component> ComponentNode<'a, M> {
 }
 
 impl<'a, M: 'a + Component> GenericNode<'a, M::Output> for ComponentNode<'a, M> {
+    fn key(&self) -> u64 {
+        self.key
+    }
+
+    fn set_key(&mut self, key: u64) {
+        self.key = key;
+    }
+
+    fn set_class(&mut self, _: &'a str) {}
+
     fn acquire_state(&mut self, tracker: &mut ManagedStateTracker<'a>) {
-        let mut hasher = DefaultHasher::new();
-        std::any::type_name::<Self>().hash(&mut hasher);
-        self.state.replace(Some(tracker.get::<ManagedState>(hasher.finish())));
+        self.state.replace(Some(
+            tracker.begin::<ManagedState, _>(self.key, || ManagedState::default()),
+        ));
+        tracker.end();
     }
 
     fn size(&self) -> (Size, Size) {
@@ -127,7 +144,7 @@ impl<'a, M: 'a + Component> GenericNode<'a, M::Output> for ComponentNode<'a, M> 
         event: Event,
         context: &mut Context<<M as Component>::Output>,
     ) {
-        let mut sub_context = Context::<M::Message>::new(context.redraw_requested(), context.cursor());
+        let mut sub_context = context.sub_context();
         self.view().event(layout, clip, event, &mut sub_context);
 
         if sub_context.redraw_requested() {
@@ -135,9 +152,27 @@ impl<'a, M: 'a + Component> GenericNode<'a, M::Output> for ComponentNode<'a, M> 
         }
 
         for message in sub_context {
-            unsafe {
-                self.set_dirty();
-                context.extend(self.props.update(message, self.component_state.get().as_mut().unwrap()));
+            context.extend(self.update(message));
+        }
+
+        let (_, runtime) = unsafe { self.component_state.get().as_mut().unwrap() };
+        while runtime.modified {
+            for message in runtime.poll(&mut context.task_context()) {
+                context.extend(self.update(message));
+            }
+        }
+    }
+
+    fn poll(&mut self, context: &mut Context<<M as Component>::Output>) {
+        self.view().poll(context);
+
+        let (_, runtime) = unsafe { self.component_state.get().as_mut().unwrap() };
+        loop {
+            for message in runtime.poll(&mut context.task_context()) {
+                context.extend(self.update(message));
+            }
+            if !runtime.modified {
+                break;
             }
         }
     }

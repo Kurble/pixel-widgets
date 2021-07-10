@@ -1,7 +1,9 @@
 use futures::{FutureExt, SinkExt};
+use winit::window::WindowBuilder;
+
+use pixel_widgets::node::Node;
 use pixel_widgets::prelude::*;
 use pixel_widgets::Command;
-use winit::window::WindowBuilder;
 
 struct Download {
     pub state: ManagedState<String>,

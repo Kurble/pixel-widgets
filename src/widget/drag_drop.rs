@@ -1,17 +1,19 @@
 #![allow(clippy::vec_init_then_push)]
 
+use std::any::Any;
 use std::sync::Mutex;
 
 use smallvec::smallvec;
 
 use crate::draw::Primitive;
-use crate::event::{Event, Key, NodeEvent};
+use crate::event::{Event, Key};
 use crate::layout::{Rectangle, Size};
+use crate::node::{GenericNode, IntoNode, Node};
 use crate::stylesheet::{StyleState, Stylesheet};
-use crate::widget::{ApplyStyle, Context, Frame, IntoNode, Node, StateVec, Widget};
+use crate::widget::{Context, Frame, StateVec, Widget};
 
 /// Message type for communicating between `Drag` and `Drop` widgets
-pub trait DragDropId: 'static + Copy + Send {}
+pub trait DragDropId: 'static + Copy + Any + Send + Sync {}
 
 /// Context for `Drag` and `Drop` widgets. Only `Drag` and `Drop` widgets that share the same `DragDropContext` can
 /// interact with each other.
@@ -22,7 +24,6 @@ pub struct DragDropContext<T: DragDropId> {
 
 /// A draggable item that can be dropped in `Drop` zones.
 pub struct Drag<'a, T: DragDropId, Message> {
-    state: &'a mut DragState<T>,
     context: &'a DragDropContext<T>,
     data: T,
     content: Frame<'a, Message>,
@@ -37,7 +38,6 @@ pub struct DragState<T> {
 
 /// A drop zone where draggable `Drag` items may be dropped
 pub struct Drop<'a, T: DragDropId, Message, OnAccept, OnDrop> {
-    state: &'a mut DropState<T>,
     context: &'a DragDropContext<T>,
     accept: OnAccept,
     drop: OnDrop,
@@ -47,18 +47,13 @@ pub struct Drop<'a, T: DragDropId, Message, OnAccept, OnDrop> {
 /// State for `Drop`
 pub struct DropState<T> {
     hovering: Option<(T, (f32, f32))>,
+    mouse_over: bool,
 }
 
 impl<'a, T: DragDropId, Message: 'a> Drag<'a, T, Message> {
     /// Construct a new `Drag` widget, with some data that is to be dragged through the context.
-    pub fn new(
-        state: &'a mut DragState<T>,
-        context: &'a DragDropContext<T>,
-        data: T,
-        content: impl IntoNode<'a, Message>,
-    ) -> Self {
+    pub fn new(context: &'a DragDropContext<T>, data: T, content: impl IntoNode<'a, Message>) -> Self {
         Self {
-            state,
             context,
             data,
             content: Frame::new(content),
@@ -73,14 +68,12 @@ where
 {
     /// Construct a new `Drop` widget
     pub fn new(
-        state: &'a mut DropState<T>,
         context: &'a DragDropContext<T>,
         accept: OnAccept,
         drop: OnDrop,
         content: impl IntoNode<'a, Message>,
     ) -> Self {
         Self {
-            state,
             context,
             accept,
             drop,
@@ -89,13 +82,19 @@ where
     }
 }
 
-impl<'a, T: DragDropId + Send, Message: 'a> Widget<'a, Message> for Drag<'a, T, Message> {
+impl<'a, T: DragDropId + Send + Sync, Message: 'a> Widget<'a, Message> for Drag<'a, T, Message> {
+    type State = DragState<T>;
+
+    fn mount(&self) -> Self::State {
+        DragState::<T>::default()
+    }
+
     fn widget(&self) -> &'static str {
         "drag"
     }
 
-    fn state(&self) -> StateVec {
-        if self.state.dragging.is_some() {
+    fn state(&self, state: &DragState<T>) -> StateVec {
+        if state.dragging.is_some() {
             smallvec![StyleState::Drag]
         } else {
             smallvec![]
@@ -106,16 +105,17 @@ impl<'a, T: DragDropId + Send, Message: 'a> Widget<'a, Message> for Drag<'a, T, 
         self.content.len()
     }
 
-    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn ApplyStyle)) {
+    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn GenericNode<'a, Message>)) {
         self.content.visit_children(visitor);
     }
 
-    fn size(&self, style: &Stylesheet) -> (Size, Size) {
-        self.content.size(style)
+    fn size(&self, _: &DragState<T>, style: &Stylesheet) -> (Size, Size) {
+        self.content.size(&(), style)
     }
 
     fn event(
         &mut self,
+        state: &mut DragState<T>,
         layout: Rectangle,
         clip: Rectangle,
         style: &Stylesheet,
@@ -123,13 +123,27 @@ impl<'a, T: DragDropId + Send, Message: 'a> Widget<'a, Message> for Drag<'a, T, 
         context: &mut Context<Message>,
     ) {
         match event {
-            Event::Cursor(x, y) if self.state.dragging.is_some() => {
-                self.state.offset = (x - self.state.origin.0, y - self.state.origin.1);
+            Event::Press(Key::LeftMouseButton) => {
+                let (x, y) = context.cursor();
+                if layout.point_inside(x, y) && clip.point_inside(x, y) {
+                    self.context.data.lock().unwrap().replace((
+                        self.data,
+                        (context.cursor.0 - layout.left, context.cursor.1 - layout.top),
+                    ));
+                    state.origin = context.cursor;
+                    state.offset = (0.0, 0.0);
+                    state.dragging = Some(self.data);
+                    context.redraw();
+                }
+            }
+
+            Event::Cursor(x, y) if state.dragging.is_some() => {
+                state.offset = (x - state.origin.0, y - state.origin.1);
                 context.redraw();
             }
 
-            Event::Release(Key::LeftMouseButton) if self.state.dragging.is_some() => {
-                self.state.dragging.take();
+            Event::Release(Key::LeftMouseButton) if state.dragging.is_some() => {
+                state.dragging.take();
                 self.context.data.lock().unwrap().take();
                 context.redraw();
             }
@@ -137,48 +151,50 @@ impl<'a, T: DragDropId + Send, Message: 'a> Widget<'a, Message> for Drag<'a, T, 
             _ => (),
         }
 
-        self.content.event(layout, clip, style, event, context);
+        self.content.event(&mut (), layout, clip, style, event, context);
     }
 
-    fn node_event(&mut self, layout: Rectangle, _: &Stylesheet, event: NodeEvent, context: &mut Context<Message>) {
-        if let NodeEvent::MouseDown(Key::LeftMouseButton) = event {
-            self.context.data.lock().unwrap().replace((
-                self.data,
-                (context.cursor.0 - layout.left, context.cursor.1 - layout.top),
-            ));
-            self.state.origin = context.cursor;
-            self.state.offset = (0.0, 0.0);
-            self.state.dragging = Some(self.data);
-            context.redraw();
-        }
-    }
-
-    fn draw(&mut self, layout: Rectangle, clip: Rectangle, style: &Stylesheet) -> Vec<Primitive<'a>> {
-        if self.state.dragging.is_some() {
-            let (dx, dy) = self.state.offset;
+    fn draw(
+        &mut self,
+        state: &mut DragState<T>,
+        layout: Rectangle,
+        clip: Rectangle,
+        style: &Stylesheet,
+    ) -> Vec<Primitive<'a>> {
+        if state.dragging.is_some() {
+            let (dx, dy) = state.offset;
             let mut result = Vec::new();
             result.push(Primitive::LayerUp);
-            result.extend(self.content.draw(layout.translate(dx, dy), clip, style));
+            result.extend(self.content.draw(&mut (), layout.translate(dx, dy), clip, style));
             result.push(Primitive::LayerDown);
             result
         } else {
-            self.content.draw(layout, clip, style)
+            self.content.draw(&mut (), layout, clip, style)
         }
     }
 }
 
-impl<'a, T: DragDropId, Message: 'a, OnAccept, OnDrop> Widget<'a, Message> for Drop<'a, T, Message, OnAccept, OnDrop>
+impl<'a, T, Message: 'a, OnAccept, OnDrop> Widget<'a, Message> for Drop<'a, T, Message, OnAccept, OnDrop>
 where
+    T: DragDropId + Send + Sync,
     OnAccept: Send + Fn(T) -> bool,
     OnDrop: Send + Fn(T, (f32, f32)) -> Message,
 {
+    type State = DropState<T>;
+
+    fn mount(&self) -> DropState<T> {
+        DropState::<T>::default()
+    }
+
     fn widget(&self) -> &'static str {
         "drop"
     }
 
-    fn state(&self) -> StateVec {
-        if self.state.hovering.is_some() {
+    fn state(&self, state: &DropState<T>) -> StateVec {
+        if state.hovering.is_some() {
             smallvec![StyleState::Drop]
+        } else if state.mouse_over {
+            smallvec![StyleState::DropDenied]
         } else {
             smallvec![]
         }
@@ -188,39 +204,40 @@ where
         self.content.len()
     }
 
-    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn ApplyStyle)) {
+    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn GenericNode<'a, Message>)) {
         self.content.visit_children(visitor);
     }
 
-    fn size(&self, style: &Stylesheet) -> (Size, Size) {
-        self.content.size(style)
+    fn size(&self, _: &DropState<T>, style: &Stylesheet) -> (Size, Size) {
+        self.content.size(&(), style)
     }
 
     fn event(
         &mut self,
+        state: &mut DropState<T>,
         layout: Rectangle,
         clip: Rectangle,
         style: &Stylesheet,
         event: Event,
         context: &mut Context<Message>,
     ) {
-        self.content.event(layout, clip, style, event, context)
-    }
-
-    fn node_event(&mut self, layout: Rectangle, _: &Stylesheet, event: NodeEvent, context: &mut Context<Message>) {
         match event {
-            NodeEvent::MouseEnter => {
-                if let Some(data) = *self.context.data.lock().unwrap() {
-                    if (self.accept)(data.0) {
-                        self.state.hovering = Some(data);
+            Event::Cursor(x, y) => {
+                let inside = layout.point_inside(x, y) && clip.point_inside(x, y);
+                if inside && !state.mouse_over {
+                    if let Some(data) = *self.context.data.lock().unwrap() {
+                        if (self.accept)(data.0) {
+                            state.hovering = Some(data);
+                        }
                     }
+                } else if !inside && state.mouse_over {
+                    state.hovering = None;
                 }
+                state.mouse_over = inside;
             }
-            NodeEvent::MouseLeave => {
-                self.state.hovering = None;
-            }
-            NodeEvent::MouseUp(Key::LeftMouseButton) => {
-                if let Some(data) = self.state.hovering.take() {
+
+            Event::Release(Key::LeftMouseButton) => {
+                if let Some(data) = state.hovering.take() {
                     context.push((self.drop)(
                         data.0,
                         (
@@ -233,31 +250,39 @@ where
 
             _ => (),
         }
+
+        self.content.event(&mut (), layout, clip, style, event, context)
     }
 
-    fn draw(&mut self, layout: Rectangle, clip: Rectangle, style: &Stylesheet) -> Vec<Primitive<'a>> {
-        self.content.draw(layout, clip, style)
+    fn draw(
+        &mut self,
+        _: &mut DropState<T>,
+        layout: Rectangle,
+        clip: Rectangle,
+        style: &Stylesheet,
+    ) -> Vec<Primitive<'a>> {
+        self.content.draw(&mut (), layout, clip, style)
     }
 }
 
-impl<'a, T: DragDropId, Message: 'a> IntoNode<'a, Message> for Drag<'a, T, Message> {
+impl<'a, T: DragDropId + Send + Sync, Message: 'a> IntoNode<'a, Message> for Drag<'a, T, Message> {
     fn into_node(self) -> Node<'a, Message> {
-        Node::new(self)
+        Node::from_widget(self)
     }
 }
 
-impl<'a, T: DragDropId, Message: 'a, OnAccept: 'a, OnDrop: 'a> IntoNode<'a, Message>
+impl<'a, T: DragDropId + Send + Sync, Message: 'a, OnAccept: 'a, OnDrop: 'a> IntoNode<'a, Message>
     for Drop<'a, T, Message, OnAccept, OnDrop>
 where
     OnAccept: Send + Fn(T) -> bool,
     OnDrop: Send + Fn(T, (f32, f32)) -> Message,
 {
     fn into_node(self) -> Node<'a, Message> {
-        Node::new(self)
+        Node::from_widget(self)
     }
 }
 
-impl<T: 'static + Copy + Send> DragDropId for T {}
+impl<T: 'static + Copy + Send + Sync> DragDropId for T {}
 
 impl<T: DragDropId> Default for DragDropContext<T> {
     fn default() -> Self {
@@ -277,6 +302,9 @@ impl<T: DragDropId> Default for DragState<T> {
 
 impl<T: DragDropId> Default for DropState<T> {
     fn default() -> Self {
-        Self { hovering: None }
+        Self {
+            hovering: None,
+            mouse_over: false,
+        }
     }
 }

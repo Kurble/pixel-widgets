@@ -44,7 +44,9 @@
 //!
 //! And finally, we must implement [`Model`](trait.Model.html) on our state
 //! ```
+//! use pixel_widgets::node::Node;
 //! use pixel_widgets::prelude::*;
+//!
 //!
 //! pub struct Counter {
 //!     state: ManagedState<String>,
@@ -111,14 +113,19 @@ use std::any::Any;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 
-use crate::component_node::ComponentNode;
+use node::{GenericNode, Node};
+use widget::Context;
+
 use crate::draw::DrawList;
 use crate::event::Event;
 use crate::layout::Rectangle;
+use crate::node::component_node::ComponentNode;
 use crate::stylesheet::tree::Query;
 use crate::stylesheet::Style;
 use crate::tracker::ManagedState;
-use crate::widget::{Context, GenericNode, Node};
+use futures::{FutureExt, Stream, StreamExt};
+use std::future::Future;
+use std::task::{Poll, Waker};
 
 mod atlas;
 /// Backend specific code
@@ -126,7 +133,6 @@ pub mod backend;
 mod bitset;
 /// Texture cache for styles and text
 pub mod cache;
-mod component_node;
 /// Primitives used for drawing
 pub mod draw;
 /// User input events
@@ -135,8 +141,8 @@ pub mod event;
 pub mod graphics;
 /// Primitives used for layouts
 pub mod layout;
-/// Asynchronous resource loading
-pub mod loader;
+/// User interface building blocks
+pub mod node;
 /// Simple windowing system for those who want to render _just_ widgets.
 #[cfg(feature = "winit")]
 #[cfg(feature = "wgpu")]
@@ -168,7 +174,77 @@ pub trait Component {
 
     fn view<'a>(&'a self, state: &'a Self::State) -> Node<'a, Self::Message>;
 
-    fn update(&self, message: Self::Message, state: &mut Self::State) -> Vec<Self::Output>;
+    fn update(
+        &self,
+        message: Self::Message,
+        state: &mut Self::State,
+        runtime: &mut Runtime<Self::Message>,
+    ) -> Vec<Self::Output>;
+}
+
+pub struct Runtime<Message> {
+    futures: Vec<Box<dyn Future<Output = Message> + Send + Sync + Unpin>>,
+    streams: Vec<Box<dyn Stream<Item = Message> + Send + Sync + Unpin>>,
+    modified: bool,
+}
+
+impl<Message> Default for Runtime<Message> {
+    fn default() -> Self {
+        Self {
+            futures: Vec::new(),
+            streams: Vec::new(),
+            modified: false,
+        }
+    }
+}
+
+impl<Message> Runtime<Message> {
+    pub fn wait<F: 'static + Future<Output = Message> + Send + Sync + Unpin>(&mut self, fut: F) {
+        self.futures.push(Box::new(fut));
+        self.modified = true;
+    }
+
+    pub fn stream<S: 'static + Stream<Item = Message> + Send + Sync + Unpin>(&mut self, stream: S) {
+        self.streams.push(Box::new(stream));
+        self.modified = true;
+    }
+
+    pub(crate) fn poll(&mut self, cx: &mut std::task::Context) -> Vec<Message> {
+        self.modified = false;
+
+        let mut result = Vec::new();
+
+        let mut i = 0;
+        while i < self.futures.len() {
+            match self.futures[i].poll_unpin(&mut *cx) {
+                Poll::Ready(message) => {
+                    result.push(message);
+                    drop(self.futures.remove(i));
+                }
+                Poll::Pending => {
+                    i += 1;
+                }
+            }
+        }
+
+        let mut i = 0;
+        while i < self.streams.len() {
+            match self.streams[i].poll_next_unpin(&mut *cx) {
+                Poll::Ready(Some(message)) => {
+                    result.push(message);
+                    i += 1;
+                }
+                Poll::Ready(None) => {
+                    drop(self.streams.remove(i));
+                }
+                Poll::Pending => {
+                    i += 1;
+                }
+            }
+        }
+
+        result
+    }
 }
 
 /// Entry point for pixel-widgets.
@@ -229,17 +305,21 @@ impl<M: 'static + Component> Ui<M> {
 
     /// Updates the model with a message.
     /// This forces the view to be rerendered.
-    pub fn update(&mut self, message: M::Message) -> Vec<M::Output> {
-        self.root_node.update(message)
+    pub fn update(&mut self, message: M::Message, waker: Waker) -> Vec<M::Output> {
+        let result = self.root_node.update(message);
+        if self.root_node.needs_poll() {
+            while self.root_node.poll(&mut *cx) {}
+        }
+        result
     }
 
     /// Handles an [`Event`](event/struct.Event.html).
-    pub fn event(&mut self, event: Event) -> Vec<M::Output> {
+    pub fn event(&mut self, event: Event, waker: Waker) -> Vec<M::Output> {
         if let Event::Cursor(x, y) = event {
             self.cursor = (x, y);
         }
 
-        let mut context = Context::new(self.needs_redraw(), self.cursor);
+        let mut context = Context::new(self.needs_redraw(), self.cursor, waker);
 
         {
             let mut view = self.root_node.view();
@@ -258,6 +338,11 @@ impl<M: 'static + Component> Ui<M> {
             result.extend(self.root_node.update(message));
         }
         result
+    }
+
+    /// Should be called when the waker wakes :)
+    pub fn poll(&mut self, cx: &mut std::task::Context<'_>) {
+        while self.root_node.poll(&mut *cx) {}
     }
 
     /// Generate a [`DrawList`](draw/struct.DrawList.html) for the view.
@@ -624,5 +709,5 @@ pub mod prelude {
     #[cfg(feature = "winit")]
     #[cfg(feature = "wgpu")]
     pub use crate::sandbox::Sandbox;
-    pub use crate::{layout::Rectangle, stylesheet::Style, widget::*, Component, Ui};
+    pub use crate::{layout::Rectangle, node::*, stylesheet::Style, widget::*, Component, Runtime, Ui};
 }

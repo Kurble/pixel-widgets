@@ -5,12 +5,15 @@ use winit::{
 };
 
 use crate::prelude::*;
+use std::sync::{Arc, Mutex};
+use std::task::Wake;
+use winit::event_loop::EventLoopProxy;
 
 /// Sandbox for quick prototyping of pixel widgets applications
 pub struct Sandbox<M: 'static + Component> {
     /// The `Ui` being used in the sandbox
     pub ui: crate::backend::wgpu::Ui<M>,
-    event_loop: Option<EventLoop<()>>,
+    event_loop: Option<EventLoop<PollUi>>,
     surface: wgpu::Surface,
     #[allow(unused)]
     adapter: wgpu::Adapter,
@@ -21,13 +24,27 @@ pub struct Sandbox<M: 'static + Component> {
     window: Window,
 }
 
+#[derive(Clone)]
+pub struct PollUi;
+
+pub struct Waker<T: 'static> {
+    message: T,
+    event_loop: Mutex<EventLoopProxy<T>>,
+}
+
+impl<T: 'static + Clone> Wake for Waker<T> {
+    fn wake(self: Arc<Self>) {
+        self.event_loop.lock().unwrap().send_event(self.message.clone()).ok();
+    }
+}
+
 impl<T> Sandbox<T>
 where
     T: 'static + Component,
 {
     /// Construct a new `Sandbox`
     pub async fn new(root_component: T, builder: WindowBuilder) -> Self {
-        let event_loop = EventLoop::new();
+        let event_loop = EventLoop::with_user_event();
         let window = builder.build(&event_loop).unwrap();
         let size = window.inner_size();
 
@@ -90,9 +107,18 @@ where
     /// Run the application
     pub async fn run(mut self) {
         let event_loop = self.event_loop.take().unwrap();
+        let proxy = event_loop.create_proxy();
+        let waker = std::task::Waker::from(Arc::new(Waker {
+            message: PollUi,
+            event_loop: Mutex::new(proxy),
+        }));
+
         event_loop.run(move |event, _, control_flow| {
             *control_flow = ControlFlow::Wait;
             match event {
+                Event::UserEvent(_) => {
+                    self.ui.poll(&mut std::task::Context::from_waker(&waker));
+                }
                 Event::WindowEvent {
                     event: WindowEvent::Resized(size),
                     ..
@@ -137,7 +163,7 @@ where
                 } => *control_flow = ControlFlow::Exit,
                 other => {
                     if let Some(event) = crate::backend::winit::convert_event(other) {
-                        self.ui.event(event);
+                        self.ui.event(event, &mut std::task::Context::from_waker(&waker));
                     }
                 }
             }

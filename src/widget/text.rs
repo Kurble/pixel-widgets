@@ -1,12 +1,12 @@
+use std::borrow::Cow;
+
 use crate::draw::Primitive;
 use crate::event::Event;
 use crate::layout::{Rectangle, Size};
+use crate::node::{IntoNode, Node};
 use crate::stylesheet::Stylesheet;
 use crate::text;
 use crate::widget::*;
-use std::borrow::Cow;
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
 
 /// Widget that renders a paragraph of text.
 pub struct Text {
@@ -22,12 +22,6 @@ impl Text {
 
 impl<'a, T> Widget<'a, T> for Text {
     type State = ();
-
-    fn key(&self) -> u64 {
-        let mut h = DefaultHasher::new();
-        self.text.hash(&mut h);
-        h.finish()
-    }
 
     fn mount(&self) -> Self::State {
         ()
@@ -94,6 +88,12 @@ impl<'a, T> Widget<'a, T> for Text {
 
 impl<'a, T: 'a> IntoNode<'a, T> for Text {
     fn into_node(self) -> Node<'a, T> {
-        Box::new(WidgetNode::new(self)) as Box<_>
+        Node::from_widget(self)
+    }
+}
+
+impl<'a, T: 'a, S: 'a + Into<String>> IntoNode<'a, T> for S {
+    fn into_node(self) -> Node<'a, T> {
+        Node::from_widget(Text::new(self))
     }
 }

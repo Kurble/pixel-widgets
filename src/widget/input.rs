@@ -1,14 +1,17 @@
-use crate::draw::*;
-use crate::event::{Event, Key, Modifiers};
-use crate::layout::{Rectangle, Size};
-use crate::stylesheet::Stylesheet;
-use crate::text::{Text, TextWrap};
-use crate::widget::{ApplyStyle, Context, IntoNode, Node, Widget};
+use std::borrow::Cow;
+use std::time::Instant;
+
 #[cfg(feature = "clipboard")]
 use clipboard::{ClipboardContext, ClipboardProvider};
 use rusttype::Scale;
-use std::borrow::Cow;
-use std::time::Instant;
+
+use crate::draw::*;
+use crate::event::{Event, Key, Modifiers};
+use crate::layout::{Rectangle, Size};
+use crate::node::{GenericNode, IntoNode, Node};
+use crate::stylesheet::Stylesheet;
+use crate::text::{Text, TextWrap};
+use crate::widget::{Context, Widget};
 
 /// State for [`Input`](struct.Input.html)
 pub struct State {
@@ -29,7 +32,6 @@ enum InnerState {
 /// Editable text input
 pub struct Input<'a, T, F, S> {
     placeholder: &'a str,
-    state: &'a mut State,
     password: bool,
     value: S,
     on_change: F,
@@ -44,10 +46,9 @@ where
     S: 'a + Send + AsRef<str>,
 {
     /// Construct a new `Input`
-    pub fn new(state: &'a mut State, placeholder: &'a str, value: S, on_change: F) -> Self {
+    pub fn new(placeholder: &'a str, value: S, on_change: F) -> Self {
         Input {
             placeholder,
-            state,
             password: false,
             value,
             on_change,
@@ -57,10 +58,9 @@ where
     }
 
     /// Construct a new `Input` that renders the text as dots, for passwords.
-    pub fn password(state: &'a mut State, placeholder: &'a str, value: S, on_change: F) -> Self {
+    pub fn password(placeholder: &'a str, value: S, on_change: F) -> Self {
         Input {
             placeholder,
-            state,
             password: true,
             value,
             on_change,
@@ -112,6 +112,12 @@ where
     F: 'a + Send + Fn(String) -> T,
     S: 'a + Send + AsRef<str>,
 {
+    type State = State;
+
+    fn mount(&self) -> Self::State {
+        State::default()
+    }
+
     fn widget(&self) -> &'static str {
         "input"
     }
@@ -120,9 +126,9 @@ where
         0
     }
 
-    fn visit_children(&mut self, _: &mut dyn FnMut(&mut dyn ApplyStyle)) {}
+    fn visit_children(&mut self, _: &mut dyn FnMut(&mut dyn GenericNode<'a, T>)) {}
 
-    fn size(&self, stylesheet: &Stylesheet) -> (Size, Size) {
+    fn size(&self, _: &State, stylesheet: &Stylesheet) -> (Size, Size) {
         match (stylesheet.width, stylesheet.height) {
             (Size::Shrink, Size::Shrink) => {
                 let width = self.placeholder(stylesheet).measure(None).width()
@@ -152,6 +158,7 @@ where
 
     fn event(
         &mut self,
+        state: &mut State,
         layout: Rectangle,
         clip: Rectangle,
         stylesheet: &Stylesheet,
@@ -163,7 +170,7 @@ where
         let mut new_text = None;
 
         // sanity check on the state
-        self.state.inner = match self.state.inner {
+        state.inner = match state.inner {
             InnerState::Dragging(mut from, mut to, since) => {
                 if from > value_len {
                     from = value_len;
@@ -192,42 +199,42 @@ where
         // event related state update
         match event {
             Event::Cursor(x, y) => {
-                self.state.cursor = (x, y);
-                if let InnerState::Dragging(from, _, _) = self.state.inner {
+                state.cursor = (x, y);
+                if let InnerState::Dragging(from, _, _) = state.inner {
                     let relative_cursor = (
-                        self.state.cursor.0 - content_rect.left + self.state.scroll_x,
-                        self.state.cursor.1 - content_rect.top + self.state.scroll_y,
+                        state.cursor.0 - content_rect.left + state.scroll_x,
+                        state.cursor.1 - content_rect.top + state.scroll_y,
                     );
                     let hit =
                         text_display(self.text(stylesheet), self.password).hitdetect(relative_cursor, content_rect);
-                    self.state.inner = InnerState::Dragging(from, hit, Instant::now());
+                    state.inner = InnerState::Dragging(from, hit, Instant::now());
                     context.redraw();
                 }
             }
 
             Event::Modifiers(modifiers) => {
-                self.state.modifiers = modifiers;
+                state.modifiers = modifiers;
             }
 
             Event::Press(Key::LeftMouseButton) => {
                 context.redraw();
-                if layout.point_inside(self.state.cursor.0, self.state.cursor.1)
-                    && clip.point_inside(self.state.cursor.0, self.state.cursor.1)
+                if layout.point_inside(state.cursor.0, state.cursor.1)
+                    && clip.point_inside(state.cursor.0, state.cursor.1)
                 {
                     let relative_cursor = (
-                        self.state.cursor.0 - content_rect.left + self.state.scroll_x,
-                        self.state.cursor.1 - content_rect.top + self.state.scroll_y,
+                        state.cursor.0 - content_rect.left + state.scroll_x,
+                        state.cursor.1 - content_rect.top + state.scroll_y,
                     );
                     let hit =
                         text_display(self.text(stylesheet), self.password).hitdetect(relative_cursor, content_rect);
-                    self.state.inner = InnerState::Dragging(hit, hit, Instant::now());
+                    state.inner = InnerState::Dragging(hit, hit, Instant::now());
                 } else {
-                    self.state.inner = InnerState::Idle;
+                    state.inner = InnerState::Idle;
                 }
             }
 
             Event::Release(Key::LeftMouseButton) => {
-                self.state.inner = match self.state.inner {
+                state.inner = match state.inner {
                     InnerState::Dragging(from, to, since) => {
                         context.redraw();
                         InnerState::Focused(from, to, since)
@@ -236,10 +243,10 @@ where
                 }
             }
 
-            event => match self.state.inner {
+            event => match state.inner {
                 InnerState::Idle => match event {
                     Event::Press(key) if Some(key) == self.trigger => {
-                        self.state.inner = InnerState::Focused(0, self.value.as_ref().len(), Instant::now());
+                        state.inner = InnerState::Focused(0, self.value.as_ref().len(), Instant::now());
                         context.redraw();
                     }
                     _ => (),
@@ -252,11 +259,11 @@ where
                             let (from, to) = (from.min(to), from.max(to));
 
                             if to > from {
-                                self.state.inner = InnerState::Focused(from, from, Instant::now());
+                                state.inner = InnerState::Focused(from, from, Instant::now());
                                 let (head, tail) = self.value.as_ref().split_at(codepoint(self.value.as_ref(), from));
                                 new_text.replace(format!("{}{}", head, tail.split_at(codepoint(tail, to - from)).1));
                             } else if from > 0 {
-                                self.state.inner = InnerState::Focused(from - 1, from - 1, Instant::now());
+                                state.inner = InnerState::Focused(from - 1, from - 1, Instant::now());
                                 let (head, tail) =
                                     self.value.as_ref().split_at(codepoint(self.value.as_ref(), from - 1));
                                 new_text.replace(format!("{}{}", head, tail.split_at(codepoint(tail, 1)).1));
@@ -265,7 +272,7 @@ where
                         '\x7f' => {
                             context.redraw();
                             let (from, to) = (from.min(to), from.max(to));
-                            self.state.inner = InnerState::Focused(from, from, Instant::now());
+                            state.inner = InnerState::Focused(from, from, Instant::now());
 
                             let (head, tail) = self.value.as_ref().split_at(codepoint(self.value.as_ref(), from));
                             if to > from {
@@ -278,7 +285,7 @@ where
                             if !c.is_control() {
                                 context.redraw();
                                 let (from, to) = (from.min(to), from.max(to));
-                                self.state.inner = InnerState::Focused(from + 1, from + 1, Instant::now());
+                                state.inner = InnerState::Focused(from + 1, from + 1, Instant::now());
 
                                 let (head, tail) = self.value.as_ref().split_at(codepoint(self.value.as_ref(), from));
                                 if to > from {
@@ -296,16 +303,16 @@ where
                     },
 
                     Event::Press(Key::Enter) if self.on_submit.is_some() => {
-                        if !self.state.modifiers.shift {
+                        if !state.modifiers.shift {
                             context.redraw();
                             context.extend(self.on_submit.take());
-                            self.state.inner = InnerState::Idle;
+                            state.inner = InnerState::Idle;
                         }
                     }
 
                     #[cfg(feature = "clipboard")]
                     Event::Press(Key::C) => {
-                        if self.state.modifiers.ctrl {
+                        if state.modifiers.ctrl {
                             let (a, b) = (
                                 codepoint(self.value.as_ref(), from.min(to)),
                                 codepoint(self.value.as_ref(), from.max(to)),
@@ -319,7 +326,7 @@ where
 
                     #[cfg(feature = "clipboard")]
                     Event::Press(Key::X) => {
-                        if self.state.modifiers.ctrl {
+                        if state.modifiers.ctrl {
                             context.redraw();
                             let (from, to) = (from.min(to), from.max(to));
                             let (a, b) = (codepoint(self.value.as_ref(), from), codepoint(self.value.as_ref(), to));
@@ -328,7 +335,7 @@ where
                                 .and_then(|mut cc| cc.set_contents(cut_text))
                                 .ok();
 
-                            self.state.inner = InnerState::Focused(from, from, Instant::now());
+                            state.inner = InnerState::Focused(from, from, Instant::now());
                             let (head, tail) = self.value.as_ref().split_at(codepoint(self.value.as_ref(), from));
                             if to > from {
                                 new_text.replace(format!("{}{}", head, tail.split_at(codepoint(tail, to - from)).1));
@@ -340,14 +347,14 @@ where
 
                     #[cfg(feature = "clipboard")]
                     Event::Press(Key::V) => {
-                        if self.state.modifiers.ctrl {
+                        if state.modifiers.ctrl {
                             context.redraw();
                             let (from, to) = (from.min(to), from.max(to));
                             let paste_text = ClipboardContext::new().and_then(|mut cc| cc.get_contents()).ok();
 
                             if let Some(paste_text) = paste_text {
                                 let (head, tail) = self.value.as_ref().split_at(codepoint(self.value.as_ref(), from));
-                                self.state.inner = InnerState::Focused(
+                                state.inner = InnerState::Focused(
                                     from + paste_text.len(),
                                     from + paste_text.len(),
                                     Instant::now(),
@@ -368,48 +375,47 @@ where
 
                     Event::Press(Key::Left) => {
                         context.redraw();
-                        if self.state.modifiers.shift {
-                            self.state.inner =
-                                InnerState::Focused(from, if to > 0 { to - 1 } else { 0 }, Instant::now());
+                        if state.modifiers.shift {
+                            state.inner = InnerState::Focused(from, if to > 0 { to - 1 } else { 0 }, Instant::now());
                         } else {
                             let (from, to) = (from.min(to), from.max(to));
                             if from != to || from == 0 {
-                                self.state.inner = InnerState::Focused(from, from, Instant::now());
+                                state.inner = InnerState::Focused(from, from, Instant::now());
                             } else {
-                                self.state.inner = InnerState::Focused(from - 1, from - 1, Instant::now());
+                                state.inner = InnerState::Focused(from - 1, from - 1, Instant::now());
                             }
                         }
                     }
 
                     Event::Press(Key::Right) => {
                         context.redraw();
-                        if self.state.modifiers.shift {
-                            self.state.inner = InnerState::Focused(from, (to + 1).min(value_len), Instant::now());
+                        if state.modifiers.shift {
+                            state.inner = InnerState::Focused(from, (to + 1).min(value_len), Instant::now());
                         } else {
                             let (from, to) = (from.min(to), from.max(to));
                             if from != to || to >= value_len {
-                                self.state.inner = InnerState::Focused(to, to, Instant::now());
+                                state.inner = InnerState::Focused(to, to, Instant::now());
                             } else {
-                                self.state.inner = InnerState::Focused(to + 1, to + 1, Instant::now());
+                                state.inner = InnerState::Focused(to + 1, to + 1, Instant::now());
                             }
                         }
                     }
 
                     Event::Press(Key::Home) => {
                         context.redraw();
-                        if self.state.modifiers.shift {
-                            self.state.inner = InnerState::Focused(from, 0, Instant::now());
+                        if state.modifiers.shift {
+                            state.inner = InnerState::Focused(from, 0, Instant::now());
                         } else {
-                            self.state.inner = InnerState::Focused(0, 0, Instant::now());
+                            state.inner = InnerState::Focused(0, 0, Instant::now());
                         }
                     }
 
                     Event::Press(Key::End) => {
                         context.redraw();
-                        if self.state.modifiers.shift {
-                            self.state.inner = InnerState::Focused(from, value_len, Instant::now());
+                        if state.modifiers.shift {
+                            state.inner = InnerState::Focused(from, value_len, Instant::now());
                         } else {
-                            self.state.inner = InnerState::Focused(value_len, value_len, Instant::now());
+                            state.inner = InnerState::Focused(value_len, value_len, Instant::now());
                         }
                     }
 
@@ -421,7 +427,7 @@ where
         }
 
         // update scroll state for current text and caret position
-        match self.state.inner {
+        match state.inner {
             InnerState::Dragging(_, pos, _) | InnerState::Focused(_, pos, _) => {
                 let mut measure_text = Text {
                     text: Cow::Borrowed(new_text.as_ref().map(String::as_str).unwrap_or(self.value.as_ref())),
@@ -439,25 +445,25 @@ where
 
                 let (caret, range) = measure_text.measure_range(pos, measure_text_len, content_rect);
 
-                if self.state.scroll_x + content_rect.width() > range.0 + 2.0 {
+                if state.scroll_x + content_rect.width() > range.0 + 2.0 {
                     context.redraw();
-                    self.state.scroll_x = (range.0 - content_rect.width() + 2.0).max(0.0);
+                    state.scroll_x = (range.0 - content_rect.width() + 2.0).max(0.0);
                 }
-                if caret.0 - self.state.scroll_x > content_rect.width() - 2.0 {
+                if caret.0 - state.scroll_x > content_rect.width() - 2.0 {
                     context.redraw();
-                    self.state.scroll_x = caret.0 - content_rect.width() + 2.0;
+                    state.scroll_x = caret.0 - content_rect.width() + 2.0;
                 }
-                if caret.0 - self.state.scroll_x < 0.0 {
+                if caret.0 - state.scroll_x < 0.0 {
                     context.redraw();
-                    self.state.scroll_x = caret.0;
+                    state.scroll_x = caret.0;
                 }
-                if caret.1 - self.state.scroll_y > content_rect.height() - 2.0 {
+                if caret.1 - state.scroll_y > content_rect.height() - 2.0 {
                     context.redraw();
-                    self.state.scroll_y = caret.1 - content_rect.height() + 2.0;
+                    state.scroll_y = caret.1 - content_rect.height() + 2.0;
                 }
-                if caret.1 - self.state.scroll_y < 0.0 {
+                if caret.1 - state.scroll_y < 0.0 {
                     context.redraw();
-                    self.state.scroll_y = caret.1;
+                    state.scroll_y = caret.1;
                 }
             }
             _ => (),
@@ -468,17 +474,23 @@ where
         }
     }
 
-    fn draw(&mut self, layout: Rectangle, clip: Rectangle, stylesheet: &Stylesheet) -> Vec<Primitive<'a>> {
+    fn draw(
+        &mut self,
+        state: &mut State,
+        layout: Rectangle,
+        clip: Rectangle,
+        stylesheet: &Stylesheet,
+    ) -> Vec<Primitive<'a>> {
         let mut result = Vec::new();
 
         let content_rect = self.content_rect(layout, stylesheet);
-        let text_rect = content_rect.translate(-self.state.scroll_x, -self.state.scroll_y);
+        let text_rect = content_rect.translate(-state.scroll_x, -state.scroll_y);
         let text = text_display(self.text(stylesheet), self.password);
 
         result.extend(stylesheet.background.render(layout).into_iter());
         if let Some(clip) = content_rect.intersect(&clip) {
             result.push(Primitive::PushClip(clip));
-            match self.state.inner {
+            match state.inner {
                 InnerState::Dragging(from, to, since) | InnerState::Focused(from, to, since) => {
                     let range = text.measure_range(from.min(to), from.max(to), text_rect);
 
@@ -539,7 +551,7 @@ where
     S: 'a + Send + AsRef<str>,
 {
     fn into_node(self) -> Node<'a, T> {
-        Node::new(self)
+        Node::from_widget(self)
     }
 }
 

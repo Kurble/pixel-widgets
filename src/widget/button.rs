@@ -1,5 +1,3 @@
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
 use std::mem::replace;
 
 use smallvec::smallvec;
@@ -7,8 +5,9 @@ use smallvec::smallvec;
 use crate::draw::*;
 use crate::event::{Event, Key};
 use crate::layout::{Rectangle, Size};
+use crate::node::{GenericNode, IntoNode, Node};
 use crate::stylesheet::{StyleState, Stylesheet};
-use crate::widget::{Context, GenericNode, IntoNode, Node, StateVec, Widget, WidgetNode};
+use crate::widget::{Context, StateVec, Widget};
 
 /// A clickable button
 pub struct Button<'a, T> {
@@ -50,12 +49,6 @@ impl<'a, T: 'a + Send> Widget<'a, T> for Button<'a, T> {
 
     fn widget(&self) -> &'static str {
         "button"
-    }
-
-    fn key(&self) -> u64 {
-        let mut h = DefaultHasher::new();
-        "button".hash(&mut h);
-        h.finish()
     }
 
     fn state(&self, state: &State) -> StateVec {
@@ -160,7 +153,7 @@ impl<'a, T: 'a + Send> Widget<'a, T> for Button<'a, T> {
 
 impl<'a, T: 'a + Send> IntoNode<'a, T> for Button<'a, T> {
     fn into_node(self) -> Node<'a, T> {
-        Box::new(WidgetNode::new(self)) as Box<_>
+        Node::from_widget(self)
     }
 }
 

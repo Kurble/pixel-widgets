@@ -125,14 +125,18 @@ use crate::bitset::BitSet;
 use crate::cache::Cache;
 use crate::draw::{Background, Color, Image, Patch};
 use crate::layout::{Align, Direction, Rectangle, Size};
-use crate::loader::Loader;
 use crate::text::{Font, TextWrap};
 
 mod parse;
 mod tokenize;
 pub(crate) mod tree;
 
+use crate::graphics::Graphics;
+use futures::future::Map;
+use futures::FutureExt;
 use parse::*;
+use std::future::Future;
+use std::path::Path;
 use std::sync::{Arc, Mutex};
 use tokenize::*;
 
@@ -155,6 +159,25 @@ pub struct Style {
     resolved: Mutex<HashMap<BitSet, Arc<Stylesheet>>>,
     default: Stylesheet,
     rule_tree: tree::RuleTree,
+}
+
+pub trait ReadFn {
+    type Future: Future<Output = anyhow::Result<Vec<u8>>>;
+
+    fn read(&self, path: &Path) -> Self::Future;
+}
+
+impl<T, F, E> ReadFn for T
+where
+    T: Fn(&Path) -> F,
+    F: Future<Output = Result<Vec<u8>, E>>,
+    E: Into<anyhow::Error>,
+{
+    type Future = Map<F, fn(Result<Vec<u8>, E>) -> anyhow::Result<Vec<u8>>>;
+
+    fn read(&self, path: &Path) -> Self::Future {
+        (*self)(path).map(|r| r.map_err(|e| e.into()))
+    }
 }
 
 /// A fully resolved stylesheet, passed by reference to [`Widget::draw`](../widget/trait.Widget.html).
@@ -295,6 +318,8 @@ pub enum StyleState<S: AsRef<str>> {
     Drag,
     /// When a drop widget accepts a dragged widget before it's dropped
     Drop,
+    /// When a drop widget denies a dragged widget
+    DropDenied,
     /// Custom state for custom widgets
     Custom(S),
 }
@@ -350,28 +375,37 @@ impl Style {
         self.cache.clone()
     }
 
-    /// Asynchronously load a stylesheet from a .pwss file. See the [module documentation](index.html) on how to write
-    /// .pwss files.
-    pub async fn load<U: AsRef<str>, L: Loader>(
-        loader: &L,
-        url: U,
-        cache_size: usize,
-        cache_offset: usize,
-    ) -> Result<Self, Error> {
-        let text = String::from_utf8(loader.load(url).await.map_err(|e| Error::Io(Box::new(e)))?).unwrap();
-        parse(tokenize(text)?, loader, cache_size, cache_offset).await
+    /// Retrieve a `Graphics` loader that can be used to load images
+    pub fn graphics(&self) -> Graphics {
+        Graphics { cache: self.cache() }
     }
 
-    /// Asynchronously load a stylesheet from a .pwss file already in memory.
-    /// See the [module documentation](index.html) on how to write .pwss files.
-    pub async fn load_from_memory<L: Loader>(
-        bytes: &[u8],
-        loader: &L,
+    /// Asynchronously load a stylesheet from a .pwss file. See the [module documentation](index.html) on how to write
+    /// .pwss files.
+    pub async fn from_read_fn<P, R>(
+        path: P,
+        read: R,
         cache_size: usize,
         cache_offset: usize,
-    ) -> Result<Self, Error> {
-        let text = String::from_utf8(bytes.to_vec()).unwrap();
-        parse(tokenize(text)?, loader, cache_size, cache_offset).await
+    ) -> anyhow::Result<Arc<Self>>
+    where
+        P: AsRef<Path>,
+        R: ReadFn,
+    {
+        let text = String::from_utf8(read.read(path.as_ref()).await?).unwrap();
+        Ok(Arc::new(parse(tokenize(text)?, read, cache_size, cache_offset).await?))
+    }
+
+    pub fn from_file<P>(path: P) -> anyhow::Result<Arc<Self>>
+    where
+        P: AsRef<Path>,
+    {
+        futures::executor::block_on(Self::from_read_fn(
+            path,
+            |path: &Path| std::future::ready(std::fs::read(path)),
+            512,
+            0,
+        ))
     }
 }
 

@@ -1,20 +1,23 @@
+use std::marker::PhantomData;
+
 use crate::draw::Primitive;
 use crate::event::{Event, Key};
 use crate::layout::{Rectangle, Size};
+use crate::node::{GenericNode, IntoNode, Node};
 use crate::stylesheet::Stylesheet;
-use crate::widget::{ApplyStyle, Context, IntoNode, Node, Widget};
-
-use std::marker::PhantomData;
+use crate::widget::{Context, Widget};
 
 /// A (context) menu with nestable items
 pub struct Menu<'a, T: 'a, S: AsMut<[MenuItem<'a, T>]>> {
-    state: &'a mut State,
     items: S,
-    marker: PhantomData<T>,
+    x: f32,
+    y: f32,
+    marker: PhantomData<&'a ()>,
+    on_close: Option<T>,
 }
 
 /// State for `Menu`
-pub struct State {
+pub struct MenuState {
     inner: InnerState,
     left: f32,
     right: f32,
@@ -26,7 +29,7 @@ enum InnerState {
     Closed,
     Idle,
     HoverItem { index: usize },
-    HoverSubMenu { index: usize, sub_state: Box<State> },
+    HoverSubMenu { index: usize, sub_state: Box<MenuState> },
     Pressed { index: usize },
 }
 
@@ -50,11 +53,13 @@ pub enum MenuItem<'a, T> {
 
 impl<'a, T: 'a> Menu<'a, T, Vec<MenuItem<'a, T>>> {
     /// Construct a new `Menu`
-    pub fn new(state: &'a mut State) -> Self {
+    pub fn new(x: f32, y: f32, on_close: T) -> Self {
         Self {
             items: Vec::new(),
-            state,
+            x,
+            y,
             marker: PhantomData,
+            on_close: on_close.into(),
         }
     }
 
@@ -72,38 +77,31 @@ impl<'a, T: 'a> Menu<'a, T, Vec<MenuItem<'a, T>>> {
 }
 
 impl<'a, T: 'a + Send, S: Send + AsRef<[MenuItem<'a, T>]> + AsMut<[MenuItem<'a, T>]>> Menu<'a, T, S> {
-    fn layout(
-        &self,
-        left: f32,
-        right: f32,
-        top: f32,
-        bottom: f32,
-        viewport: Rectangle,
-        style: &Stylesheet,
-    ) -> Rectangle {
-        let (width, height) = self.size(style);
+    fn layout(&self, state: &MenuState, viewport: Rectangle, style: &Stylesheet) -> Rectangle {
+        let (width, height) = self.size(state, style);
         let width = match width {
             Size::Exact(width) => width,
-            Size::Fill(_) => viewport.width() - right,
+            Size::Fill(_) => viewport.width() - state.right,
             Size::Shrink => 0.0,
         };
         let height = match height {
             Size::Exact(height) => height,
-            Size::Fill(_) => viewport.height() - top,
+            Size::Fill(_) => viewport.height() - state.top,
             Size::Shrink => 0.0,
         };
 
-        let (left, right) = if ((right + width) - viewport.width()).max(0.0) <= (-(left - width)).max(0.0) {
-            (right, right + width)
+        let (left, right) = if ((state.right + width) - viewport.width()).max(0.0) <= (-(state.left - width)).max(0.0) {
+            (state.right, state.right + width)
         } else {
-            (left - width, left)
+            (state.left - width, state.left)
         };
 
-        let (top, bottom) = if ((top + height) - viewport.height()).max(0.0) <= (-(bottom - height)).max(0.0) {
-            (top, top + height)
-        } else {
-            (bottom - height, bottom)
-        };
+        let (top, bottom) =
+            if ((state.top + height) - viewport.height()).max(0.0) <= (-(state.bottom - height)).max(0.0) {
+                (state.top, state.top + height)
+            } else {
+                (state.bottom - height, state.bottom)
+            };
 
         Rectangle {
             left,
@@ -172,7 +170,7 @@ impl<'a, T: 'a + Send, S: Send + AsRef<[MenuItem<'a, T>]> + AsMut<[MenuItem<'a, 
                         MenuItem::Item { .. } => InnerState::HoverItem { index },
                         MenuItem::Menu { .. } => InnerState::HoverSubMenu {
                             index,
-                            sub_state: Box::new(State {
+                            sub_state: Box::new(MenuState {
                                 inner: InnerState::Idle,
                                 right: layout.right - style.padding.right - style.padding.left,
                                 left: layout.left + style.padding.left + style.padding.right,
@@ -190,15 +188,15 @@ impl<'a, T: 'a + Send, S: Send + AsRef<[MenuItem<'a, T>]> + AsMut<[MenuItem<'a, 
     }
 }
 
-fn visit<'a, T>(items: &mut [MenuItem<'a, T>], visitor: &mut dyn FnMut(&mut dyn ApplyStyle)) {
+fn visit<'a, T>(items: &mut [MenuItem<'a, T>], visitor: &mut dyn FnMut(&mut dyn GenericNode<'a, T>)) {
     for item in items.iter_mut() {
         match item {
-            MenuItem::Item { ref mut content, .. } => visitor(content),
+            MenuItem::Item { ref mut content, .. } => visitor(&mut **content),
             MenuItem::Menu {
                 ref mut content,
                 ref mut items,
             } => {
-                visitor(content);
+                visitor(&mut **content);
                 visit(items.as_mut_slice(), visitor);
             }
         }
@@ -206,6 +204,18 @@ fn visit<'a, T>(items: &mut [MenuItem<'a, T>], visitor: &mut dyn FnMut(&mut dyn 
 }
 
 impl<'a, T: 'a + Send, S: Send + AsRef<[MenuItem<'a, T>]> + AsMut<[MenuItem<'a, T>]>> Widget<'a, T> for Menu<'a, T, S> {
+    type State = MenuState;
+
+    fn mount(&self) -> Self::State {
+        MenuState {
+            inner: InnerState::Idle,
+            left: self.x,
+            right: self.x,
+            top: self.y,
+            bottom: self.y,
+        }
+    }
+
     fn widget(&self) -> &'static str {
         "menu"
     }
@@ -214,11 +224,11 @@ impl<'a, T: 'a + Send, S: Send + AsRef<[MenuItem<'a, T>]> + AsMut<[MenuItem<'a, 
         self.items.as_ref().len()
     }
 
-    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn ApplyStyle)) {
+    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn GenericNode<'a, T>)) {
         visit(self.items.as_mut(), visitor);
     }
 
-    fn size(&self, style: &Stylesheet) -> (Size, Size) {
+    fn size(&self, _: &MenuState, style: &Stylesheet) -> (Size, Size) {
         let width = match style.width {
             Size::Shrink => {
                 Size::Exact(
@@ -253,36 +263,30 @@ impl<'a, T: 'a + Send, S: Send + AsRef<[MenuItem<'a, T>]> + AsMut<[MenuItem<'a, 
             .resolve_size((style.width, style.height), (width, height), style.padding)
     }
 
-    fn hit(&self, layout: Rectangle, clip: Rectangle, _style: &Stylesheet, x: f32, y: f32) -> bool {
-        self.focused() && layout.point_inside(x, y) && clip.point_inside(x, y)
+    fn hit(&self, state: &MenuState, layout: Rectangle, clip: Rectangle, _style: &Stylesheet, x: f32, y: f32) -> bool {
+        self.focused(state) && layout.point_inside(x, y) && clip.point_inside(x, y)
     }
 
-    fn focused(&self) -> bool {
-        !matches!(self.state.inner, InnerState::Closed)
+    fn focused(&self, state: &MenuState) -> bool {
+        !matches!(state.inner, InnerState::Closed)
     }
 
     fn event(
         &mut self,
+        state: &mut MenuState,
         viewport: Rectangle,
         clip: Rectangle,
         style: &Stylesheet,
         event: Event,
         context: &mut Context<T>,
     ) {
-        if let InnerState::Closed = self.state.inner {
+        if let InnerState::Closed = state.inner {
             return;
         }
 
-        let layout = self.layout(
-            self.state.left,
-            self.state.right,
-            self.state.top,
-            self.state.bottom,
-            viewport,
-            style,
-        );
+        let layout = self.layout(state, viewport, style);
 
-        self.state.inner = match (event, std::mem::replace(&mut self.state.inner, InnerState::Idle)) {
+        state.inner = match (event, std::mem::replace(&mut state.inner, InnerState::Idle)) {
             (Event::Cursor(x, y), InnerState::HoverSubMenu { index, sub_state }) => self.hover(
                 InnerState::HoverSubMenu { index, sub_state },
                 x,
@@ -306,6 +310,7 @@ impl<'a, T: 'a + Send, S: Send + AsRef<[MenuItem<'a, T>]> + AsMut<[MenuItem<'a, 
 
             (Event::Press(Key::LeftMouseButton), InnerState::Idle) => {
                 context.redraw();
+                context.extend(self.on_close.take());
                 InnerState::Closed
             }
 
@@ -319,6 +324,7 @@ impl<'a, T: 'a + Send, S: Send + AsRef<[MenuItem<'a, T>]> + AsMut<[MenuItem<'a, 
                 if let Some(MenuItem::Item { on_select, .. }) = self.items.as_mut().get_mut(index) {
                     context.extend(on_select.take());
                 }
+                context.extend(self.on_close.take());
                 InnerState::Closed
             }
 
@@ -330,17 +336,17 @@ impl<'a, T: 'a + Send, S: Send + AsRef<[MenuItem<'a, T>]> + AsMut<[MenuItem<'a, 
         if let InnerState::HoverSubMenu {
             index,
             ref mut sub_state,
-        } = self.state.inner
+        } = state.inner
         {
             if let Some(&mut MenuItem::Menu { ref mut items, .. }) = self.items.as_mut().get_mut(index) {
-                unsafe {
-                    let mut sub_menu = Menu {
-                        items: items.as_mut_slice(),
-                        state: (sub_state.as_mut() as *mut State).as_mut().unwrap(),
-                        marker: PhantomData,
-                    };
-                    sub_menu.event(viewport, clip, style, event, context);
-                }
+                let mut sub_menu = Menu {
+                    items: items.as_mut_slice(),
+                    x: 0.0,
+                    y: 0.0,
+                    marker: PhantomData,
+                    on_close: None,
+                };
+                sub_menu.event(&mut *sub_state, viewport, clip, style, event, context);
             }
 
             if let InnerState::Closed = sub_state.as_mut().inner {
@@ -350,29 +356,29 @@ impl<'a, T: 'a + Send, S: Send + AsRef<[MenuItem<'a, T>]> + AsMut<[MenuItem<'a, 
 
         if close {
             context.redraw();
-            self.state.inner = InnerState::Closed;
+            state.inner = InnerState::Closed;
+            context.extend(self.on_close.take());
         }
     }
 
-    fn draw(&mut self, viewport: Rectangle, clip: Rectangle, style: &Stylesheet) -> Vec<Primitive<'a>> {
-        if let InnerState::Closed = self.state.inner {
+    fn draw(
+        &mut self,
+        state: &mut MenuState,
+        viewport: Rectangle,
+        clip: Rectangle,
+        style: &Stylesheet,
+    ) -> Vec<Primitive<'a>> {
+        if let InnerState::Closed = state.inner {
             return Vec::new();
         }
 
         let mut result = vec![Primitive::LayerUp];
 
-        let layout = self.layout(
-            self.state.left,
-            self.state.right,
-            self.state.top,
-            self.state.bottom,
-            viewport,
-            style,
-        );
+        let layout = self.layout(state, viewport, style);
 
         result.extend(style.background.render(layout));
 
-        let hover_index = match self.state.inner {
+        let hover_index = match state.inner {
             InnerState::Closed => None,
             InnerState::Idle => None,
             InnerState::HoverItem { index } => Some(index),
@@ -381,15 +387,15 @@ impl<'a, T: 'a + Send, S: Send + AsRef<[MenuItem<'a, T>]> + AsMut<[MenuItem<'a, 
                 ref mut sub_state,
             } => {
                 if let Some(&mut MenuItem::Menu { ref mut items, .. }) = self.items.as_mut().get_mut(index) {
-                    unsafe {
-                        let mut sub_menu = Menu {
-                            items: items.as_mut_slice(),
-                            state: (sub_state.as_mut() as *mut State).as_mut().unwrap(),
-                            marker: PhantomData,
-                        };
+                    let mut sub_menu = Menu {
+                        items: items.as_mut_slice(),
+                        x: 0.0,
+                        y: 0.0,
+                        marker: PhantomData,
+                        on_close: None,
+                    };
 
-                        result.extend(sub_menu.draw(viewport, clip, style));
-                    }
+                    result.extend(sub_menu.draw(&mut *sub_state, viewport, clip, style));
                 }
                 Some(index)
             }
@@ -424,11 +430,11 @@ impl<'a, T: 'a + Send, S: 'a + Send + AsRef<[MenuItem<'a, T>]> + AsMut<[MenuItem
     for Menu<'a, T, S>
 {
     fn into_node(self) -> Node<'a, T> {
-        Node::new(self)
+        Node::from_widget(self)
     }
 }
 
-impl State {
+impl MenuState {
     /// Opens the context menu if it's closed and `open == true`. The context menu will be positioned at (x,y) inside
     /// of it's layout rect.
     pub fn open(&mut self, x: f32, y: f32) {
@@ -445,7 +451,7 @@ impl State {
     }
 }
 
-impl Default for State {
+impl Default for MenuState {
     fn default() -> Self {
         Self {
             inner: InnerState::Closed,
@@ -458,6 +464,38 @@ impl Default for State {
 }
 
 impl<'a, T: 'a> MenuItem<'a, T> {
+    pub fn item(content: impl IntoNode<'a, T>, on_select: impl Into<Option<T>>) -> Self {
+        Self::Item {
+            content: content.into_node(),
+            on_select: on_select.into(),
+        }
+    }
+
+    pub fn menu(content: impl IntoNode<'a, T>) -> Self {
+        Self::Menu {
+            content: content.into_node(),
+            items: Vec::new(),
+        }
+    }
+
+    pub fn push(self, item: Self) -> Self {
+        if let Self::Menu { content, mut items } = self {
+            items.push(item);
+            Self::Menu { content, items }
+        } else {
+            panic!("push may only be called on menu items")
+        }
+    }
+
+    pub fn extend(self, new_items: impl IntoIterator<Item = Self>) -> Self {
+        if let Self::Menu { content, mut items } = self {
+            items.extend(new_items.into_iter());
+            Self::Menu { content, items }
+        } else {
+            panic!("extend may only be called on menu items")
+        }
+    }
+
     fn content(&self) -> &Node<'a, T> {
         match self {
             MenuItem::Item { ref content, .. } => content,

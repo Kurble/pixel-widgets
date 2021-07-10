@@ -149,3 +149,9 @@ impl Token {
         }
     }
 }
+
+impl std::fmt::Display for TokenPos {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(fmt, "col {}:{} of line {}", self.col_start, self.col_end, self.line)
+    }
+}

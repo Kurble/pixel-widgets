@@ -1,10 +1,17 @@
 pub use crate::draw::Image;
 use crate::draw::Primitive;
 use crate::layout::{Rectangle, Size};
+use crate::node::{GenericNode, IntoNode, Node};
 use crate::stylesheet::Stylesheet;
-use crate::widget::{ApplyStyle, IntoNode, Node, Widget};
+use crate::widget::Widget;
 
 impl<'a, T: 'a> Widget<'a, T> for &'a Image {
+    type State = ();
+
+    fn mount(&self) -> Self::State {
+        ()
+    }
+
     fn widget(&self) -> &'static str {
         "image"
     }
@@ -13,9 +20,9 @@ impl<'a, T: 'a> Widget<'a, T> for &'a Image {
         0
     }
 
-    fn visit_children(&mut self, _: &mut dyn FnMut(&mut dyn ApplyStyle)) {}
+    fn visit_children(&mut self, _: &mut dyn FnMut(&mut dyn GenericNode<'a, T>)) {}
 
-    fn size(&self, style: &Stylesheet) -> (Size, Size) {
+    fn size(&self, _: &(), style: &Stylesheet) -> (Size, Size) {
         let width = match style.width {
             Size::Shrink => Size::Exact(self.size.width()),
             other => other,
@@ -27,13 +34,13 @@ impl<'a, T: 'a> Widget<'a, T> for &'a Image {
         (width, height)
     }
 
-    fn draw(&mut self, layout: Rectangle, _: Rectangle, style: &Stylesheet) -> Vec<Primitive<'a>> {
+    fn draw(&mut self, _: &mut (), layout: Rectangle, _: Rectangle, style: &Stylesheet) -> Vec<Primitive<'a>> {
         vec![Primitive::DrawImage(self.clone(), layout, style.color)]
     }
 }
 
 impl<'a, T: 'a> IntoNode<'a, T> for &'a Image {
     fn into_node(self) -> Node<'a, T> {
-        Node::new(self)
+        Node::from_widget(self)
     }
 }

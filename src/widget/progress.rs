@@ -1,7 +1,8 @@
 use crate::draw::Primitive;
 use crate::layout::{Direction, Rectangle, Size};
+use crate::node::{GenericNode, IntoNode, Node};
 use crate::stylesheet::Stylesheet;
-use crate::widget::{ApplyStyle, Dummy, IntoNode, Node, Widget};
+use crate::widget::{Dummy, Widget};
 
 /// A progress bar that fill up according to some progress
 /// The bar part of the progress bar can be styled by selecting the child widget `bar` of the `progress` widget.
@@ -24,6 +25,12 @@ impl<'a, T: 'a> Progress<'a, T> {
 }
 
 impl<'a, T: 'a> Widget<'a, T> for Progress<'a, T> {
+    type State = ();
+
+    fn mount(&self) -> Self::State {
+        ()
+    }
+
     fn widget(&self) -> &'static str {
         "progress"
     }
@@ -32,15 +39,15 @@ impl<'a, T: 'a> Widget<'a, T> for Progress<'a, T> {
         1
     }
 
-    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn ApplyStyle)) {
-        visitor(&mut self.fill);
+    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn GenericNode<'a, T>)) {
+        visitor(&mut *self.fill);
     }
 
-    fn size(&self, style: &Stylesheet) -> (Size, Size) {
+    fn size(&self, _: &(), style: &Stylesheet) -> (Size, Size) {
         (style.width, style.height)
     }
 
-    fn draw(&mut self, layout: Rectangle, clip: Rectangle, style: &Stylesheet) -> Vec<Primitive<'a>> {
+    fn draw(&mut self, _: &mut (), layout: Rectangle, clip: Rectangle, style: &Stylesheet) -> Vec<Primitive<'a>> {
         let mut result = Vec::new();
         result.extend(style.background.render(layout));
         let fill = layout.after_padding(style.padding);
@@ -81,6 +88,6 @@ impl<'a, T: 'a> Widget<'a, T> for Progress<'a, T> {
 
 impl<'a, T: 'a> IntoNode<'a, T> for Progress<'a, T> {
     fn into_node(self) -> Node<'a, T> {
-        Node::new(self)
+        Node::from_widget(self)
     }
 }

@@ -19,86 +19,88 @@
 //!
 //! When implementing custom widgets, you need to make sure that the custom widgets do not remember absolute layouts.
 //! Widgets like [`Scroll`](scroll/struct.Scroll.html) can change the layout without needing a rebuild of the ui.
-use std::cell::Cell;
-use std::ops::Deref;
-use std::sync::Arc;
+use std::any::Any;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+use std::task::Waker;
 
 use smallvec::SmallVec;
 
-use crate::bitset::BitSet;
 use crate::draw::Primitive;
 use crate::event::Event;
 use crate::layout::*;
-use crate::stylesheet::tree::Query;
+use crate::node::GenericNode;
 use crate::stylesheet::*;
 
 pub use self::button::Button;
 pub use self::column::Column;
-//pub use self::drag_drop::{Drag, Drop};
-//pub use self::dropdown::Dropdown;
-//pub use self::dummy::Dummy;
-//pub use self::frame::Frame;
-//pub use self::image::Image;
-//pub use self::input::Input;
-//pub use self::layers::Layers;
-//pub use self::menu::Menu;
-//pub use self::panel::Panel;
-//pub use self::progress::Progress;
-//pub use self::row::Row;
-//pub use self::scroll::Scroll;
-//pub use self::slider::Slider;
-//pub use self::space::Space;
+pub use self::drag_drop::{Drag, Drop};
+pub use self::dropdown::Dropdown;
+pub use self::dummy::Dummy;
+pub use self::frame::Frame;
+pub use self::image::Image;
+pub use self::input::Input;
+pub use self::layers::Layers;
+pub use self::menu::Menu;
+pub use self::panel::Panel;
+pub use self::progress::Progress;
+pub use self::row::Row;
+pub use self::scroll::Scroll;
+pub use self::slider::Slider;
+pub use self::space::Space;
 pub use self::text::Text;
-//pub use self::toggle::Toggle;
-//pub use self::window::Window;
-use crate::tracker::ManagedStateTracker;
-use std::any::Any;
+pub use self::toggle::Toggle;
+pub use self::window::Window;
 
 /// A clickable button
 pub mod button;
 /// Layout child widgets vertically
 pub mod column;
 /// Drag and drop zones
-//pub mod drag_drop;
+pub mod drag_drop;
 /// Pick an item from a dropdown box
-//pub mod dropdown;
+pub mod dropdown;
 /// Dummy widget that has a custom widget name
-//pub mod dummy;
+pub mod dummy;
 /// A widget that wraps around a content widget
-//pub mod frame;
+pub mod frame;
 /// Just an image
-//pub mod image;
+pub mod image;
 /// Editable text input
-//pub mod input;
+pub mod input;
 /// Stack child widgets on top of each other, while only the topmost receives events.
-//pub mod layers;
+pub mod layers;
 /// A context menu with nestable items
-//pub mod menu;
+pub mod menu;
 /// A panel with a fixed size and location within it's parent
-//pub mod panel;
+pub mod panel;
 /// A bar that fills up according to a value.
-//pub mod progress;
+pub mod progress;
 /// Layout child widgets horizontally
-//pub mod row;
+pub mod row;
 /// View a small section of larger widget, with scrollbars.
-//pub mod scroll;
+pub mod scroll;
 /// A slider for easily picking some number
-//pub mod slider;
+pub mod slider;
 /// Empty widget
-//pub mod space;
+pub mod space;
 /// Widget that renders a paragraph of text.
 pub mod text;
 /// A clickable button that toggles some `bool`.
-//pub mod toggle;
+pub mod toggle;
 /// A window with a title and a content widget that can be moved by dragging the title.
-//pub mod window;
+pub mod window;
 
 /// A user interface widget.
 pub trait Widget<'a, Message>: Send {
     type State: Any + Send + Sync;
 
     /// The key of this widget, used for resolving state.
-    fn key(&self) -> u64;
+    fn key(&self) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        std::any::type_name::<Self>().hash(&mut hasher);
+        hasher.finish()
+    }
 
     /// Create a new state
     fn mount(&self) -> Self::State;
@@ -201,73 +203,36 @@ pub trait Widget<'a, Message>: Send {
     ) -> Vec<Primitive<'a>>;
 }
 
-pub trait GenericNode<'a, Message>: Send {
-    fn key(&self) -> u64;
-
-    fn acquire_state(&mut self, tracker: &mut ManagedStateTracker<'a>);
-
-    fn size(&self) -> (Size, Size);
-
-    fn hit(&self, layout: Rectangle, clip: Rectangle, x: f32, y: f32) -> bool;
-
-    fn focused(&self) -> bool;
-
-    fn draw(&mut self, layout: Rectangle, clip: Rectangle) -> Vec<Primitive<'a>>;
-
-    fn style(&mut self, query: &mut Query, position: (usize, usize));
-
-    fn add_matches(&mut self, query: &mut Query);
-
-    fn remove_matches(&mut self, query: &mut Query);
-
-    fn event(&mut self, layout: Rectangle, clip: Rectangle, event: Event, context: &mut Context<Message>);
-}
-
-pub type Node<'a, Message> = Box<dyn GenericNode<'a, Message> + 'a>;
-
-/// Convert to a generic widget. All widgets should implement this trait. It is also implemented by `Node` itself,
-/// which simply returns self.
-pub trait IntoNode<'a, Message: 'a>: 'a + Sized {
-    /// Perform the conversion.
-    fn into_node(self) -> Node<'a, Message>;
-
-    /// Convenience function that converts to a node and then adds a style class to the `Node`.
-    fn class(self, class: &'a str) -> Node<'a, Message> {
-        self.into_node().class(class)
-    }
-}
-
 /// Storage for style states
 pub type StateVec = SmallVec<[StyleState<&'static str>; 3]>;
-
-/// Generic ui widget.
-pub struct WidgetNode<'a, Message, W: Widget<'a, Message>> {
-    widget: W,
-    key: Cell<u64>,
-    widget_state: Option<&'a mut W::State>,
-    size: Cell<Option<(Size, Size)>>,
-    focused: Cell<Option<bool>>,
-    position: (usize, usize),
-    style: Option<Arc<Style>>,
-    selector_matches: BitSet,
-    stylesheet: Option<Arc<Stylesheet>>,
-    class: Option<&'a str>,
-    state: StateVec,
-}
 
 /// Context for posting messages and requesting redraws of the ui.
 pub struct Context<Message> {
     cursor: (f32, f32),
     redraw: bool,
+    poll: bool,
     messages: Vec<Message>,
+    waker: Waker,
 }
 
 impl<Message> Context<Message> {
-    pub(crate) fn new(redraw: bool, cursor: (f32, f32)) -> Self {
-        Self {
+    pub(crate) fn new(redraw: bool, cursor: (f32, f32), waker: Waker) -> Self {
+        Context {
             cursor,
             redraw,
+            poll: false,
             messages: Vec::new(),
+            waker,
+        }
+    }
+
+    pub(crate) fn sub_context<M>(&self) -> Context<M> {
+        Context {
+            cursor: self.cursor,
+            redraw: self.redraw,
+            poll: self.poll,
+            messages: Vec::new(),
+            waker: self.waker.clone(),
         }
     }
 
@@ -295,6 +260,11 @@ impl<Message> Context<Message> {
     pub fn cursor(&self) -> (f32, f32) {
         self.cursor
     }
+
+    /// Get a task context
+    pub fn task_context(&self) -> std::task::Context<'_> {
+        std::task::Context::from_waker(&self.waker)
+    }
 }
 
 impl<Message> IntoIterator for Context<Message> {
@@ -303,228 +273,5 @@ impl<Message> IntoIterator for Context<Message> {
 
     fn into_iter(self) -> Self::IntoIter {
         self.messages.into_iter()
-    }
-}
-
-impl<'a, Message, W: Widget<'a, Message>> WidgetNode<'a, Message, W> {
-    /// Construct a new `Node` from an [`Widget`](trait.Widget.html).
-    pub fn new(widget: W) -> Self {
-        Self {
-            widget,
-            key: Cell::new(0),
-            widget_state: None,
-            size: Cell::new(None),
-            focused: Cell::new(None),
-            position: (0, 1),
-            style: None,
-            selector_matches: BitSet::new(),
-            stylesheet: None,
-            class: None,
-            state: SmallVec::new(),
-        }
-    }
-
-    /// Sets the style class
-    pub fn class(mut self, class: &'a str) -> Self {
-        self.class = Some(class);
-        self
-    }
-}
-
-impl<'a, Message, W: Widget<'a, Message>> GenericNode<'a, Message> for WidgetNode<'a, Message, W> {
-    fn key(&self) -> u64 {
-        if self.key.get() == 0 {
-            self.key.replace(self.widget.key());
-        }
-        self.key.get()
-    }
-
-    fn acquire_state(&mut self, tracker: &mut ManagedStateTracker<'a>) {
-        self.widget_state = Some(tracker.get_or_default_with(self.key(), || self.widget.mount()));
-        self.widget.visit_children(&mut |child| {
-            child.acquire_state(&mut *tracker);
-        });
-    }
-
-    fn size(&self) -> (Size, Size) {
-        if self.size.get().is_none() {
-            let state = self.widget_state.as_ref().unwrap();
-            let style = self.stylesheet.as_ref().unwrap().deref();
-            let mut size = self.widget.size(&**state, style);
-            size.0 = match size.0 {
-                Size::Exact(size) => Size::Exact(size + style.margin.left + style.margin.right),
-                other => other,
-            };
-            size.1 = match size.1 {
-                Size::Exact(size) => Size::Exact(size + style.margin.top + style.margin.bottom),
-                other => other,
-            };
-            self.size.replace(Some(size));
-        }
-        self.size.get().unwrap()
-    }
-
-    fn hit(&self, layout: Rectangle, clip: Rectangle, x: f32, y: f32) -> bool {
-        let state = self.widget_state.as_ref().unwrap();
-        let stylesheet = self.stylesheet.as_ref().unwrap().deref();
-        let layout = layout.after_padding(stylesheet.margin);
-        self.widget.hit(&**state, layout, clip, stylesheet, x, y)
-    }
-
-    fn focused(&self) -> bool {
-        if self.focused.get().is_none() {
-            let state = self.widget_state.as_ref().unwrap();
-            self.focused.replace(Some(self.widget.focused(&**state)));
-        }
-        self.focused.get().unwrap()
-    }
-
-    fn draw(&mut self, layout: Rectangle, clip: Rectangle) -> Vec<Primitive<'a>> {
-        let state = self.widget_state.as_mut().unwrap();
-        let stylesheet = self.stylesheet.as_ref().unwrap().deref();
-        let layout = layout.after_padding(stylesheet.margin);
-
-        self.widget.draw(&mut **state, layout, clip, stylesheet)
-    }
-
-    fn style(&mut self, query: &mut Query, position: (usize, usize)) {
-        self.position = position;
-
-        // remember style
-        self.style = Some(query.style.clone());
-
-        // resolve own stylesheet
-        self.state = self.widget.state(&**self.widget_state.as_ref().unwrap());
-        self.selector_matches = query.match_widget(
-            self.widget.widget(),
-            self.class.unwrap_or(""),
-            self.state.as_slice(),
-            self.position.0,
-            self.position.1,
-        );
-        self.stylesheet.replace(query.style.get(&self.selector_matches));
-
-        // resolve children style
-        query.ancestors.push(self.selector_matches.clone());
-        let own_siblings = std::mem::replace(&mut query.siblings, Vec::new());
-        let mut i = 0;
-        let len = self.widget.len();
-        self.widget.visit_children(&mut |child| {
-            child.style(&mut *query, (i, len));
-            i += 1;
-        });
-        query.siblings = own_siblings;
-        query.siblings.push(query.ancestors.pop().unwrap());
-    }
-
-    fn add_matches(&mut self, query: &mut Query) {
-        let additions = query.match_widget(
-            self.widget.widget(),
-            self.class.unwrap_or(""),
-            self.state.as_slice(),
-            self.position.0,
-            self.position.1,
-        );
-
-        let new_style = self.selector_matches.union(&additions);
-        if new_style != self.selector_matches {
-            self.selector_matches = new_style;
-            self.stylesheet
-                .replace(self.style.as_ref().unwrap().get(&self.selector_matches));
-        }
-
-        query.ancestors.push(additions);
-        let own_siblings = std::mem::replace(&mut query.siblings, Vec::new());
-        self.widget.visit_children(&mut |child| child.add_matches(&mut *query));
-        query.siblings = own_siblings;
-        query.siblings.push(query.ancestors.pop().unwrap());
-    }
-
-    fn remove_matches(&mut self, query: &mut Query) {
-        let removals = query.match_widget(
-            self.widget.widget(),
-            self.class.unwrap_or(""),
-            self.state.as_slice(),
-            self.position.0,
-            self.position.1,
-        );
-
-        let new_style = self.selector_matches.difference(&removals);
-        if new_style != self.selector_matches {
-            self.selector_matches = new_style;
-            self.stylesheet
-                .replace(self.style.as_ref().unwrap().get(&self.selector_matches));
-        }
-
-        query.ancestors.push(removals);
-        let own_siblings = std::mem::replace(&mut query.siblings, Vec::new());
-        self.widget
-            .visit_children(&mut |child| child.remove_matches(&mut *query));
-        query.siblings = own_siblings;
-        query.siblings.push(query.ancestors.pop().unwrap());
-    }
-
-    fn event(&mut self, layout: Rectangle, clip: Rectangle, event: Event, context: &mut Context<Message>) {
-        let state = self.widget_state.as_mut().unwrap();
-        let stylesheet = self.stylesheet.as_ref().unwrap().deref();
-        let layout = layout.after_padding(stylesheet.margin);
-
-        self.widget
-            .event(&mut **state, layout, clip, stylesheet, event, context);
-
-        let next_state = self.widget.state(&**state);
-        if next_state != self.state {
-            self.state = next_state;
-
-            // find out if the style changed as a result of the state change
-            let new_style = self.style.as_ref().unwrap().rule_tree().rematch(
-                &self.selector_matches,
-                self.state.as_slice(),
-                self.class.unwrap_or(""),
-                self.position.0,
-                self.position.1,
-            );
-
-            // apply the style change to self and any children that have styles living down the same rule tree paths.
-            if new_style != self.selector_matches {
-                context.redraw();
-
-                let difference = new_style.difference(&self.selector_matches);
-                let additions = difference.intersection(&new_style);
-                let removals = difference.intersection(&self.selector_matches);
-
-                if !additions.is_empty() {
-                    let mut query = Query {
-                        style: self.style.clone().unwrap(),
-                        ancestors: vec![additions],
-                        siblings: vec![],
-                    };
-                    self.widget.visit_children(&mut |child| child.add_matches(&mut query));
-                }
-
-                if !removals.is_empty() {
-                    let mut query = Query {
-                        style: self.style.clone().unwrap(),
-                        ancestors: vec![removals],
-                        siblings: vec![],
-                    };
-                    self.widget
-                        .visit_children(&mut |child| child.remove_matches(&mut query));
-                }
-
-                self.selector_matches = new_style;
-                self.stylesheet
-                    .replace(self.style.as_ref().unwrap().get(&self.selector_matches));
-            }
-        }
-
-        self.focused
-            .replace(Some(self.widget.focused(&**self.widget_state.as_ref().unwrap())));
-    }
-}
-
-impl<'a, Message: 'a> IntoNode<'a, Message> for Node<'a, Message> {
-    fn into_node(self) -> Node<'a, Message> {
-        self
     }
 }

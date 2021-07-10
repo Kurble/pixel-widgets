@@ -1,11 +1,13 @@
+use std::collections::HashMap;
+
+use serde::Deserialize;
+use winit::window::WindowBuilder;
+
 use pixel_widgets::loader::Loader;
+use pixel_widgets::node::Node;
 use pixel_widgets::prelude::*;
 use pixel_widgets::widget::drag_drop::DragDropContext;
 use pixel_widgets::widget::panel::Anchor;
-use pixel_widgets::Command;
-use serde::Deserialize;
-use std::collections::HashMap;
-use winit::window::WindowBuilder;
 
 enum Alchemy {
     Loading {
@@ -59,12 +61,12 @@ enum Message {
 impl Component for Alchemy {
     type Message = Message;
 
-    fn view(&mut self) -> Node<Message> {
+    fn view(&self, state: &()) -> Node<Message> {
         match self {
             &mut Self::Loading { progress, total } => Column::new()
                 .push(Space)
                 .push(Progress::new(progress as f32 / total as f32))
-                .class("loading"),
+                .with_class("loading"),
             &mut Self::Game {
                 ref mut state,
                 ref context,
@@ -74,26 +76,17 @@ impl Component for Alchemy {
             } => {
                 let mut state = state.tracker();
 
-                let playground = Layers::with_background(
-                    state.get(&Id::Playground),
-                    Drop::new(
-                        state.get(&Id::Playground),
-                        context,
-                        |_| true,
-                        move |drag_item, pos| match drag_item {
-                            DragItem::FromInventory(i) => Message::Place(items[i].clone(), pos),
-                            DragItem::FromPlayground(i) => Message::MovePlaygroundItem(i, pos),
-                        },
-                        Space,
-                    ),
-                )
+                let playground = Layers::with_background(Drop::new(
+                    context,
+                    |_| true,
+                    move |drag_item, pos| match drag_item {
+                        DragItem::FromInventory(i) => Message::Place(items[i].clone(), pos),
+                        DragItem::FromPlayground(i) => Message::MovePlaygroundItem(i, pos),
+                    },
+                    Space,
+                ))
                 .extend(playground.iter().map(|(item, id, pos)| {
-                    let drag = Drag::new(
-                        state.get(&Id::PlaygroundItem(*id)),
-                        context,
-                        DragItem::FromPlayground(*id),
-                        &item.image,
-                    );
+                    let drag = Drag::new(context, DragItem::FromPlayground(*id), &item.image);
                     let drop = Drop::new(
                         state.get(&Id::PlaygroundItem(*id)),
                         context,

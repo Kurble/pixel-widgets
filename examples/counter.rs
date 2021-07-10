@@ -1,6 +1,9 @@
-use pixel_widgets::prelude::*;
 use std::sync::Arc;
+
 use winit::window::WindowBuilder;
+
+use pixel_widgets::node::Node;
+use pixel_widgets::prelude::*;
 
 struct Counter;
 

@@ -3,10 +3,11 @@ use std::hash::{Hash, Hasher};
 use crate::draw::Primitive;
 use crate::event::Event;
 use crate::layout::{Rectangle, Size};
+use crate::node::{GenericNode, IntoNode, Node};
 use crate::stylesheet::Stylesheet;
-use crate::widget::{Context, GenericNode, IntoNode, WidgetNode};
+use crate::widget::Context;
 
-use super::{Node, Widget};
+use super::Widget;
 
 /// Layout child widgets vertically
 pub struct Column<'a, T> {
@@ -81,10 +82,6 @@ impl<'a, T> Hash for Column<'a, T> {
 
 impl<'a, T: 'a + Send> Widget<'a, T> for Column<'a, T> {
     type State = ();
-
-    fn key(&self) -> u64 {
-        0
-    }
 
     fn mount(&self) -> Self::State {
         ()
@@ -167,6 +164,6 @@ impl<'a, T: 'a + Send> Widget<'a, T> for Column<'a, T> {
 
 impl<'a, T: 'a + Send> IntoNode<'a, T> for Column<'a, T> {
     fn into_node(self) -> Node<'a, T> {
-        Box::new(WidgetNode::new(self)) as Box<_>
+        Node::from_widget(self)
     }
 }

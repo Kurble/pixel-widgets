@@ -1,8 +1,9 @@
 use crate::draw::Primitive;
 use crate::event::Event;
 use crate::layout::{Rectangle, Size};
+use crate::node::{GenericNode, IntoNode, Node};
 use crate::stylesheet::Stylesheet;
-use crate::widget::{ApplyStyle, Context, IntoNode, Node, Widget};
+use crate::widget::{Context, Widget};
 
 /// The anchor from which to apply the offset of a `Panel`
 #[allow(missing_docs)]
@@ -76,6 +77,12 @@ impl<'a, T: 'a> Panel<'a, T> {
 }
 
 impl<'a, T: 'a> Widget<'a, T> for Panel<'a, T> {
+    type State = ();
+
+    fn mount(&self) -> Self::State {
+        ()
+    }
+
     fn widget(&self) -> &'static str {
         "panel"
     }
@@ -84,15 +91,15 @@ impl<'a, T: 'a> Widget<'a, T> for Panel<'a, T> {
         1
     }
 
-    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn ApplyStyle)) {
-        visitor(&mut self.content);
+    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn GenericNode<'a, T>)) {
+        visitor(&mut *self.content);
     }
 
-    fn size(&self, style: &Stylesheet) -> (Size, Size) {
+    fn size(&self, _: &(), style: &Stylesheet) -> (Size, Size) {
         (style.width, style.height)
     }
 
-    fn hit(&self, layout: Rectangle, clip: Rectangle, _: &Stylesheet, x: f32, y: f32) -> bool {
+    fn hit(&self, _: &(), layout: Rectangle, clip: Rectangle, _: &Stylesheet, x: f32, y: f32) -> bool {
         if layout.point_inside(x, y) && clip.point_inside(x, y) {
             self.layout(layout)
                 .map(|layout| layout.point_inside(x, y))
@@ -102,17 +109,25 @@ impl<'a, T: 'a> Widget<'a, T> for Panel<'a, T> {
         }
     }
 
-    fn focused(&self) -> bool {
+    fn focused(&self, _: &()) -> bool {
         self.content.focused()
     }
 
-    fn event(&mut self, layout: Rectangle, clip: Rectangle, _: &Stylesheet, event: Event, context: &mut Context<T>) {
+    fn event(
+        &mut self,
+        _: &mut (),
+        layout: Rectangle,
+        clip: Rectangle,
+        _: &Stylesheet,
+        event: Event,
+        context: &mut Context<T>,
+    ) {
         if let Some(layout) = self.layout(layout) {
             self.content.event(layout, clip, event, context)
         }
     }
 
-    fn draw(&mut self, layout: Rectangle, clip: Rectangle, _: &Stylesheet) -> Vec<Primitive<'a>> {
+    fn draw(&mut self, _: &mut (), layout: Rectangle, clip: Rectangle, _: &Stylesheet) -> Vec<Primitive<'a>> {
         if let Some(layout) = self.layout(layout) {
             self.content.draw(layout, clip)
         } else {
@@ -123,6 +138,6 @@ impl<'a, T: 'a> Widget<'a, T> for Panel<'a, T> {
 
 impl<'a, T: 'a> IntoNode<'a, T> for Panel<'a, T> {
     fn into_node(self) -> Node<'a, T> {
-        Node::new(self)
+        Node::from_widget(self)
     }
 }

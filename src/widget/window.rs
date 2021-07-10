@@ -1,12 +1,12 @@
 use crate::draw::*;
 use crate::event::{Event, Key};
 use crate::layout::{Rectangle, Size};
+use crate::node::{GenericNode, IntoNode, Node};
 use crate::stylesheet::Stylesheet;
-use crate::widget::{ApplyStyle, Context, IntoNode, Node, Widget};
+use crate::widget::{Context, Widget};
 
 /// A window with a title and a content widget that can be moved by dragging the title.
 pub struct Window<'a, T> {
-    state: &'a mut State,
     title: Node<'a, T>,
     content: Node<'a, T>,
 }
@@ -28,15 +28,14 @@ enum InnerState {
 
 impl<'a, T: 'a> Window<'a, T> {
     /// Constructs a new `Window`
-    pub fn new(state: &'a mut State, title: impl IntoNode<'a, T>, content: impl IntoNode<'a, T>) -> Self {
+    pub fn new(title: impl IntoNode<'a, T>, content: impl IntoNode<'a, T>) -> Self {
         Self {
-            state,
             title: title.into_node(),
             content: content.into_node(),
         }
     }
 
-    fn layout(&self, viewport: Rectangle, style: &Stylesheet) -> (Rectangle, Rectangle, Rectangle) {
+    fn layout(&self, state: &State, viewport: Rectangle, style: &Stylesheet) -> (Rectangle, Rectangle, Rectangle) {
         let title_size = self.title.size();
         let title_width = title_size.0.min_size();
         let title_height = title_size.1.min_size();
@@ -53,8 +52,8 @@ impl<'a, T: 'a> Window<'a, T> {
             bottom: padding.bottom + style.padding.bottom,
         };
         let layout = Rectangle::from_xywh(
-            viewport.left + self.state.x,
-            viewport.top + self.state.y,
+            viewport.left + state.x,
+            viewport.top + state.y,
             width + padding.left + padding.right,
             height + padding.top + padding.bottom,
         );
@@ -84,6 +83,12 @@ impl<'a, T: 'a> Window<'a, T> {
 }
 
 impl<'a, T: 'a> Widget<'a, T> for Window<'a, T> {
+    type State = State;
+
+    fn mount(&self) -> Self::State {
+        State::default()
+    }
+
     fn widget(&self) -> &'static str {
         "window"
     }
@@ -92,37 +97,38 @@ impl<'a, T: 'a> Widget<'a, T> for Window<'a, T> {
         2
     }
 
-    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn ApplyStyle)) {
-        visitor(&mut self.title);
-        visitor(&mut self.content);
+    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn GenericNode<'a, T>)) {
+        visitor(&mut *self.title);
+        visitor(&mut *self.content);
     }
 
-    fn size(&self, _: &Stylesheet) -> (Size, Size) {
+    fn size(&self, _: &State, _: &Stylesheet) -> (Size, Size) {
         (Size::Fill(1), Size::Fill(1))
     }
 
-    fn hit(&self, viewport: Rectangle, clip: Rectangle, style: &Stylesheet, x: f32, y: f32) -> bool {
+    fn hit(&self, state: &State, viewport: Rectangle, clip: Rectangle, style: &Stylesheet, x: f32, y: f32) -> bool {
         if clip.point_inside(x, y) {
-            let (layout, _, _) = self.layout(viewport, style);
+            let (layout, _, _) = self.layout(state, viewport, style);
             layout.point_inside(x, y)
         } else {
             false
         }
     }
 
-    fn focused(&self) -> bool {
+    fn focused(&self, _: &State) -> bool {
         self.title.focused() || self.content.focused()
     }
 
     fn event(
         &mut self,
+        state: &mut State,
         viewport: Rectangle,
         clip: Rectangle,
         style: &Stylesheet,
         event: Event,
         context: &mut Context<T>,
     ) {
-        let (layout, title, content) = self.layout(viewport, style);
+        let (layout, title, content) = self.layout(&*state, viewport, style);
 
         if self.title.focused() {
             self.title.event(title, clip, event, context);
@@ -134,32 +140,31 @@ impl<'a, T: 'a> Widget<'a, T> for Window<'a, T> {
             return;
         }
 
-        match (event, self.state.inner) {
+        match (event, state.inner) {
             (Event::Cursor(x, y), InnerState::Idle) => {
-                self.state.cursor_x = x;
-                self.state.cursor_y = y;
+                state.cursor_x = x;
+                state.cursor_y = y;
             }
 
             (Event::Press(Key::LeftMouseButton), InnerState::Idle) => {
-                if clip.point_inside(self.state.cursor_x, self.state.cursor_y)
-                    && title.point_inside(self.state.cursor_x, self.state.cursor_y)
+                if clip.point_inside(state.cursor_x, state.cursor_y)
+                    && title.point_inside(state.cursor_x, state.cursor_y)
                 {
                     context.redraw();
-                    self.state.inner =
-                        InnerState::Dragging(self.state.cursor_x - layout.left, self.state.cursor_y - layout.top);
+                    state.inner = InnerState::Dragging(state.cursor_x - layout.left, state.cursor_y - layout.top);
                 }
             }
 
             (Event::Cursor(x, y), InnerState::Dragging(anchor_x, anchor_y)) => {
                 context.redraw();
-                self.state.cursor_x = x;
-                self.state.cursor_y = y;
-                self.state.x = (x - anchor_x).max(0.0).min(viewport.width() - layout.width());
-                self.state.y = (y - anchor_y).max(0.0).min(viewport.height() - layout.height());
+                state.cursor_x = x;
+                state.cursor_y = y;
+                state.x = (x - anchor_x).max(0.0).min(viewport.width() - layout.width());
+                state.y = (y - anchor_y).max(0.0).min(viewport.height() - layout.height());
             }
 
             (Event::Release(Key::LeftMouseButton), InnerState::Dragging(_, _)) => {
-                self.state.inner = InnerState::Idle;
+                state.inner = InnerState::Idle;
             }
 
             _ => (),
@@ -169,8 +174,14 @@ impl<'a, T: 'a> Widget<'a, T> for Window<'a, T> {
         self.content.event(content, clip, event, context);
     }
 
-    fn draw(&mut self, viewport: Rectangle, clip: Rectangle, style: &Stylesheet) -> Vec<Primitive<'a>> {
-        let (layout, title, content) = self.layout(viewport, style);
+    fn draw(
+        &mut self,
+        state: &mut State,
+        viewport: Rectangle,
+        clip: Rectangle,
+        style: &Stylesheet,
+    ) -> Vec<Primitive<'a>> {
+        let (layout, title, content) = self.layout(&*state, viewport, style);
 
         let mut result = Vec::new();
         result.extend(style.background.render(layout));
@@ -182,7 +193,7 @@ impl<'a, T: 'a> Widget<'a, T> for Window<'a, T> {
 
 impl<'a, T: 'a> IntoNode<'a, T> for Window<'a, T> {
     fn into_node(self) -> Node<'a, T> {
-        Node::new(self)
+        Node::from_widget(self)
     }
 }
 

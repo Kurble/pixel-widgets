@@ -1,6 +1,7 @@
 use crate::draw::Color;
 use crate::layout::Rectangle;
 use std::borrow::Cow;
+use std::iter::Peekable;
 
 /// How to wrap text
 #[derive(Clone, Copy, Debug)]
@@ -46,30 +47,22 @@ pub struct Text<'a> {
 pub struct CharPositionIter<'a, 'b: 'a> {
     font: &'b rusttype::Font<'static>,
     scale: rusttype::Scale,
-    last: Option<rusttype::GlyphId>,
     x: f32,
-    base: std::str::Chars<'a>,
+    base: Peekable<std::str::Chars<'a>>,
 }
 
 impl<'a, 'b> Iterator for CharPositionIter<'a, 'b> {
     type Item = (char, rusttype::ScaledGlyph<'static>, f32, f32);
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.base.next().map(|c| {
-            let g = self.font.glyph(c);
-            let g = g.scaled(self.scale);
-            let w = g.h_metrics().advance_width
-                + self
-                    .last
-                    .map(|last| self.font.pair_kerning(self.scale, last, g.id()))
-                    .unwrap_or(0.0);
-
-            self.last = Some(g.id());
-
-            let elem = (c, g, self.x, self.x + w);
-            self.x += w;
-            elem
-        })
+        let c = self.base.next()?;
+        let n = self.base.peek().cloned();
+        let g = self.font.glyph(c);
+        let g = g.scaled(self.scale);
+        let w = g.h_metrics().advance_width + n.map(|n| self.font.pair_kerning(self.scale, g.id(), n)).unwrap_or(0.0);
+        let elem = (c, g, self.x, self.x + w);
+        self.x += w;
+        Some(elem)
     }
 }
 
@@ -137,9 +130,8 @@ impl<'t> Text<'t> {
         CharPositionIter {
             font: &self.font.inner,
             scale,
-            last: None,
             x: 0.0,
-            base: self.text.chars(),
+            base: self.text.chars().peekable(),
         }
     }
 

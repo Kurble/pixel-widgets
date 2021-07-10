@@ -3,13 +3,14 @@ use smallvec::smallvec;
 use crate::draw::Primitive;
 use crate::event::{Event, Key};
 use crate::layout::{Rectangle, Size};
+use crate::node::{GenericNode, IntoNode, Node};
 use crate::stylesheet::{StyleState, Stylesheet};
-use crate::widget::{ApplyStyle, Context, IntoNode, Node, StateVec, Widget};
+use crate::widget::{Context, StateVec, Widget};
 
 /// Pick an item from a dropdown box
 pub struct Dropdown<'a, T> {
-    state: &'a mut State,
     items: Vec<Item<'a, T>>,
+    default_selection: Option<usize>,
 }
 
 struct Item<'a, T> {
@@ -32,16 +33,16 @@ enum InnerState {
 
 impl<'a, T: 'a> Dropdown<'a, T> {
     /// Construct a new dropdown
-    pub fn new(state: &'a mut State) -> Self {
+    pub fn new() -> Self {
         Self {
-            state,
             items: Vec::new(),
+            default_selection: None,
         }
     }
 
     /// Set the default selected item
     pub fn default_selection(mut self, item_index: usize) -> Self {
-        self.state.selected_item = self.state.selected_item.or(Some(item_index.min(self.items.len() - 1)));
+        self.default_selection = Some(item_index);
         self
     }
 
@@ -65,14 +66,22 @@ impl<'a, T: 'a> Dropdown<'a, T> {
 }
 
 impl<'a, T: Send + 'a> Widget<'a, T> for Dropdown<'a, T> {
+    type State = State;
+
+    fn mount(&self) -> Self::State {
+        let mut state = State::default();
+        state.selected_item = self.default_selection.map(|i| i.min(self.items.len() - 1));
+        state
+    }
+
     fn widget(&self) -> &'static str {
         "dropdown"
     }
 
-    fn state(&self) -> StateVec {
-        match self.state.inner {
+    fn state(&self, state: &State) -> StateVec {
+        match state.inner {
             InnerState::Open { .. } | InnerState::Pressed { .. } => smallvec![StyleState::Open],
-            InnerState::Idle if self.state.hovered => smallvec![StyleState::Hover],
+            InnerState::Idle if state.hovered => smallvec![StyleState::Hover],
             InnerState::Idle => StateVec::new(),
         }
     }
@@ -81,13 +90,13 @@ impl<'a, T: Send + 'a> Widget<'a, T> for Dropdown<'a, T> {
         self.items.len()
     }
 
-    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn ApplyStyle)) {
+    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn GenericNode<'a, T>)) {
         for item in self.items.iter_mut() {
-            visitor(&mut item.node);
+            visitor(&mut *item.node);
         }
     }
 
-    fn size(&self, style: &Stylesheet) -> (Size, Size) {
+    fn size(&self, _: &State, style: &Stylesheet) -> (Size, Size) {
         let width = match style.width {
             Size::Shrink => Size::Exact(self.items.iter().fold(0.0f32, |size, item| match item.node.size().0 {
                 Size::Exact(item_size) => size.max(item_size),
@@ -108,21 +117,29 @@ impl<'a, T: Send + 'a> Widget<'a, T> for Dropdown<'a, T> {
             .resolve_size((style.width, style.height), (width, height), style.padding)
     }
 
-    fn hit(&self, layout: Rectangle, clip: Rectangle, _: &Stylesheet, x: f32, y: f32) -> bool {
-        self.focused() || (layout.point_inside(x, y) && clip.point_inside(x, y))
+    fn hit(&self, state: &State, layout: Rectangle, clip: Rectangle, _: &Stylesheet, x: f32, y: f32) -> bool {
+        self.focused(state) || (layout.point_inside(x, y) && clip.point_inside(x, y))
     }
 
-    fn focused(&self) -> bool {
-        matches!(self.state.inner, InnerState::Open { .. } | InnerState::Pressed { .. })
+    fn focused(&self, state: &State) -> bool {
+        matches!(state.inner, InnerState::Open { .. } | InnerState::Pressed { .. })
     }
 
-    fn event(&mut self, layout: Rectangle, clip: Rectangle, _: &Stylesheet, event: Event, context: &mut Context<T>) {
-        self.state.inner = match (event, std::mem::replace(&mut self.state.inner, InnerState::Idle)) {
+    fn event(
+        &mut self,
+        state: &mut State,
+        layout: Rectangle,
+        clip: Rectangle,
+        _: &Stylesheet,
+        event: Event,
+        context: &mut Context<T>,
+    ) {
+        state.inner = match (event, std::mem::replace(&mut state.inner, InnerState::Idle)) {
             (Event::Cursor(x, y), InnerState::Idle) => {
                 let hovered = layout.point_inside(x, y) && clip.point_inside(x, y);
-                if hovered != self.state.hovered {
+                if hovered != state.hovered {
                     context.redraw();
-                    self.state.hovered = hovered;
+                    state.hovered = hovered;
                 }
                 InnerState::Idle
             }
@@ -132,9 +149,9 @@ impl<'a, T: Send + 'a> Widget<'a, T> for Dropdown<'a, T> {
                     && x < layout.right
                     && y >= layout.bottom
                     && y < layout.bottom + self.items.len() as f32 * layout.height();
-                if hovered != self.state.hovered {
+                if hovered != state.hovered {
                     context.redraw();
-                    self.state.hovered = hovered;
+                    state.hovered = hovered;
                 }
 
                 let new_hover_item =
@@ -156,15 +173,15 @@ impl<'a, T: Send + 'a> Widget<'a, T> for Dropdown<'a, T> {
                     && x < layout.right
                     && y >= layout.bottom
                     && y < layout.bottom + self.items.len() as f32 * layout.height();
-                if hovered != self.state.hovered {
+                if hovered != state.hovered {
                     context.redraw();
-                    self.state.hovered = hovered;
+                    state.hovered = hovered;
                 }
 
                 let new_hover_item =
                     (((y - layout.bottom) / layout.height()).floor().max(0.0) as usize).min(self.items.len() - 1);
 
-                if new_hover_item != hover_item || !self.state.hovered {
+                if new_hover_item != hover_item || !state.hovered {
                     context.redraw();
                     InnerState::Open {
                         scroll,
@@ -176,7 +193,7 @@ impl<'a, T: Send + 'a> Widget<'a, T> for Dropdown<'a, T> {
             }
 
             (Event::Press(Key::LeftMouseButton), InnerState::Idle) => {
-                if self.state.hovered {
+                if state.hovered {
                     context.redraw();
                     InnerState::Open {
                         scroll: 0.0,
@@ -189,7 +206,7 @@ impl<'a, T: Send + 'a> Widget<'a, T> for Dropdown<'a, T> {
 
             (Event::Press(Key::LeftMouseButton), InnerState::Open { scroll, hover_item }) => {
                 context.redraw();
-                if self.state.hovered {
+                if state.hovered {
                     InnerState::Pressed { scroll, hover_item }
                 } else {
                     InnerState::Idle
@@ -198,7 +215,7 @@ impl<'a, T: Send + 'a> Widget<'a, T> for Dropdown<'a, T> {
 
             (Event::Release(Key::LeftMouseButton), InnerState::Pressed { hover_item, .. }) => {
                 context.redraw();
-                self.state.selected_item.replace(hover_item);
+                state.selected_item.replace(hover_item);
                 context.extend(self.items[hover_item].on_select.take());
                 InnerState::Idle
             }
@@ -207,18 +224,24 @@ impl<'a, T: Send + 'a> Widget<'a, T> for Dropdown<'a, T> {
         };
     }
 
-    fn draw(&mut self, layout: Rectangle, clip: Rectangle, style: &Stylesheet) -> Vec<Primitive<'a>> {
+    fn draw(
+        &mut self,
+        state: &mut State,
+        layout: Rectangle,
+        clip: Rectangle,
+        style: &Stylesheet,
+    ) -> Vec<Primitive<'a>> {
         let content = style.background.content_rect(layout, style.padding);
-        let focused = self.focused();
+        let focused = self.focused(state);
 
         let mut result = Vec::new();
         if focused {
             result.push(Primitive::LayerUp);
         }
-        match self.state.inner {
+        match state.inner {
             InnerState::Idle => {
                 result.extend(style.background.render(layout));
-                if let Some(selected) = self.state.selected_item {
+                if let Some(selected) = state.selected_item {
                     result.extend(self.items[selected].node.draw(content, clip));
                 }
             }
@@ -262,7 +285,7 @@ impl<'a, T: Send + 'a> Widget<'a, T> for Dropdown<'a, T> {
 
 impl<'a, T: 'a + Send> IntoNode<'a, T> for Dropdown<'a, T> {
     fn into_node(self) -> Node<'a, T> {
-        Node::new(self)
+        Node::from_widget(self)
     }
 }
 

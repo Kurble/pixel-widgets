@@ -1,9 +1,11 @@
-use super::{Node, Widget};
 use crate::draw::Primitive;
 use crate::event::Event;
 use crate::layout::{Rectangle, Size};
+use crate::node::{GenericNode, IntoNode, Node};
 use crate::stylesheet::Stylesheet;
-use crate::widget::{ApplyStyle, Context, IntoNode};
+use crate::widget::Context;
+
+use super::Widget;
 
 /// Layout child widgets horizontally
 pub struct Row<'a, T> {
@@ -69,19 +71,25 @@ impl<'a, T: 'a> Default for Row<'a, T> {
 }
 
 impl<'a, T: 'a> Widget<'a, T> for Row<'a, T> {
+    type State = ();
+
+    fn mount(&self) -> Self::State {
+        ()
+    }
+
     fn widget(&self) -> &'static str {
         "row"
     }
 
-    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn ApplyStyle)) {
-        self.children.iter_mut().for_each(|child| visitor(child));
+    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn GenericNode<'a, T>)) {
+        self.children.iter_mut().for_each(|child| visitor(&mut **child));
     }
 
     fn len(&self) -> usize {
         self.children.len()
     }
 
-    fn size(&self, style: &Stylesheet) -> (Size, Size) {
+    fn size(&self, _: &(), style: &Stylesheet) -> (Size, Size) {
         let width = match style.width {
             Size::Shrink => Size::Exact(self.children.iter().fold(0.0, |size, child| match child.size().0 {
                 Size::Exact(child_size) => size + child_size,
@@ -101,12 +109,13 @@ impl<'a, T: 'a> Widget<'a, T> for Row<'a, T> {
             .resolve_size((style.width, style.height), (width, height), style.padding)
     }
 
-    fn focused(&self) -> bool {
+    fn focused(&self, _: &()) -> bool {
         self.children.iter().any(|child| child.focused())
     }
 
     fn event(
         &mut self,
+        _: &mut (),
         layout: Rectangle,
         clip: Rectangle,
         stylesheet: &Stylesheet,
@@ -126,7 +135,7 @@ impl<'a, T: 'a> Widget<'a, T> for Row<'a, T> {
         }
     }
 
-    fn draw(&mut self, layout: Rectangle, clip: Rectangle, stylesheet: &Stylesheet) -> Vec<Primitive<'a>> {
+    fn draw(&mut self, _: &mut (), layout: Rectangle, clip: Rectangle, stylesheet: &Stylesheet) -> Vec<Primitive<'a>> {
         let mut result = Vec::new();
 
         result.extend(stylesheet.background.render(layout));
@@ -144,6 +153,6 @@ impl<'a, T: 'a> Widget<'a, T> for Row<'a, T> {
 
 impl<'a, T: 'a> IntoNode<'a, T> for Row<'a, T> {
     fn into_node(self) -> Node<'a, T> {
-        Node::new(self)
+        Node::from_widget(self)
     }
 }

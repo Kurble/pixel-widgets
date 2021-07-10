@@ -1,14 +1,14 @@
 use crate::draw::*;
 use crate::event::{Event, Key};
 use crate::layout::{Rectangle, Size};
+use crate::node::{GenericNode, IntoNode, Node};
 use crate::stylesheet::Stylesheet;
-use crate::widget::{ApplyStyle, Context, Dummy, IntoNode, Node, Widget};
+use crate::widget::{Context, Dummy, Widget};
 
 /// View a small section of larger widget, with scrollbars.
 /// The scrollbars are only rendered if the content is larger than the view in that direction.
 /// The scrollbars can be styled using the `scrollbar-horizontal` and `scrollbar-vertical` child widgets of this widget.
 pub struct Scroll<'a, T> {
-    state: &'a mut State,
     content: Node<'a, T>,
     scrollbar_h: Node<'a, T>,
     scrollbar_v: Node<'a, T>,
@@ -34,16 +34,21 @@ enum InnerState {
 
 impl<'a, T: 'a> Scroll<'a, T> {
     /// Construct a new `Scroll`
-    pub fn new(state: &'a mut State, content: impl IntoNode<'a, T>) -> Scroll<'a, T> {
+    pub fn new(content: impl IntoNode<'a, T>) -> Scroll<'a, T> {
         Self {
-            state,
             content: content.into_node(),
             scrollbar_h: Dummy::new("scrollbar-horizontal").into_node(),
             scrollbar_v: Dummy::new("scrollbar-vertical").into_node(),
         }
     }
 
-    fn scrollbars(&self, layout: Rectangle, content: Rectangle, style: &Stylesheet) -> (Rectangle, Rectangle) {
+    fn scrollbars(
+        &self,
+        state: &State,
+        layout: Rectangle,
+        content: Rectangle,
+        style: &Stylesheet,
+    ) -> (Rectangle, Rectangle) {
         let content_rect = style.background.content_rect(layout, style.padding);
 
         let vertical_rect = {
@@ -55,7 +60,7 @@ impl<'a, T: 'a> Scroll<'a, T> {
             };
             let handle_range = handle_range(
                 bar.top,
-                self.state.scroll_y,
+                state.scroll_y,
                 bar.height(),
                 content.height() - content_rect.height(),
             );
@@ -73,7 +78,7 @@ impl<'a, T: 'a> Scroll<'a, T> {
             };
             let handle_range = handle_range(
                 bar.left,
-                self.state.scroll_x,
+                state.scroll_x,
                 bar.width(),
                 content.width() - content_rect.width(),
             );
@@ -85,11 +90,11 @@ impl<'a, T: 'a> Scroll<'a, T> {
         (vertical_rect, horizontal_rect)
     }
 
-    fn content_layout(&self, content_rect: &Rectangle) -> Rectangle {
+    fn content_layout(&self, state: &State, content_rect: &Rectangle) -> Rectangle {
         let content_size = self.content.size();
         Rectangle::from_xywh(
-            content_rect.left - self.state.scroll_x,
-            content_rect.top - self.state.scroll_y,
+            content_rect.left - state.scroll_x,
+            content_rect.top - state.scroll_y,
             content_size
                 .0
                 .resolve(content_rect.width(), content_size.0.parts())
@@ -103,32 +108,39 @@ impl<'a, T: 'a> Scroll<'a, T> {
 }
 
 impl<'a, T: 'a> Widget<'a, T> for Scroll<'a, T> {
+    type State = State;
+
+    fn mount(&self) -> Self::State {
+        State::default()
+    }
+
     fn widget(&self) -> &'static str {
         "scroll"
     }
 
     fn len(&self) -> usize {
-        1
+        3
     }
 
-    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn ApplyStyle)) {
-        visitor(&mut self.content);
-        visitor(&mut self.scrollbar_h);
-        visitor(&mut self.scrollbar_v);
+    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn GenericNode<'a, T>)) {
+        visitor(&mut *self.content);
+        visitor(&mut *self.scrollbar_h);
+        visitor(&mut *self.scrollbar_v);
     }
 
-    fn size(&self, style: &Stylesheet) -> (Size, Size) {
+    fn size(&self, _: &State, style: &Stylesheet) -> (Size, Size) {
         style
             .background
             .resolve_size((style.width, style.height), self.content.size(), style.padding)
     }
 
-    fn focused(&self) -> bool {
+    fn focused(&self, _: &State) -> bool {
         self.content.focused()
     }
 
     fn event(
         &mut self,
+        state: &mut State,
         layout: Rectangle,
         clip: Rectangle,
         style: &Stylesheet,
@@ -136,19 +148,19 @@ impl<'a, T: 'a> Widget<'a, T> for Scroll<'a, T> {
         context: &mut Context<T>,
     ) {
         let content_rect = style.background.content_rect(layout, style.padding);
-        let content_layout = self.content_layout(&content_rect);
-        let (vbar, hbar) = self.scrollbars(layout, content_layout, style);
+        let content_layout = self.content_layout(&*state, &content_rect);
+        let (vbar, hbar) = self.scrollbars(&*state, layout, content_layout, style);
 
         if self.content.focused() {
             self.content.event(content_layout, content_rect, event, context);
             return;
         }
 
-        match (event, self.state.inner) {
+        match (event, state.inner) {
             (Event::Cursor(cx, cy), InnerState::DragHorizontalBar(x)) => {
                 context.redraw();
-                self.state.cursor_x = cx;
-                self.state.cursor_y = cy;
+                state.cursor_x = cx;
+                state.cursor_y = cy;
 
                 let bar = Rectangle {
                     left: layout.left,
@@ -156,7 +168,7 @@ impl<'a, T: 'a> Widget<'a, T> for Scroll<'a, T> {
                     right: content_rect.right,
                     bottom: layout.bottom,
                 };
-                self.state.scroll_x = handle_to_scroll(
+                state.scroll_x = handle_to_scroll(
                     bar.left,
                     cx - x,
                     bar.width(),
@@ -165,8 +177,8 @@ impl<'a, T: 'a> Widget<'a, T> for Scroll<'a, T> {
             }
             (Event::Cursor(cx, cy), InnerState::DragVerticalBar(y)) => {
                 context.redraw();
-                self.state.cursor_x = cx;
-                self.state.cursor_y = cy;
+                state.cursor_x = cx;
+                state.cursor_y = cy;
 
                 let bar = Rectangle {
                     left: content_rect.right,
@@ -174,7 +186,7 @@ impl<'a, T: 'a> Widget<'a, T> for Scroll<'a, T> {
                     right: layout.right,
                     bottom: content_rect.bottom,
                 };
-                self.state.scroll_y = handle_to_scroll(
+                state.scroll_y = handle_to_scroll(
                     bar.top,
                     cy - y,
                     bar.height(),
@@ -185,34 +197,34 @@ impl<'a, T: 'a> Widget<'a, T> for Scroll<'a, T> {
                 if let Some(clip) = clip.intersect(&content_rect) {
                     self.content.event(content_layout, clip, event, context);
                 }
-                self.state.cursor_x = x;
-                self.state.cursor_y = y;
+                state.cursor_x = x;
+                state.cursor_y = y;
                 if hbar.point_inside(x, y) && clip.point_inside(x, y) {
-                    self.state.inner = InnerState::HoverHorizontalBar;
+                    state.inner = InnerState::HoverHorizontalBar;
                 } else if vbar.point_inside(x, y) && clip.point_inside(x, y) {
-                    self.state.inner = InnerState::HoverVerticalBar;
+                    state.inner = InnerState::HoverVerticalBar;
                 } else {
-                    self.state.inner = InnerState::Idle;
+                    state.inner = InnerState::Idle;
                 }
             }
             (Event::Press(Key::LeftMouseButton), InnerState::HoverHorizontalBar) => {
-                self.state.inner = InnerState::DragHorizontalBar(self.state.cursor_x - hbar.left);
+                state.inner = InnerState::DragHorizontalBar(state.cursor_x - hbar.left);
             }
             (Event::Press(Key::LeftMouseButton), InnerState::HoverVerticalBar) => {
-                self.state.inner = InnerState::DragVerticalBar(self.state.cursor_y - vbar.top);
+                state.inner = InnerState::DragVerticalBar(state.cursor_y - vbar.top);
             }
             (Event::Release(Key::LeftMouseButton), InnerState::DragHorizontalBar(_))
             | (Event::Release(Key::LeftMouseButton), InnerState::DragVerticalBar(_)) => {
-                if hbar.point_inside(self.state.cursor_x, self.state.cursor_y)
-                    && clip.point_inside(self.state.cursor_x, self.state.cursor_y)
+                if hbar.point_inside(state.cursor_x, state.cursor_y)
+                    && clip.point_inside(state.cursor_x, state.cursor_y)
                 {
-                    self.state.inner = InnerState::HoverHorizontalBar;
-                } else if vbar.point_inside(self.state.cursor_x, self.state.cursor_y)
-                    && clip.point_inside(self.state.cursor_x, self.state.cursor_y)
+                    state.inner = InnerState::HoverHorizontalBar;
+                } else if vbar.point_inside(state.cursor_x, state.cursor_y)
+                    && clip.point_inside(state.cursor_x, state.cursor_y)
                 {
-                    self.state.inner = InnerState::HoverVerticalBar;
+                    state.inner = InnerState::HoverVerticalBar;
                 } else {
-                    self.state.inner = InnerState::Idle;
+                    state.inner = InnerState::Idle;
                 }
             }
             (event, InnerState::Idle) => {
@@ -224,10 +236,16 @@ impl<'a, T: 'a> Widget<'a, T> for Scroll<'a, T> {
         }
     }
 
-    fn draw(&mut self, layout: Rectangle, clip: Rectangle, style: &Stylesheet) -> Vec<Primitive<'a>> {
+    fn draw(
+        &mut self,
+        state: &mut State,
+        layout: Rectangle,
+        clip: Rectangle,
+        style: &Stylesheet,
+    ) -> Vec<Primitive<'a>> {
         let content_rect = style.background.content_rect(layout, style.padding);
-        let content_layout = self.content_layout(&content_rect);
-        let (vbar, hbar) = self.scrollbars(layout, content_layout, style);
+        let content_layout = self.content_layout(&*state, &content_rect);
+        let (vbar, hbar) = self.scrollbars(&*state, layout, content_layout, style);
 
         let mut result = Vec::new();
         result.extend(style.background.render(layout));
@@ -248,7 +266,7 @@ impl<'a, T: 'a> Widget<'a, T> for Scroll<'a, T> {
 
 impl<'a, T: 'a> IntoNode<'a, T> for Scroll<'a, T> {
     fn into_node(self) -> Node<'a, T> {
-        Node::new(self)
+        Node::from_widget(self)
     }
 }
 

@@ -1,13 +1,13 @@
 use crate::draw::*;
 use crate::event::{Event, Key};
 use crate::layout::{Rectangle, Size};
+use crate::node::{GenericNode, IntoNode, Node};
 use crate::stylesheet::Stylesheet;
-use crate::widget::{ApplyStyle, Context, Dummy, IntoNode, Node, Widget};
+use crate::widget::{Context, Dummy, Widget};
 
 /// Select a number using a sliding handle
 /// The handle can be styled using the `handle` child widget of this widget.
 pub struct Slider<'a, T, F> {
-    state: &'a mut State,
     scrollbar: Node<'a, T>,
     min: f32,
     max: f32,
@@ -31,14 +31,13 @@ enum InnerState {
 
 impl<'a, T: 'a, F: 'a + Fn(f32) -> T> Slider<'a, T, F> {
     /// Construct a new `Slider`
-    pub fn new(state: &'a mut State, min: f32, max: f32, value: f32, on_slide: F) -> Slider<'a, T, F> {
+    pub fn new(min: f32, max: f32, value: f32, on_slide: F) -> Slider<'a, T, F> {
         Self {
-            state,
             scrollbar: Dummy::new("handle").into_node(),
             min,
             max,
             value: value.max(min).min(max),
-            on_slide: on_slide,
+            on_slide,
         }
     }
 
@@ -64,6 +63,12 @@ impl<'a, T: 'a, F: 'a + Fn(f32) -> T> Slider<'a, T, F> {
 }
 
 impl<'a, T: 'a, F: 'a + Send + Fn(f32) -> T> Widget<'a, T> for Slider<'a, T, F> {
+    type State = State;
+
+    fn mount(&self) -> Self::State {
+        State::default()
+    }
+
     fn widget(&self) -> &'static str {
         "slider"
     }
@@ -72,11 +77,11 @@ impl<'a, T: 'a, F: 'a + Send + Fn(f32) -> T> Widget<'a, T> for Slider<'a, T, F> 
         1
     }
 
-    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn ApplyStyle)) {
-        visitor(&mut self.scrollbar);
+    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn GenericNode<'a, T>)) {
+        visitor(&mut *self.scrollbar);
     }
 
-    fn size(&self, style: &Stylesheet) -> (Size, Size) {
+    fn size(&self, _: &State, style: &Stylesheet) -> (Size, Size) {
         style
             .background
             .resolve_size((style.width, style.height), self.scrollbar.size(), style.padding)
@@ -84,6 +89,7 @@ impl<'a, T: 'a, F: 'a + Send + Fn(f32) -> T> Widget<'a, T> for Slider<'a, T, F> 
 
     fn event(
         &mut self,
+        state: &mut State,
         layout: Rectangle,
         clip: Rectangle,
         style: &Stylesheet,
@@ -93,11 +99,11 @@ impl<'a, T: 'a, F: 'a + Send + Fn(f32) -> T> Widget<'a, T> for Slider<'a, T, F> 
         let content_rect = style.background.content_rect(layout, style.padding);
         let bar = self.scrollbar(layout, style);
 
-        match (event, self.state.inner) {
+        match (event, state.inner) {
             (Event::Cursor(cx, cy), InnerState::Drag(x)) => {
                 context.redraw();
-                self.state.cursor_x = cx;
-                self.state.cursor_y = cy;
+                state.cursor_x = cx;
+                state.cursor_y = cy;
 
                 let begin = content_rect.left;
                 let end = content_rect.right - bar.width();
@@ -108,41 +114,41 @@ impl<'a, T: 'a, F: 'a + Send + Fn(f32) -> T> Widget<'a, T> for Slider<'a, T, F> 
                 context.push((self.on_slide)(self.value));
             }
             (Event::Cursor(x, y), _) => {
-                self.state.cursor_x = x;
-                self.state.cursor_y = y;
+                state.cursor_x = x;
+                state.cursor_y = y;
                 if bar.point_inside(x, y) && clip.point_inside(x, y) {
-                    self.state.inner = InnerState::Hover;
+                    state.inner = InnerState::Hover;
                 } else {
-                    self.state.inner = InnerState::Idle;
+                    state.inner = InnerState::Idle;
                 }
             }
             (Event::Press(Key::LeftMouseButton), InnerState::Hover) => {
-                self.state.inner = InnerState::Drag(self.state.cursor_x - bar.left);
+                state.inner = InnerState::Drag(state.cursor_x - bar.left);
             }
             (Event::Release(Key::LeftMouseButton), InnerState::Drag(_)) => {
-                if bar.point_inside(self.state.cursor_x, self.state.cursor_y)
-                    && clip.point_inside(self.state.cursor_x, self.state.cursor_y)
+                if bar.point_inside(state.cursor_x, state.cursor_y) && clip.point_inside(state.cursor_x, state.cursor_y)
                 {
-                    self.state.inner = InnerState::Hover;
+                    state.inner = InnerState::Hover;
                 } else {
-                    self.state.inner = InnerState::Idle;
+                    state.inner = InnerState::Idle;
                 }
             }
             _ => (),
         }
     }
 
-    fn draw(&mut self, layout: Rectangle, clip: Rectangle, style: &Stylesheet) -> Vec<Primitive<'a>> {
+    fn draw(&mut self, _: &mut State, layout: Rectangle, clip: Rectangle, style: &Stylesheet) -> Vec<Primitive<'a>> {
         let mut result = Vec::new();
         result.extend(style.background.render(layout));
-        result.extend(self.scrollbar.draw(self.scrollbar(layout, style), clip));
+        let scrollbar = self.scrollbar(layout, style);
+        result.extend(self.scrollbar.draw(scrollbar, clip));
         result
     }
 }
 
 impl<'a, T: 'a, F: 'a + Send + Fn(f32) -> T> IntoNode<'a, T> for Slider<'a, T, F> {
     fn into_node(self) -> Node<'a, T> {
-        Node::new(self)
+        Node::from_widget(self)
     }
 }
 

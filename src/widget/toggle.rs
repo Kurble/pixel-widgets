@@ -5,8 +5,9 @@ use smallvec::smallvec;
 use crate::draw::*;
 use crate::event::{Event, Key};
 use crate::layout::{Rectangle, Size};
+use crate::node::{GenericNode, IntoNode, Node};
 use crate::stylesheet::{StyleState, Stylesheet};
-use crate::widget::{ApplyStyle, Context, IntoNode, Node, StateVec, Widget};
+use crate::widget::{Context, StateVec, Widget};
 
 /// State for [`Toggle`](struct.Toggle.html)
 #[allow(missing_docs)]
@@ -18,30 +19,31 @@ pub enum State {
 }
 
 /// A clickable button that toggles some `bool`.
-pub struct Toggle<'a, T, F: Fn(bool) -> T> {
+pub struct Toggle<T, F: Fn(bool) -> T> {
     checked: bool,
-    state: &'a mut State,
     on_toggle: F,
 }
 
-impl<'a, T: 'a, F: 'a + Fn(bool) -> T> Toggle<'a, T, F> {
+impl<'a, T: 'a, F: 'a + Fn(bool) -> T> Toggle<T, F> {
     /// Constructs a new `Toggle`
-    pub fn new<C: IntoNode<'a, T> + 'a>(checked: bool, state: &'a mut State, on_toggle: F) -> Self {
-        Self {
-            checked,
-            state,
-            on_toggle,
-        }
+    pub fn new<C: IntoNode<'a, T> + 'a>(checked: bool, on_toggle: F) -> Self {
+        Self { checked, on_toggle }
     }
 }
 
-impl<'a, T, F: Send + Fn(bool) -> T> Widget<'a, T> for Toggle<'a, T, F> {
+impl<'a, T, F: Send + Fn(bool) -> T> Widget<'a, T> for Toggle<T, F> {
+    type State = State;
+
+    fn mount(&self) -> Self::State {
+        State::Idle
+    }
+
     fn widget(&self) -> &'static str {
         "toggle"
     }
 
-    fn state(&self) -> StateVec {
-        let mut state = match self.state {
+    fn state(&self, state: &State) -> StateVec {
+        let mut state = match state {
             State::Idle => StateVec::new(),
             State::Hover => smallvec![StyleState::Hover],
             State::Pressed => smallvec![StyleState::Pressed],
@@ -59,9 +61,9 @@ impl<'a, T, F: Send + Fn(bool) -> T> Widget<'a, T> for Toggle<'a, T, F> {
         0
     }
 
-    fn visit_children(&mut self, _: &mut dyn FnMut(&mut dyn ApplyStyle)) {}
+    fn visit_children(&mut self, _: &mut dyn FnMut(&mut dyn GenericNode<'a, T>)) {}
 
-    fn size(&self, stylesheet: &Stylesheet) -> (Size, Size) {
+    fn size(&self, _: &State, stylesheet: &Stylesheet) -> (Size, Size) {
         match stylesheet.background {
             Background::Patch(ref patch, _) => {
                 let size = patch.minimum_size();
@@ -72,10 +74,18 @@ impl<'a, T, F: Send + Fn(bool) -> T> Widget<'a, T> for Toggle<'a, T, F> {
         }
     }
 
-    fn event(&mut self, layout: Rectangle, clip: Rectangle, _: &Stylesheet, event: Event, context: &mut Context<T>) {
+    fn event(
+        &mut self,
+        state: &mut State,
+        layout: Rectangle,
+        clip: Rectangle,
+        _: &Stylesheet,
+        event: Event,
+        context: &mut Context<T>,
+    ) {
         match event {
             Event::Cursor(x, y) => {
-                *self.state = match replace(self.state, State::Idle) {
+                *state = match replace(state, State::Idle) {
                     State::Idle => {
                         if layout.point_inside(x, y) && clip.point_inside(x, y) {
                             context.redraw();
@@ -105,7 +115,7 @@ impl<'a, T, F: Send + Fn(bool) -> T> Widget<'a, T> for Toggle<'a, T, F> {
             }
 
             Event::Press(Key::LeftMouseButton) => {
-                *self.state = match replace(self.state, State::Idle) {
+                *state = match replace(state, State::Idle) {
                     State::Hover => {
                         context.redraw();
                         State::Pressed
@@ -115,7 +125,7 @@ impl<'a, T, F: Send + Fn(bool) -> T> Widget<'a, T> for Toggle<'a, T, F> {
             }
 
             Event::Release(Key::LeftMouseButton) => {
-                *self.state = match replace(self.state, State::Idle) {
+                *state = match replace(state, State::Idle) {
                     State::Pressed => {
                         context.redraw();
                         context.push((self.on_toggle)(!self.checked));
@@ -129,13 +139,13 @@ impl<'a, T, F: Send + Fn(bool) -> T> Widget<'a, T> for Toggle<'a, T, F> {
         }
     }
 
-    fn draw(&mut self, layout: Rectangle, _: Rectangle, stylesheet: &Stylesheet) -> Vec<Primitive<'a>> {
+    fn draw(&mut self, _: &mut State, layout: Rectangle, _: Rectangle, stylesheet: &Stylesheet) -> Vec<Primitive<'a>> {
         stylesheet.background.render(layout).into_iter().collect()
     }
 }
 
-impl<'a, T: 'a + Send, F: 'a + Send + Fn(bool) -> T> IntoNode<'a, T> for Toggle<'a, T, F> {
+impl<'a, T: 'a + Send, F: 'a + Send + Fn(bool) -> T> IntoNode<'a, T> for Toggle<T, F> {
     fn into_node(self) -> Node<'a, T> {
-        Node::new(self)
+        Node::from_widget(self)
     }
 }

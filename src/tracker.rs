@@ -5,9 +5,9 @@ pub struct ManagedState {
     state: Vec<Tracked>,
 }
 
-struct Tracked {
-    id: u64,
-    state: Box<dyn Any + Send + Sync>,
+enum Tracked {
+    Begin { id: u64, state: Box<dyn Any + Send + Sync> },
+    End,
 }
 
 /// Temporary object used to find state objects for given ids.
@@ -36,63 +36,82 @@ impl Default for ManagedState {
 
 impl Tracked {
     unsafe fn unchecked_mut_ref<'a, T: Any + Send + Sync>(&mut self) -> &'a mut T {
-        let state = self
-            .state
-            .downcast_mut::<T>()
-            .expect("widgets with the same id must always be of the same type");
+        match self {
+            Tracked::Begin { state, .. } => {
+                let state = state
+                    .downcast_mut::<T>()
+                    .expect("widgets with the same id must always be of the same type");
 
-        (state as *mut T).as_mut().unwrap()
+                (state as *mut T).as_mut().unwrap()
+            }
+            _ => unreachable!(),
+        }
     }
 }
 
 impl<'a> ManagedStateTracker<'a> {
-    /// Get a state object for the given id. If such an object doesn't exist yet, it is constructed using it's `Default`
-    /// implementation.
-    pub fn get<'i, T>(&mut self, id: u64) -> &'i mut T
-    where
-        T: Default + Any + Send + Sync,
-    {
-        self.get_or_default_with(id, T::default)
-    }
-
-    /// Get a state object for the given id. If such an object doesn't exist yet, the supplied default value is used.
-    pub fn get_or_default<'i, T>(&mut self, id: u64, default: T) -> &'i mut T
-    where
-        T: Any + Send + Sync,
-    {
-        self.get_or_default_with(id, move || default)
-    }
-
     /// Get a state object for the given id. If such an object doesn't exist yet, it is constructed using the closure.
-    pub fn get_or_default_with<'i, T, F>(&mut self, id: u64, default: F) -> &'i mut T
+    pub fn begin<'i, T, F>(&mut self, id: u64, default: F) -> &'i mut T
     where
         T: Any + Send + Sync,
         F: FnOnce() -> T,
     {
         let search_start = self.index;
+        let mut level = 0;
 
         while self.index < self.tracker.state.len() {
-            if self.tracker.state[self.index].id == id {
-                self.tracker.state.drain(search_start..self.index).count();
-                unsafe {
-                    let i = search_start;
-                    self.index = search_start + 1;
-                    return self.tracker.state[i].unchecked_mut_ref();
+            match &self.tracker.state[self.index] {
+                Tracked::End if level > 0 => level -= 1,
+                Tracked::End => {
+                    // not found, revert to start of local scope
+                    self.index = search_start;
+                    break;
                 }
-            } else {
-                self.index += 1;
+                &Tracked::Begin { id: tid, state: _ } if level == 0 && tid == id => {
+                    self.tracker.state.splice(search_start..self.index, None);
+                    unsafe {
+                        let i = search_start;
+                        self.index = search_start + 1;
+                        return self.tracker.state[i].unchecked_mut_ref();
+                    }
+                }
+                &Tracked::Begin { .. } => level += 1,
+            }
+            self.index += 1;
+        }
+
+        let i = self.index;
+        let state = Box::new(default()) as Box<dyn Any + Send + Sync>;
+        self.tracker.state.insert(i, Tracked::Begin { id, state });
+        self.tracker.state.insert(i + 1, Tracked::End);
+        self.index += 1;
+        unsafe { self.tracker.state[i].unchecked_mut_ref() }
+    }
+
+    pub fn end(&mut self) {
+        let search_start = self.index;
+        let mut level = 0;
+
+        while self.index < self.tracker.state.len() {
+            match &self.tracker.state[self.index] {
+                Tracked::Begin { .. } => {
+                    self.index += 1;
+                    level += 1;
+                }
+                Tracked::End if level > 0 => {
+                    self.index += 1;
+                    level -= 1;
+                }
+                Tracked::End => {
+                    // found it! remove any widget states that were not matched.
+                    self.tracker.state.splice(search_start..self.index, None);
+                    self.index = search_start + 1;
+                    return;
+                }
             }
         }
 
-        self.tracker.state.insert(
-            search_start,
-            Tracked {
-                id,
-                state: Box::new(default()) as Box<dyn Any + Send + Sync>,
-            },
-        );
-        self.index = search_start + 1;
-        unsafe { self.tracker.state[search_start].unchecked_mut_ref() }
+        unreachable!("did not find `End` at the end.");
     }
 }
 

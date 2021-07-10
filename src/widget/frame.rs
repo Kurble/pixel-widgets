@@ -1,5 +1,6 @@
 use crate::draw::Primitive;
 use crate::layout::{Rectangle, Size};
+use crate::node::{IntoNode, Node};
 use crate::stylesheet::Stylesheet;
 use crate::widget::*;
 
@@ -18,6 +19,12 @@ impl<'a, T: 'a> Frame<'a, T> {
 }
 
 impl<'a, T: 'a> Widget<'a, T> for Frame<'a, T> {
+    type State = ();
+
+    fn mount(&self) -> Self::State {
+        ()
+    }
+
     fn widget(&self) -> &'static str {
         "frame"
     }
@@ -26,11 +33,11 @@ impl<'a, T: 'a> Widget<'a, T> for Frame<'a, T> {
         1
     }
 
-    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn ApplyStyle)) {
-        visitor(&mut self.content);
+    fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn GenericNode<'a, T>)) {
+        visitor(&mut *self.content);
     }
 
-    fn size(&self, style: &Stylesheet) -> (Size, Size) {
+    fn size(&self, _: &(), style: &Stylesheet) -> (Size, Size) {
         style
             .background
             .resolve_size((style.width, style.height), self.content.size(), style.padding)
@@ -38,6 +45,7 @@ impl<'a, T: 'a> Widget<'a, T> for Frame<'a, T> {
 
     fn event(
         &mut self,
+        _: &mut (),
         layout: Rectangle,
         clip: Rectangle,
         style: &Stylesheet,
@@ -52,7 +60,7 @@ impl<'a, T: 'a> Widget<'a, T> for Frame<'a, T> {
         );
     }
 
-    fn draw(&mut self, layout: Rectangle, clip: Rectangle, style: &Stylesheet) -> Vec<Primitive<'a>> {
+    fn draw(&mut self, _: &mut (), layout: Rectangle, clip: Rectangle, style: &Stylesheet) -> Vec<Primitive<'a>> {
         let content_rect = style.background.content_rect(layout, style.padding);
 
         style
@@ -66,6 +74,6 @@ impl<'a, T: 'a> Widget<'a, T> for Frame<'a, T> {
 
 impl<'a, T: 'a> IntoNode<'a, T> for Frame<'a, T> {
     fn into_node(self) -> Node<'a, T> {
-        Node::new(self)
+        Node::from_widget(self)
     }
 }
