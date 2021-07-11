@@ -110,8 +110,12 @@
 //#![deny(missing_docs)]
 
 use std::any::Any;
+use std::future::Future;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
+use std::task::{Poll, Waker};
+
+use futures::{FutureExt, Stream, StreamExt};
 
 use node::{GenericNode, Node};
 use widget::Context;
@@ -123,9 +127,6 @@ use crate::node::component_node::ComponentNode;
 use crate::stylesheet::tree::Query;
 use crate::stylesheet::Style;
 use crate::tracker::ManagedState;
-use futures::{FutureExt, Stream, StreamExt};
-use std::future::Future;
-use std::task::{Poll, Waker};
 
 mod atlas;
 /// Backend specific code
@@ -232,7 +233,6 @@ impl<Message> Runtime<Message> {
             match self.streams[i].poll_next_unpin(&mut *cx) {
                 Poll::Ready(Some(message)) => {
                     result.push(message);
-                    i += 1;
                 }
                 Poll::Ready(None) => {
                     drop(self.streams.remove(i));
@@ -305,10 +305,13 @@ impl<M: 'static + Component> Ui<M> {
 
     /// Updates the model with a message.
     /// This forces the view to be rerendered.
-    pub fn update(&mut self, message: M::Message, waker: Waker) -> Vec<M::Output> {
-        let result = self.root_node.update(message);
-        if self.root_node.needs_poll() {
-            while self.root_node.poll(&mut *cx) {}
+    pub fn update_poll(&mut self, message: M::Message, waker: Waker) -> Vec<M::Output> {
+        let mut result = self.root_node.update(message);
+        while self.root_node.needs_poll() {
+            let mut context = Context::new(self.needs_redraw(), self.cursor, waker.clone());
+            self.root_node.poll(&mut context);
+            self.redraw = context.redraw_requested();
+            result.extend(context.into_iter());
         }
         result
     }
@@ -319,7 +322,7 @@ impl<M: 'static + Component> Ui<M> {
             self.cursor = (x, y);
         }
 
-        let mut context = Context::new(self.needs_redraw(), self.cursor, waker);
+        let mut context = Context::new(self.needs_redraw(), self.cursor, waker.clone());
 
         {
             let mut view = self.root_node.view();
@@ -337,12 +340,29 @@ impl<M: 'static + Component> Ui<M> {
         for message in context {
             result.extend(self.root_node.update(message));
         }
+        while self.root_node.needs_poll() {
+            let mut context = Context::new(self.needs_redraw(), self.cursor, waker.clone());
+            self.root_node.poll(&mut context);
+            self.redraw = context.redraw_requested();
+            result.extend(context.into_iter());
+        }
         result
     }
 
     /// Should be called when the waker wakes :)
-    pub fn poll(&mut self, cx: &mut std::task::Context<'_>) {
-        while self.root_node.poll(&mut *cx) {}
+    pub fn poll(&mut self, waker: Waker) -> Vec<M::Output> {
+        let mut context = Context::new(self.needs_redraw(), self.cursor, waker);
+        loop {
+            self.root_node.poll(&mut context);
+            self.redraw = context.redraw_requested();
+
+            if self.root_node.needs_poll() {
+                continue;
+            } else {
+                break;
+            }
+        }
+        context.into_iter().collect()
     }
 
     /// Generate a [`DrawList`](draw/struct.DrawList.html) for the view.

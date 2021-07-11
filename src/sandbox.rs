@@ -104,20 +104,34 @@ where
         }
     }
 
+    pub fn update(&mut self, message: T::Message) -> Vec<T::Output> {
+        let waker = self
+            .event_loop
+            .as_ref()
+            .map(|event_loop| {
+                std::task::Waker::from(Arc::new(Waker {
+                    message: PollUi,
+                    event_loop: Mutex::new(event_loop.create_proxy()),
+                }))
+            })
+            .unwrap();
+
+        self.ui.update_poll(message, waker)
+    }
+
     /// Run the application
     pub async fn run(mut self) {
         let event_loop = self.event_loop.take().unwrap();
-        let proxy = event_loop.create_proxy();
         let waker = std::task::Waker::from(Arc::new(Waker {
             message: PollUi,
-            event_loop: Mutex::new(proxy),
+            event_loop: Mutex::new(event_loop.create_proxy()),
         }));
 
         event_loop.run(move |event, _, control_flow| {
             *control_flow = ControlFlow::Wait;
             match event {
                 Event::UserEvent(_) => {
-                    self.ui.poll(&mut std::task::Context::from_waker(&waker));
+                    self.ui.poll(waker.clone());
                 }
                 Event::WindowEvent {
                     event: WindowEvent::Resized(size),
@@ -163,7 +177,7 @@ where
                 } => *control_flow = ControlFlow::Exit,
                 other => {
                     if let Some(event) = crate::backend::winit::convert_event(other) {
-                        self.ui.event(event, &mut std::task::Context::from_waker(&waker));
+                        self.ui.event(event, waker.clone());
                     }
                 }
             }

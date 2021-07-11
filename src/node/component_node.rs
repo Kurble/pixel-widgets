@@ -87,6 +87,11 @@ impl<'a, M: 'a + Component> ComponentNode<'a, M> {
         }
         RefMut::map(self.view.borrow_mut(), |b| b.as_mut().unwrap())
     }
+
+    pub(crate) fn needs_poll(&self) -> bool {
+        let (_, runtime) = unsafe { self.component_state.get().as_mut().unwrap() };
+        runtime.modified
+    }
 }
 
 impl<'a, M: 'a + Component> GenericNode<'a, M::Output> for ComponentNode<'a, M> {
@@ -164,7 +169,16 @@ impl<'a, M: 'a + Component> GenericNode<'a, M::Output> for ComponentNode<'a, M> 
     }
 
     fn poll(&mut self, context: &mut Context<<M as Component>::Output>) {
-        self.view().poll(context);
+        let mut sub_context = context.sub_context();
+        self.view().poll(&mut sub_context);
+
+        if sub_context.redraw_requested() {
+            context.redraw();
+        }
+
+        for message in sub_context {
+            context.extend(self.update(message));
+        }
 
         let (_, runtime) = unsafe { self.component_state.get().as_mut().unwrap() };
         loop {

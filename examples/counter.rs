@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use winit::window::WindowBuilder;
 
 use pixel_widgets::node::Node;
@@ -30,7 +28,12 @@ impl Component for Counter {
             .into_node()
     }
 
-    fn update(&self, message: Self::Message, state: &mut i32) -> Vec<Self::Output> {
+    fn update(
+        &self,
+        message: Self::Message,
+        state: &mut i32,
+        _runtime: &mut Runtime<Self::Message>,
+    ) -> Vec<Self::Output> {
         match message {
             Message::UpPressed => {
                 *state += 1;
@@ -50,12 +53,8 @@ async fn main() {
         .with_title("Counter")
         .with_inner_size(winit::dpi::LogicalSize::new(240, 240));
 
-    let loader = pixel_widgets::loader::FsLoader::new("./examples".into()).unwrap();
-
     let mut sandbox = Sandbox::new(Counter, window).await;
-
-    let style = Arc::new(Style::load(&loader, "counter.pwss", 512, 0).await.unwrap());
-    sandbox.ui.set_style(style);
+    sandbox.ui.set_style(Style::from_file("examples/counter.pwss").unwrap());
 
     sandbox.run().await;
 }
