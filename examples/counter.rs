@@ -16,44 +16,45 @@ macro_rules! ui {
         $(;for $x:ident in $i:expr =>)?
         $(;if $(let $y_pat:pat =)? $y:expr =>)?
         $child:expr $(=>$sub_child:tt)?
+        $(;else if $(let $z_pat:pat =)? $z:expr => $else_if_child:expr $(=>$else_if_sub_child:tt)?)*
         $(;else => $else_child:expr $(=>$else_sub_child:tt)?)?
-        $(;else if $(let $z_pat:pat =)? $z:expr => $else_if_child:expr $(=>$else_if_sub_child:tt)?)?
     )* })? } => {
-        $w$($(.extend(ui!{ inner
+        {$w$($(.extend(ui!{ inner
             $(;for $x in $i =>)?
             $(;if $(let $y_pat =)? $y =>)?
             $child $(=>$sub_child)?
-            $(;else =>)?
-            $(;else if $(let $z_pat =)? $z =>)?
-        }))*)?.into_node()
+            $(;else if $(let $z_pat =)? $z => $else_if_child $(=>$else_if_sub_child)?)*
+            $(;else => $else_child $(=>$else_sub_child)?)?
+        }))*)?.into_node()}
     };
 
     { inner ;for $x:ident in $i:expr => $w:expr $(=>$cs:tt)? } => {
         $i.into_iter().map(|$x| ui!{$w $(=>$cs)?})
     };
-    { inner ;if $(let $y_pat:pat =)? $y:expr => $w:expr $(=>$cs:tt)? } => {
+    { inner ;if $(let $y_pat:pat =)? $y:expr => $w:expr $(=>$cs:tt)? $(;else if $(let $z_pat:pat =)? $z:expr => $w2:expr $(=>$cs2:tt)?)* ;else => $w3:expr $(=>$cs3:tt)? } => {
         if $(let $y_pat =)? $y {
             Some(ui!{$w $(=>$cs)?})
-        } else {
+        }
+        $(else if $(let $z_pat =)? $z {
+            Some(ui!{$w2 $(=>$cs2)?})
+        })*
+        else {
+            Some(ui!{$w3 $(=>$cs3)?})
+        }
+    };
+    { inner ;if $(let $y_pat:pat =)? $y:expr => $w:expr $(=>$cs:tt)? $(;else if $(let $z_pat:pat =)? $z:expr => $w2:expr $(=>$cs2:tt)?)* } => {
+        if $(let $y_pat =)? $y {
+            Some(ui!{$w $(=>$cs)?})
+        }
+        $(else if $(let $z_pat =)? $z {
+            Some(ui!{$w2 $(=>$cs2)?})
+        })*
+        else {
             None
         }
     };
-    { inner ;if $(let $y_pat:pat =)? $y:expr => $w:expr $(=>$cs:tt)? ;else => } => {
-        if $(let $y_pat =)? $y {
-            Some(ui!{$w $(=>$cs)?})
-        } else {
-            Some(ui!{$else_w $(=>$else_cs)?})
-        }
-    };
-    { inner ;if $(let $y_pat:pat =)? $y:expr => $w:expr $(=>$cs:tt)? ;else if $($z_pat:pat =)? $z:expr => $else_w:expr $(=>$else_cs:tt)? } => {
-        if $(let $y_pat =)? $y {
-            Some(ui!{$w $(=>$cs)?})
-        } else {
-            Some(ui!{$else_w $(=>$else_cs)?})
-        }
-    };
     { inner $w:expr $(=>$cs:tt)? } => {
-        Some(ui!{$w $(=>$cs)?})
+        { Some(ui!{$w $(=>$cs)?}) }
     };
 }
 
@@ -69,17 +70,23 @@ impl Component for Counter {
     fn view(&self, state: &i32) -> Node<Message> {
         let mut test = Some("pattern");
         test.take();
+        let val = 3;
         ui! {
             Column::new() => {
                 Button::new("Up")
                     .on_clicked(Message::UpPressed)
 
                 Column::new() => {
-                    ;for x in ["a", "b", "c"].iter() => x
+                    ;for x in ["a", "b", "c"].iter() => Row::new() => {
+                        x
+                        x
+                        x
+                        x
+                    }
                     ;if let Some(x) = test => x
-                    ;else => "lolno"
-                    //:else if false => Row::new()
-                    //:else => "hoi"
+                    ;else if false => "lolno"
+                    ;else if false => "what?"
+                    ;else => "it works"
                 }
 
                 format!("Count: {}", *state)
