@@ -6,15 +6,36 @@ use crate::widget::*;
 
 /// A widget that wraps around a content widget
 pub struct Frame<'a, T> {
-    content: Node<'a, T>,
+    content: Option<Node<'a, T>>,
 }
 
 impl<'a, T: 'a> Frame<'a, T> {
     /// Construct a new `Frame` with content
     pub fn new(content: impl IntoNode<'a, T>) -> Self {
         Self {
-            content: content.into_node(),
+            content: Some(content.into_node()),
         }
+    }
+
+    pub fn extend<I: IntoIterator<Item = N>, N: IntoNode<'a, T>>(mut self, iter: I) -> Self {
+        if self.content.is_none() {
+            self.content = iter.into_iter().next().map(IntoNode::into_node);
+        }
+        self
+    }
+
+    fn content(&self) -> &Node<'a, T> {
+        self.content.as_ref().expect("content of `Frame` must be set")
+    }
+
+    fn content_mut(&mut self) -> &mut Node<'a, T> {
+        self.content.as_mut().expect("content of `Frame` must be set")
+    }
+}
+
+impl<'a, T: 'a> Default for Frame<'a, T> {
+    fn default() -> Self {
+        Self { content: None }
     }
 }
 
@@ -34,13 +55,13 @@ impl<'a, T: 'a> Widget<'a, T> for Frame<'a, T> {
     }
 
     fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn GenericNode<'a, T>)) {
-        visitor(&mut *self.content);
+        visitor(&mut **self.content_mut());
     }
 
     fn size(&self, _: &(), style: &Stylesheet) -> (Size, Size) {
         style
             .background
-            .resolve_size((style.width, style.height), self.content.size(), style.padding)
+            .resolve_size((style.width, style.height), self.content().size(), style.padding)
     }
 
     fn event(
@@ -52,7 +73,7 @@ impl<'a, T: 'a> Widget<'a, T> for Frame<'a, T> {
         event: Event,
         context: &mut Context<T>,
     ) {
-        self.content.event(
+        self.content_mut().event(
             style.background.content_rect(layout, style.padding),
             clip,
             event,
@@ -67,7 +88,7 @@ impl<'a, T: 'a> Widget<'a, T> for Frame<'a, T> {
             .background
             .render(layout)
             .into_iter()
-            .chain(self.content.draw(content_rect, clip).into_iter())
+            .chain(self.content_mut().draw(content_rect, clip).into_iter())
             .collect()
     }
 }

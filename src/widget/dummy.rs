@@ -14,6 +14,17 @@ impl Dummy {
     pub fn new(widget: &'static str) -> Self {
         Self { widget }
     }
+
+    pub fn widget(mut self, widget: &'static str) -> Self {
+        self.widget = widget;
+        self
+    }
+}
+
+impl Default for Dummy {
+    fn default() -> Self {
+        Dummy { widget: "" }
+    }
 }
 
 impl<'a, T: 'a> Widget<'a, T> for Dummy {

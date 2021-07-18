@@ -123,7 +123,7 @@ use std::iter::Peekable;
 
 use crate::bitset::BitSet;
 use crate::cache::Cache;
-use crate::draw::{Background, Color, Image, Patch};
+use crate::draw::{Background, Color, ImageData, Patch};
 use crate::layout::{Align, Direction, Rectangle, Size};
 use crate::text::{Font, TextWrap};
 

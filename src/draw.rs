@@ -26,7 +26,7 @@ pub enum Primitive<'a> {
     /// Draw a 9 patch spanning the bounds of a rectangle, multiplied by a color.
     Draw9(Patch, Rectangle, Color),
     /// Draw an image stretched to the bounds of a rectangle, multiplied by a color.
-    DrawImage(Image, Rectangle, Color),
+    DrawImage(ImageData, Rectangle, Color),
 }
 
 /// A color with red, green, blue and alpha components.
@@ -44,7 +44,7 @@ pub struct Color {
 
 /// Reference to an image loaded by the [`Ui`](../struct.Ui.html).
 #[derive(Clone, Debug)]
-pub struct Image {
+pub struct ImageData {
     /// The texture atlas identifier that this image resides in.
     pub texture: usize,
     pub(crate) cache_id: Arc<usize>,
@@ -58,7 +58,7 @@ pub struct Image {
 #[derive(Clone, Debug)]
 pub struct Patch {
     /// The `Image` this `Patch` operates on.
-    pub image: Image,
+    pub image: ImageData,
     /// Horizontally stretchable regions in the 9 patch image.
     /// Every element is a pair of begin and end of the stretchable region.
     /// Defined in relative coordinates: 0.0 is the left side of the image,
@@ -89,7 +89,7 @@ pub enum Background {
     /// Draw a solid color
     Color(Color),
     /// Draw a stretched image multiplied by a color
-    Image(Image, Color),
+    Image(ImageData, Color),
     /// Draw a 9 patch image multiplied by a color
     Patch(Patch, Color),
 }

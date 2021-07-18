@@ -18,7 +18,7 @@ pub enum Anchor {
 pub struct Panel<'a, T> {
     offset: (f32, f32),
     anchor: Anchor,
-    content: Node<'a, T>,
+    content: Option<Node<'a, T>>,
 }
 
 impl<'a, T: 'a> Panel<'a, T> {
@@ -27,12 +27,29 @@ impl<'a, T: 'a> Panel<'a, T> {
         Self {
             offset,
             anchor,
-            content: content.into_node(),
+            content: Some(content.into_node()),
         }
     }
 
+    pub fn offset(mut self, offset: (f32, f32)) -> Self {
+        self.offset = offset;
+        self
+    }
+
+    pub fn anchor(mut self, anchor: Anchor) -> Self {
+        self.anchor = anchor;
+        self
+    }
+
+    pub fn extend<I: IntoIterator<Item = N>, N: IntoNode<'a, T> + 'a>(mut self, iter: I) -> Self {
+        if self.content.is_none() {
+            self.content = iter.into_iter().next().map(IntoNode::into_node);
+        }
+        self
+    }
+
     fn layout(&self, layout: Rectangle) -> Option<Rectangle> {
-        let (content_width, content_height) = self.content.size();
+        let (content_width, content_height) = self.content().size();
         let (left, top) = match self.anchor {
             Anchor::TopLeft => (true, true),
             Anchor::TopRight => (false, true),
@@ -74,6 +91,24 @@ impl<'a, T: 'a> Panel<'a, T> {
             None
         }
     }
+
+    fn content(&self) -> &Node<'a, T> {
+        self.content.as_ref().expect("content of `Panel` must be set")
+    }
+
+    fn content_mut(&mut self) -> &mut Node<'a, T> {
+        self.content.as_mut().expect("content of `Panel` must be set")
+    }
+}
+
+impl<'a, T: 'a> Default for Panel<'a, T> {
+    fn default() -> Self {
+        Self {
+            offset: (0.0, 0.0),
+            anchor: Anchor::TopLeft,
+            content: None,
+        }
+    }
 }
 
 impl<'a, T: 'a> Widget<'a, T> for Panel<'a, T> {
@@ -92,7 +127,7 @@ impl<'a, T: 'a> Widget<'a, T> for Panel<'a, T> {
     }
 
     fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn GenericNode<'a, T>)) {
-        visitor(&mut *self.content);
+        visitor(&mut **self.content_mut());
     }
 
     fn size(&self, _: &(), style: &Stylesheet) -> (Size, Size) {
@@ -110,7 +145,7 @@ impl<'a, T: 'a> Widget<'a, T> for Panel<'a, T> {
     }
 
     fn focused(&self, _: &()) -> bool {
-        self.content.focused()
+        self.content().focused()
     }
 
     fn event(
@@ -123,13 +158,13 @@ impl<'a, T: 'a> Widget<'a, T> for Panel<'a, T> {
         context: &mut Context<T>,
     ) {
         if let Some(layout) = self.layout(layout) {
-            self.content.event(layout, clip, event, context)
+            self.content_mut().event(layout, clip, event, context)
         }
     }
 
     fn draw(&mut self, _: &mut (), layout: Rectangle, clip: Rectangle, _: &Stylesheet) -> Vec<Primitive<'a>> {
         if let Some(layout) = self.layout(layout) {
-            self.content.draw(layout, clip)
+            self.content_mut().draw(layout, clip)
         } else {
             Vec::new()
         }

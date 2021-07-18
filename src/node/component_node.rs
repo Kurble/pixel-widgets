@@ -95,7 +95,7 @@ impl<'a, M: 'a + Component> ComponentNode<'a, M> {
 }
 
 impl<'a, M: 'a + Component> GenericNode<'a, M::Output> for ComponentNode<'a, M> {
-    fn key(&self) -> u64 {
+    fn get_key(&self) -> u64 {
         self.key
     }
 

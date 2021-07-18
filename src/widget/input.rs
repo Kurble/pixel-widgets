@@ -57,26 +57,47 @@ where
         }
     }
 
+    pub fn placeholder(mut self, placeholder: &'a str) -> Self {
+        self.placeholder = placeholder;
+        self
+    }
+
     /// Construct a new `Input` that renders the text as dots, for passwords.
-    pub fn password(placeholder: &'a str, value: S, on_change: F) -> Self {
+    pub fn password(mut self, password: bool) -> Self {
+        self.password = password;
+        self
+    }
+
+    pub fn val<N: AsRef<str>>(self, value: N) -> Input<'a, T, F, N> {
         Input {
-            placeholder,
-            password: true,
+            placeholder: self.placeholder,
+            password: self.password,
             value,
+            on_change: self.on_change,
+            on_submit: self.on_submit,
+            trigger: self.trigger,
+        }
+    }
+
+    pub fn on_change<N: Fn(String) -> T>(self, on_change: N) -> Input<'a, T, N, S> {
+        Input {
+            placeholder: self.placeholder,
+            password: self.password,
+            value: self.value,
             on_change,
-            on_submit: None,
-            trigger: None,
+            on_submit: self.on_submit,
+            trigger: self.trigger,
         }
     }
 
     /// Sets the message to post when the users submits using the enter key
-    pub fn with_on_submit(mut self, message: T) -> Self {
+    pub fn on_submit(mut self, message: T) -> Self {
         self.on_submit.replace(message);
         self
     }
 
     /// Sets a key that will trigger input focus
-    pub fn with_trigger_key(mut self, key: Key) -> Self {
+    pub fn trigger_key(mut self, key: Key) -> Self {
         self.trigger.replace(key);
         self
     }
@@ -91,7 +112,7 @@ where
         }
     }
 
-    fn placeholder(&self, stylesheet: &Stylesheet) -> Text {
+    fn placeholder_text(&self, stylesheet: &Stylesheet) -> Text {
         Text {
             text: Cow::Borrowed(self.placeholder),
             font: stylesheet.font.clone(),
@@ -103,6 +124,19 @@ where
 
     fn content_rect(&self, layout: Rectangle, stylesheet: &Stylesheet) -> Rectangle {
         layout.after_padding(stylesheet.padding)
+    }
+}
+
+impl<'a, T> Default for Input<'a, T, fn(String) -> T, &'static str> {
+    fn default() -> Self {
+        Self {
+            placeholder: "",
+            password: false,
+            value: "",
+            on_change: |_| panic!("on_change of `Input` must be set"),
+            on_submit: None,
+            trigger: None,
+        }
     }
 }
 
@@ -131,7 +165,7 @@ where
     fn size(&self, _: &State, stylesheet: &Stylesheet) -> (Size, Size) {
         match (stylesheet.width, stylesheet.height) {
             (Size::Shrink, Size::Shrink) => {
-                let width = self.placeholder(stylesheet).measure(None).width()
+                let width = self.placeholder_text(stylesheet).measure(None).width()
                     + stylesheet.padding.left
                     + stylesheet.padding.right;
                 let metrics = stylesheet.font.inner.v_metrics(Scale::uniform(stylesheet.text_size));
@@ -140,7 +174,7 @@ where
             }
 
             (Size::Shrink, other) => {
-                let width = self.placeholder(stylesheet).measure(None).width()
+                let width = self.placeholder_text(stylesheet).measure(None).width()
                     + stylesheet.padding.left
                     + stylesheet.padding.right;
                 (Size::Exact(width), other)
@@ -533,7 +567,10 @@ where
                 _ => (),
             }
             if self.value.as_ref().is_empty() {
-                result.push(Primitive::DrawText(self.placeholder(stylesheet).to_owned(), text_rect));
+                result.push(Primitive::DrawText(
+                    self.placeholder_text(stylesheet).to_owned(),
+                    text_rect,
+                ));
             } else {
                 result.push(Primitive::DrawText(text, text_rect));
             }

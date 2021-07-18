@@ -142,6 +142,7 @@ pub mod event;
 pub mod graphics;
 /// Primitives used for layouts
 pub mod layout;
+mod macros;
 /// User interface building blocks
 pub mod node;
 /// Simple windowing system for those who want to render _just_ widgets.
@@ -729,5 +730,5 @@ pub mod prelude {
     #[cfg(feature = "winit")]
     #[cfg(feature = "wgpu")]
     pub use crate::sandbox::Sandbox;
-    pub use crate::{layout::Rectangle, node::*, stylesheet::Style, widget::*, Component, Runtime, Ui};
+    pub use crate::{declare_view, layout::Rectangle, node::*, stylesheet::Style, widget::*, Component, Runtime, Ui};
 }

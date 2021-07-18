@@ -5,6 +5,7 @@ use crate::stylesheet::Stylesheet;
 use crate::widget::*;
 
 /// Empty widget
+#[derive(Default)]
 pub struct Space;
 
 impl<'a, T> Widget<'a, T> for Space {

@@ -41,6 +41,37 @@ impl<'a, T: 'a, F: 'a + Fn(f32) -> T> Slider<'a, T, F> {
         }
     }
 
+    /// Sets the minimum value of the slider.
+    pub fn min(mut self, min: f32) -> Self {
+        self.min = min;
+        self.value = self.value.max(min);
+        self
+    }
+
+    /// Sets the maximum value of the slider.
+    pub fn max(mut self, max: f32) -> Self {
+        self.max = max;
+        self.value = self.value.min(max);
+        self
+    }
+
+    /// Sets the current value of the slider.
+    pub fn val(mut self, value: f32) -> Self {
+        self.value = value.min(self.max).min(self.min);
+        self
+    }
+
+    /// Sets the on_slide callback of the slider, which is called when the value is changed.
+    pub fn on_slide<N: Fn(f32) -> T>(self, on_slide: N) -> Slider<'a, T, N> {
+        Slider {
+            scrollbar: self.scrollbar,
+            min: self.min,
+            max: self.max,
+            value: self.value,
+            on_slide,
+        }
+    }
+
     fn scrollbar(&self, layout: Rectangle, style: &Stylesheet) -> Rectangle {
         let content = style.background.content_rect(layout, style.padding);
 
@@ -58,6 +89,18 @@ impl<'a, T: 'a, F: 'a + Fn(f32) -> T> Slider<'a, T, F> {
             left: content.left + (content.width() - handle_width) * t,
             right: content.left + (content.width() - handle_width) * t + handle_width,
             ..content
+        }
+    }
+}
+
+impl<'a, T: 'a> Default for Slider<'a, T, fn(f32) -> T> {
+    fn default() -> Self {
+        Self {
+            scrollbar: Dummy::new("handle").into_node(),
+            min: 0.0,
+            max: 1.0,
+            value: 0.0,
+            on_slide: |_| panic!("on_slide of `Slider` must be set"),
         }
     }
 }

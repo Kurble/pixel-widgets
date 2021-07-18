@@ -51,7 +51,7 @@ impl<'a, Message, W: Widget<'a, Message>> WidgetNode<'a, Message, W> {
 }
 
 impl<'a, Message, W: Widget<'a, Message>> GenericNode<'a, Message> for WidgetNode<'a, Message, W> {
-    fn key(&self) -> u64 {
+    fn get_key(&self) -> u64 {
         self.key
     }
 

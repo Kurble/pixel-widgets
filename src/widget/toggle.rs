@@ -29,6 +29,29 @@ impl<'a, T: 'a, F: 'a + Fn(bool) -> T> Toggle<T, F> {
     pub fn new<C: IntoNode<'a, T> + 'a>(checked: bool, on_toggle: F) -> Self {
         Self { checked, on_toggle }
     }
+
+    /// Sets the current toggle state of the `Toggle`.
+    pub fn val(mut self, checked: bool) -> Self {
+        self.checked = checked;
+        self
+    }
+
+    /// Sets the on_toggle callback for this `Toggle`, which is called when the toggle state changes.
+    pub fn on_toggle<N: Fn(bool) -> T>(self, on_toggle: N) -> Toggle<T, N> {
+        Toggle {
+            checked: self.checked,
+            on_toggle,
+        }
+    }
+}
+
+impl<'a, T: 'a> Default for Toggle<T, fn(bool) -> T> {
+    fn default() -> Self {
+        Self {
+            checked: false,
+            on_toggle: |_| panic!("on_toggle of `Toggle` must be set"),
+        }
+    }
 }
 
 impl<'a, T, F: Send + Fn(bool) -> T> Widget<'a, T> for Toggle<T, F> {

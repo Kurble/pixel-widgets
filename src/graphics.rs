@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 use anyhow::*;
 
 use crate::cache::Cache;
-use crate::draw::{Image, Patch};
+use crate::draw::{ImageData, Patch};
 
 /// Cloneable image loader
 pub struct Graphics {
@@ -12,7 +12,7 @@ pub struct Graphics {
 
 impl Graphics {
     /// Loads an image
-    pub fn load_image<B: AsRef<[u8]>>(&self, bytes: B) -> Result<Image> {
+    pub fn load_image<B: AsRef<[u8]>>(&self, bytes: B) -> Result<ImageData> {
         let image = image::load_from_memory(bytes.as_ref())?;
         let image = self.cache.lock().unwrap().load_image(image.into_rgba8());
         Ok(image)

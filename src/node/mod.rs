@@ -16,7 +16,7 @@ pub(crate) mod widget_node;
 pub struct Node<'a, Message>(Box<dyn GenericNode<'a, Message> + 'a>);
 
 pub trait GenericNode<'a, Message>: Send {
-    fn key(&self) -> u64;
+    fn get_key(&self) -> u64;
 
     fn set_key(&mut self, key: u64);
 
@@ -50,14 +50,14 @@ pub trait IntoNode<'a, Message: 'a>: 'a + Sized {
     fn into_node(self) -> Node<'a, Message>;
 
     /// Convenience function that converts to a node and then adds a style class to the `Node`.
-    fn with_class(self, class: &'a str) -> Node<'a, Message> {
+    fn class(self, class: &'a str) -> Node<'a, Message> {
         let mut node = self.into_node();
         node.set_class(class);
         node
     }
 
     /// Convenience function that converts to a node and then sets a custom id to the `Node`.
-    fn with_key<K: Hash>(self, key: K) -> Node<'a, Message> {
+    fn key<K: Hash>(self, key: K) -> Node<'a, Message> {
         let mut hasher = DefaultHasher::new();
         key.hash(&mut hasher);
         let mut node = self.into_node();

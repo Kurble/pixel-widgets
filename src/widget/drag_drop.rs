@@ -24,9 +24,9 @@ pub struct DragDropContext<T: DragDropId> {
 
 /// A draggable item that can be dropped in `Drop` zones.
 pub struct Drag<'a, T: DragDropId, Message> {
-    context: &'a DragDropContext<T>,
-    data: T,
-    content: Frame<'a, Message>,
+    context: Option<&'a DragDropContext<T>>,
+    data: Option<T>,
+    content: Option<Frame<'a, Message>>,
 }
 
 /// State for `Drag`
@@ -38,10 +38,10 @@ pub struct DragState<T> {
 
 /// A drop zone where draggable `Drag` items may be dropped
 pub struct Drop<'a, T: DragDropId, Message, OnAccept, OnDrop> {
-    context: &'a DragDropContext<T>,
+    context: Option<&'a DragDropContext<T>>,
     accept: OnAccept,
     drop: OnDrop,
-    content: Frame<'a, Message>,
+    content: Option<Frame<'a, Message>>,
 }
 
 /// State for `Drop`
@@ -54,10 +54,35 @@ impl<'a, T: DragDropId, Message: 'a> Drag<'a, T, Message> {
     /// Construct a new `Drag` widget, with some data that is to be dragged through the context.
     pub fn new(context: &'a DragDropContext<T>, data: T, content: impl IntoNode<'a, Message>) -> Self {
         Self {
-            context,
-            data,
-            content: Frame::new(content),
+            context: Some(context),
+            data: Some(data),
+            content: Some(Frame::new(content)),
         }
+    }
+
+    pub fn context(mut self, context: &'a DragDropContext<T>) -> Self {
+        self.context = Some(context);
+        self
+    }
+
+    pub fn val(mut self, value: T) -> Self {
+        self.data = Some(value);
+        self
+    }
+
+    pub fn extend<I: IntoIterator<Item = N>, N: IntoNode<'a, Message>>(mut self, iter: I) -> Self {
+        if self.content.is_none() {
+            self.content = iter.into_iter().next().map(Frame::new);
+        }
+        self
+    }
+
+    fn content(&self) -> &Frame<'a, Message> {
+        self.content.as_ref().expect("content of `Drag` must be set")
+    }
+
+    fn content_mut(&mut self) -> &mut Frame<'a, Message> {
+        self.content.as_mut().expect("content of `Drag` must be set")
     }
 }
 
@@ -74,10 +99,58 @@ where
         content: impl IntoNode<'a, Message>,
     ) -> Self {
         Self {
-            context,
+            context: Some(context),
             accept,
             drop,
-            content: Frame::new(content),
+            content: Some(Frame::new(content)),
+        }
+    }
+
+    pub fn context(mut self, context: &'a DragDropContext<T>) -> Self {
+        self.context = Some(context);
+        self
+    }
+
+    pub fn on_accept<N: Fn(T) -> bool>(self, on_accept: N) -> Drop<'a, T, Message, N, OnDrop> {
+        Drop {
+            context: self.context,
+            accept: on_accept,
+            drop: self.drop,
+            content: self.content,
+        }
+    }
+
+    pub fn on_drop<N: Fn(T, (f32, f32)) -> Message>(self, on_drop: N) -> Drop<'a, T, Message, OnAccept, N> {
+        Drop {
+            context: self.context,
+            accept: self.accept,
+            drop: on_drop,
+            content: self.content,
+        }
+    }
+
+    pub fn extend<I: IntoIterator<Item = N>, N: IntoNode<'a, Message>>(mut self, iter: I) -> Self {
+        if self.content.is_none() {
+            self.content = iter.into_iter().next().map(Frame::new);
+        }
+        self
+    }
+
+    fn content(&self) -> &Frame<'a, Message> {
+        self.content.as_ref().expect("content of `Drop` must be set")
+    }
+
+    fn content_mut(&mut self) -> &mut Frame<'a, Message> {
+        self.content.as_mut().expect("content of `Drop` must be set")
+    }
+}
+
+impl<'a, T: DragDropId, Message> Default for Drag<'a, T, Message> {
+    fn default() -> Self {
+        Self {
+            context: None,
+            data: None,
+            content: None,
         }
     }
 }
@@ -102,15 +175,15 @@ impl<'a, T: DragDropId + Send + Sync, Message: 'a> Widget<'a, Message> for Drag<
     }
 
     fn len(&self) -> usize {
-        self.content.len()
+        self.content().len()
     }
 
     fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn GenericNode<'a, Message>)) {
-        self.content.visit_children(visitor);
+        self.content_mut().visit_children(visitor);
     }
 
     fn size(&self, _: &DragState<T>, style: &Stylesheet) -> (Size, Size) {
-        self.content.size(&(), style)
+        self.content().size(&(), style)
     }
 
     fn event(
@@ -126,13 +199,19 @@ impl<'a, T: DragDropId + Send + Sync, Message: 'a> Widget<'a, Message> for Drag<
             Event::Press(Key::LeftMouseButton) => {
                 let (x, y) = context.cursor();
                 if layout.point_inside(x, y) && clip.point_inside(x, y) {
-                    self.context.data.lock().unwrap().replace((
-                        self.data,
-                        (context.cursor.0 - layout.left, context.cursor.1 - layout.top),
-                    ));
+                    self.context
+                        .as_ref()
+                        .expect("context of `Drag` must be set")
+                        .data
+                        .lock()
+                        .unwrap()
+                        .replace((
+                            self.data.expect("data of `Drag` must be set"),
+                            (context.cursor.0 - layout.left, context.cursor.1 - layout.top),
+                        ));
                     state.origin = context.cursor;
                     state.offset = (0.0, 0.0);
-                    state.dragging = Some(self.data);
+                    state.dragging = Some(self.data.expect("data of `Drag` must be set"));
                     context.redraw();
                 }
             }
@@ -144,14 +223,20 @@ impl<'a, T: DragDropId + Send + Sync, Message: 'a> Widget<'a, Message> for Drag<
 
             Event::Release(Key::LeftMouseButton) if state.dragging.is_some() => {
                 state.dragging.take();
-                self.context.data.lock().unwrap().take();
+                self.context
+                    .as_ref()
+                    .expect("context of `Drag` must be set")
+                    .data
+                    .lock()
+                    .unwrap()
+                    .take();
                 context.redraw();
             }
 
             _ => (),
         }
 
-        self.content.event(&mut (), layout, clip, style, event, context);
+        self.content_mut().event(&mut (), layout, clip, style, event, context);
     }
 
     fn draw(
@@ -165,11 +250,22 @@ impl<'a, T: DragDropId + Send + Sync, Message: 'a> Widget<'a, Message> for Drag<
             let (dx, dy) = state.offset;
             let mut result = Vec::new();
             result.push(Primitive::LayerUp);
-            result.extend(self.content.draw(&mut (), layout.translate(dx, dy), clip, style));
+            result.extend(self.content_mut().draw(&mut (), layout.translate(dx, dy), clip, style));
             result.push(Primitive::LayerDown);
             result
         } else {
-            self.content.draw(&mut (), layout, clip, style)
+            self.content_mut().draw(&mut (), layout, clip, style)
+        }
+    }
+}
+
+impl<'a, T: DragDropId, Message> Default for Drop<'a, T, Message, fn(T) -> bool, fn(T, (f32, f32)) -> Message> {
+    fn default() -> Self {
+        Self {
+            context: None,
+            accept: |_| true,
+            drop: |_, _| panic!("on_drop of `Drop` must be set"),
+            content: None,
         }
     }
 }
@@ -177,8 +273,8 @@ impl<'a, T: DragDropId + Send + Sync, Message: 'a> Widget<'a, Message> for Drag<
 impl<'a, T, Message: 'a, OnAccept, OnDrop> Widget<'a, Message> for Drop<'a, T, Message, OnAccept, OnDrop>
 where
     T: DragDropId + Send + Sync,
-    OnAccept: Send + Fn(T) -> bool,
-    OnDrop: Send + Fn(T, (f32, f32)) -> Message,
+    OnAccept: 'a + Send + Fn(T) -> bool,
+    OnDrop: 'a + Send + Fn(T, (f32, f32)) -> Message,
 {
     type State = DropState<T>;
 
@@ -201,15 +297,15 @@ where
     }
 
     fn len(&self) -> usize {
-        self.content.len()
+        self.content().len()
     }
 
     fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn GenericNode<'a, Message>)) {
-        self.content.visit_children(visitor);
+        self.content_mut().visit_children(visitor);
     }
 
     fn size(&self, _: &DropState<T>, style: &Stylesheet) -> (Size, Size) {
-        self.content.size(&(), style)
+        self.content().size(&(), style)
     }
 
     fn event(
@@ -225,7 +321,14 @@ where
             Event::Cursor(x, y) => {
                 let inside = layout.point_inside(x, y) && clip.point_inside(x, y);
                 if inside && !state.mouse_over {
-                    if let Some(data) = *self.context.data.lock().unwrap() {
+                    if let Some(data) = *self
+                        .context
+                        .as_ref()
+                        .expect("context of `Drop` must be set")
+                        .data
+                        .lock()
+                        .unwrap()
+                    {
                         if (self.accept)(data.0) {
                             state.hovering = Some(data);
                         }
@@ -251,7 +354,7 @@ where
             _ => (),
         }
 
-        self.content.event(&mut (), layout, clip, style, event, context)
+        self.content_mut().event(&mut (), layout, clip, style, event, context)
     }
 
     fn draw(
@@ -261,7 +364,7 @@ where
         clip: Rectangle,
         style: &Stylesheet,
     ) -> Vec<Primitive<'a>> {
-        self.content.draw(&mut (), layout, clip, style)
+        self.content_mut().draw(&mut (), layout, clip, style)
     }
 }
 

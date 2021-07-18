@@ -23,7 +23,7 @@ enum Message {
     ShowLogin(bool),
     NameChanged(String),
     PasswordChanged(String),
-    PlanetSelected(&'static str),
+    PlanetSelected(usize),
 }
 
 impl Component for Tour {
@@ -42,85 +42,76 @@ impl Component for Tour {
     }
 
     fn view<'a>(&'a self, state: &'a TourState) -> Node<'a, Message> {
-        let background = Column::new()
-            .push(Button::new("Menu").on_clicked(Message::ShowContext(0.0, 32.0)))
-            .push(Space)
-            .push(
-                Row::new()
-                    .push(Space)
-                    .push(Button::new("Open dummy").on_clicked(Message::ShowDummy(!state.show_dummy)))
-                    .push(Button::new("Open login").on_clicked(Message::ShowLogin(!state.show_login))),
-            );
-        //.on_event(NodeEvent::MouseClick(Key::RightMouseButton), |ctx| {
-        //    ctx.push(Message::ShowContext(ctx.cursor().0, ctx.cursor().1))
-        //});
-
-        let mut layers = Layers::<Message, &'static str>::with_background(background);
-
         let options = [
             "Mercury", "Venus", "Earth", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto",
         ];
 
-        if let Some((x, y)) = state.context_position {
-            layers = layers.push(
-                "menu",
-                Menu::new(x, y, Message::CloseContext)
-                    .push(MenuItem::item("Open Dummy", Message::ShowDummy(!state.show_dummy)))
-                    .push(MenuItem::item("Open Login", Message::ShowLogin(!state.show_login)))
-                    .push(
+        declare_view! {
+            Layers => {
+                Column => {
+                    Button [text="Menu", on_clicked=Message::ShowContext(0.0, 32.0)],
+                    Space,
+                    Row => {
+                        Space,
+                        Button [text="Open dummy", on_clicked=Message::ShowDummy(!state.show_dummy)],
+                        Button [text="Open login", on_clicked=Message::ShowLogin(!state.show_login)]
+                    }
+                },
+
+                :if let Some(pos) = state.context_position => Menu [
+                    position=pos,
+                    on_close=Message::CloseContext,
+                    items=vec![
+                        MenuItem::item("Open Dummy", Message::ShowDummy(!state.show_dummy)),
+                        MenuItem::item("Open Login", Message::ShowLogin(!state.show_login)),
                         MenuItem::menu("Planets").extend(
                             options
                                 .iter()
-                                .map(|&option| MenuItem::item(option, Message::PlanetSelected(option))),
+                                .map(|&option| MenuItem::item(option, Message::PlanetSelected(0))),
                         ),
-                    )
-                    .push(MenuItem::item("Option D", None)),
-            );
-        }
+                        MenuItem::item("Option D", None)
+                    ],
+                    key = 0
+                ],
 
-        if state.show_dummy {
-            layers = layers.push(
-                "dummy_window",
-                Window::new(
-                    Row::new()
-                        .push("Dummy window".with_class("title"))
-                        .push(Space)
-                        .push(Space.with_class("close"))
-                        .with_class("title"),
-                    Column::new().push("Select a planet from the dropdown list: ").push(
-                        Dropdown::new().extend(options.iter().map(|&option| (option, Message::PlanetSelected(option)))),
-                    ),
-                ),
-            );
-        }
+                :if state.show_dummy => Window [key=1] => {
+                    Row [class="title"] => {
+                        Text [val="Dummy window", class="title"],
+                        Space,
+                        Space [class="close"]
+                    },
+                    Column => {
+                        Text [val="Select a planet from the dropdown list: "],
+                        Dropdown [on_select=Message::PlanetSelected] => {
+                            :for &option in options.iter() => Text [val=option]
+                        }
+                    }
+                },
 
-        if state.show_login {
-            layers = layers.push(
-                "login_window",
-                Window::new(
-                    Row::new()
-                        .push("Login window".with_class("title"))
-                        .push(Space)
-                        .push(Space.with_class("close"))
-                        .with_class("title"),
-                    Scroll::new(
-                        Column::new()
-                            .push(
-                                Input::new("username", state.name.as_str(), Message::NameChanged)
-                                    .with_trigger_key(Key::Enter),
-                            )
-                            .push(Input::password(
-                                "password",
-                                state.password.as_str(),
-                                Message::PasswordChanged,
-                            ))
-                            .push(Button::new("Login").on_clicked(Message::LoginPressed)),
-                    ),
-                ),
-            );
+                :if state.show_login => Window [key=2] => {
+                    Row [class="title"] => {
+                        Text [val="Login window", class="title"],
+                        Space,
+                        Space [class="close"]
+                    },
+                    Column => {
+                        Input [
+                            placeholder="username",
+                            val=state.name.as_str(),
+                            on_change=Message::NameChanged,
+                            trigger_key=Key::Enter
+                        ],
+                        Input [
+                            placeholder="password",
+                            val=state.password.as_str(),
+                            on_change=Message::PasswordChanged,
+                            password=true
+                        ],
+                        Button [text="Login", on_clicked=Message::LoginPressed]
+                    }
+                }
+            }
         }
-
-        layers.into_node()
     }
 
     fn update(&self, message: Self::Message, state: &mut TourState, _: &mut Runtime<Message>) -> Vec<()> {

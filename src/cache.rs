@@ -136,7 +136,7 @@ impl Cache {
         }
     }
 
-    pub(crate) fn load_image(&mut self, image: RgbaImage) -> Image {
+    pub(crate) fn load_image(&mut self, image: RgbaImage) -> ImageData {
         let size = Rectangle {
             left: 0.0,
             top: 0.0,
@@ -144,7 +144,7 @@ impl Cache {
             bottom: image.height() as f32,
         };
         let (texture, cache_id, texcoords) = self.insert_image(image);
-        Image {
+        ImageData {
             texture,
             cache_id,
             texcoords,
@@ -221,7 +221,7 @@ impl Cache {
         let (texture, cache_id, texcoords) = self.insert_image(image);
 
         Patch {
-            image: Image {
+            image: ImageData {
                 texture,
                 cache_id,
                 texcoords,

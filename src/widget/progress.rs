@@ -22,6 +22,20 @@ impl<'a, T: 'a> Progress<'a, T> {
             fill: Dummy::new("bar").into_node(),
         }
     }
+
+    pub fn val(mut self, val: f32) -> Self {
+        self.progress = val;
+        self
+    }
+}
+
+impl<'a, T: 'a> Default for Progress<'a, T> {
+    fn default() -> Self {
+        Self {
+            progress: 0.0,
+            fill: Dummy::new("bar").into_node(),
+        }
+    }
 }
 
 impl<'a, T: 'a> Widget<'a, T> for Progress<'a, T> {

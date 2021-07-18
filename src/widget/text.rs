@@ -9,6 +9,7 @@ use crate::text;
 use crate::widget::*;
 
 /// Widget that renders a paragraph of text.
+#[derive(Default)]
 pub struct Text {
     text: String,
 }
@@ -17,6 +18,11 @@ impl Text {
     /// Constructs a new `Text`
     pub fn new<S: Into<String>>(text: S) -> Self {
         Self { text: text.into() }
+    }
+
+    pub fn val(mut self, text: impl Into<String>) -> Self {
+        self.text = text.into();
+        self
     }
 }
 

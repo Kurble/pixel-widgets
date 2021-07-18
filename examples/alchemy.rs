@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use serde::Deserialize;
 use winit::window::WindowBuilder;
 
+use pixel_widgets::draw::ImageData;
 use pixel_widgets::graphics::Graphics;
 use pixel_widgets::node::Node;
 use pixel_widgets::prelude::*;
@@ -29,7 +30,7 @@ pub enum DragItem {
 #[derive(Clone)]
 pub struct Item {
     id: usize,
-    image: Image,
+    image: ImageData,
     name: String,
     discovered: bool,
     combinations: HashMap<usize, usize>,
@@ -103,48 +104,61 @@ impl Component for Alchemy {
     }
 
     fn view<'a>(&'a self, state: &'a AlchemyState) -> Node<'a, Message> {
-        let playground = Layers::with_background(Drop::new(
-            &state.context,
-            |_| true,
-            move |drag_item, pos| match drag_item {
-                DragItem::FromInventory(i) => Message::Place(state.items[i].clone(), pos),
-                DragItem::FromPlayground(i) => Message::MovePlaygroundItem(i, pos),
-            },
-            Space,
-        ))
-        .extend(state.playground.iter().map(|(item, id, pos)| {
-            let drag = Drag::new(&state.context, DragItem::FromPlayground(*id), &item.image);
-            let drop = Drop::new(
-                &state.context,
-                |_| true,
-                move |drag_item, _| match drag_item {
-                    DragItem::FromInventory(other_id) => Message::CombineInventory(*id, other_id),
-                    DragItem::FromPlayground(other_id) => Message::CombinePlayground(*id, other_id),
-                },
-                drag,
-            );
-            let widget = Panel::new(*pos, Anchor::TopLeft, drop).with_key(id);
-            (*id, widget)
-        }));
-
+        let cx = &state.context;
         let filtered: Vec<(usize, &Item)> = state
             .items
             .iter()
             .enumerate()
             .filter(|(_, item)| item.discovered)
             .collect();
+        declare_view! {
+            Row [class="game"] => {
+                //playground
+                Layers => {
+                    Drop [
+                        context=cx,
+                        on_drop=move |drag_item, pos| match drag_item {
+                            DragItem::FromInventory(i) => Message::Place(state.items[i].clone(), pos),
+                            DragItem::FromPlayground(i) => Message::MovePlaygroundItem(i, pos),
+                        }
+                    ] => { Space },
 
-        let inventory = Column::new().extend(filtered.chunks(4).map(|row| {
-            Row::new().extend(
-                row.iter()
-                    .map(|&(i, item)| Drag::new(&state.context, DragItem::FromInventory(i), &item.image).with_key(i)),
-            )
-        }));
+                    :for (item, id, pos) in state.playground.iter() => Panel [
+                        offset = *pos,
+                        anchor = Anchor::TopLeft,
+                        key = id
+                    ] => {
+                        Drop [
+                            context = cx,
+                            on_drop = move |drag_item, _| match drag_item {
+                                DragItem::FromInventory(other_id) => Message::CombineInventory(*id, other_id),
+                                DragItem::FromPlayground(other_id) => Message::CombinePlayground(*id, other_id),
+                            }
+                        ] => {
+                            Drag [
+                                context = cx,
+                                val = DragItem::FromPlayground(*id)
+                            ] => { Image [image=&item.image] }
+                        }
+                    }
+                },
 
-        Row::new()
-            .push(playground)
-            .push(Scroll::new(inventory))
-            .with_class("game")
+                // inventory
+                Scroll => {
+                    Column => {
+                        :for row in filtered.chunks(4) => Row => {
+                            :for (i, item) in row.iter() => Drag [
+                                context = cx,
+                                val = DragItem::FromInventory(*i),
+                                key = *i
+                            ] => {
+                                Image [image=&item.image]
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     fn update(

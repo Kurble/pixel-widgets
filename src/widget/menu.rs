@@ -63,6 +63,23 @@ impl<'a, T: 'a> Menu<'a, T, Vec<MenuItem<'a, T>>> {
         }
     }
 
+    pub fn position(mut self, (x, y): (f32, f32)) -> Self {
+        self.x = x;
+        self.y = y;
+        self
+    }
+
+    pub fn on_close(mut self, on_close: T) -> Self {
+        self.on_close = Some(on_close);
+        self
+    }
+
+    /// Sets all of the items of the menu
+    pub fn items(mut self, items: Vec<MenuItem<'a, T>>) -> Self {
+        self.items = items;
+        self
+    }
+
     /// Adds an item to the menu
     pub fn push(mut self, item: MenuItem<'a, T>) -> Self {
         self.items.push(item);
@@ -73,6 +90,18 @@ impl<'a, T: 'a> Menu<'a, T, Vec<MenuItem<'a, T>>> {
     pub fn extend<I: IntoIterator<Item = MenuItem<'a, T>>>(mut self, iter: I) -> Self {
         self.items.extend(iter);
         self
+    }
+}
+
+impl<'a, T: 'a> Default for Menu<'a, T, Vec<MenuItem<'a, T>>> {
+    fn default() -> Self {
+        Self {
+            items: vec![],
+            x: 0.0,
+            y: 0.0,
+            marker: PhantomData,
+            on_close: None,
+        }
     }
 }
 

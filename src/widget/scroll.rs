@@ -9,7 +9,7 @@ use crate::widget::{Context, Dummy, Widget};
 /// The scrollbars are only rendered if the content is larger than the view in that direction.
 /// The scrollbars can be styled using the `scrollbar-horizontal` and `scrollbar-vertical` child widgets of this widget.
 pub struct Scroll<'a, T> {
-    content: Node<'a, T>,
+    content: Option<Node<'a, T>>,
     scrollbar_h: Node<'a, T>,
     scrollbar_v: Node<'a, T>,
 }
@@ -36,10 +36,17 @@ impl<'a, T: 'a> Scroll<'a, T> {
     /// Construct a new `Scroll`
     pub fn new(content: impl IntoNode<'a, T>) -> Scroll<'a, T> {
         Self {
-            content: content.into_node(),
+            content: Some(content.into_node()),
             scrollbar_h: Dummy::new("scrollbar-horizontal").into_node(),
             scrollbar_v: Dummy::new("scrollbar-vertical").into_node(),
         }
+    }
+
+    pub fn extend<I: IntoIterator<Item = N>, N: IntoNode<'a, T>>(mut self, iter: I) -> Self {
+        if self.content.is_none() {
+            self.content = iter.into_iter().next().map(IntoNode::into_node);
+        }
+        self
     }
 
     fn scrollbars(
@@ -91,7 +98,7 @@ impl<'a, T: 'a> Scroll<'a, T> {
     }
 
     fn content_layout(&self, state: &State, content_rect: &Rectangle) -> Rectangle {
-        let content_size = self.content.size();
+        let content_size = self.content().size();
         Rectangle::from_xywh(
             content_rect.left - state.scroll_x,
             content_rect.top - state.scroll_y,
@@ -104,6 +111,24 @@ impl<'a, T: 'a> Scroll<'a, T> {
                 .resolve(content_rect.height(), content_size.1.parts())
                 .max(content_size.1.min_size()),
         )
+    }
+
+    fn content(&self) -> &Node<'a, T> {
+        self.content.as_ref().expect("content of `Scroll` must be set")
+    }
+
+    fn content_mut(&mut self) -> &mut Node<'a, T> {
+        self.content.as_mut().expect("content of `Scroll` must be set")
+    }
+}
+
+impl<'a, T: 'a> Default for Scroll<'a, T> {
+    fn default() -> Self {
+        Self {
+            content: None,
+            scrollbar_h: Dummy::new("scrollbar-horizontal").into_node(),
+            scrollbar_v: Dummy::new("scrollbar-vertical").into_node(),
+        }
     }
 }
 
@@ -123,7 +148,7 @@ impl<'a, T: 'a> Widget<'a, T> for Scroll<'a, T> {
     }
 
     fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn GenericNode<'a, T>)) {
-        visitor(&mut *self.content);
+        visitor(&mut **self.content_mut());
         visitor(&mut *self.scrollbar_h);
         visitor(&mut *self.scrollbar_v);
     }
@@ -131,11 +156,11 @@ impl<'a, T: 'a> Widget<'a, T> for Scroll<'a, T> {
     fn size(&self, _: &State, style: &Stylesheet) -> (Size, Size) {
         style
             .background
-            .resolve_size((style.width, style.height), self.content.size(), style.padding)
+            .resolve_size((style.width, style.height), self.content().size(), style.padding)
     }
 
     fn focused(&self, _: &State) -> bool {
-        self.content.focused()
+        self.content().focused()
     }
 
     fn event(
@@ -151,8 +176,8 @@ impl<'a, T: 'a> Widget<'a, T> for Scroll<'a, T> {
         let content_layout = self.content_layout(&*state, &content_rect);
         let (vbar, hbar) = self.scrollbars(&*state, layout, content_layout, style);
 
-        if self.content.focused() {
-            self.content.event(content_layout, content_rect, event, context);
+        if self.content().focused() {
+            self.content_mut().event(content_layout, content_rect, event, context);
             return;
         }
 
@@ -195,7 +220,7 @@ impl<'a, T: 'a> Widget<'a, T> for Scroll<'a, T> {
             }
             (Event::Cursor(x, y), _) => {
                 if let Some(clip) = clip.intersect(&content_rect) {
-                    self.content.event(content_layout, clip, event, context);
+                    self.content_mut().event(content_layout, clip, event, context);
                 }
                 state.cursor_x = x;
                 state.cursor_y = y;
@@ -229,7 +254,7 @@ impl<'a, T: 'a> Widget<'a, T> for Scroll<'a, T> {
             }
             (event, InnerState::Idle) => {
                 if let Some(clip) = clip.intersect(&content_rect) {
-                    self.content.event(content_layout, clip, event, context);
+                    self.content_mut().event(content_layout, clip, event, context);
                 }
             }
             _ => (),
@@ -251,7 +276,7 @@ impl<'a, T: 'a> Widget<'a, T> for Scroll<'a, T> {
         result.extend(style.background.render(layout));
         if let Some(clip) = clip.intersect(&content_rect) {
             result.push(Primitive::PushClip(clip));
-            result.extend(self.content.draw(content_layout, content_rect));
+            result.extend(self.content_mut().draw(content_layout, content_rect));
             result.push(Primitive::PopClip);
         }
         if content_layout.width() > layout.width() {

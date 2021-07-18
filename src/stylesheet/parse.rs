@@ -7,7 +7,7 @@ struct LoadContext<'a, I: Iterator<Item = Token>, R: ReadFn> {
     loader: R,
     tokens: Peekable<I>,
     cache: Arc<Mutex<Cache>>,
-    images: &'a mut HashMap<String, Image>,
+    images: &'a mut HashMap<String, ImageData>,
     patches: &'a mut HashMap<String, Patch>,
     fonts: &'a mut HashMap<String, Font>,
 }

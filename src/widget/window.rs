@@ -7,8 +7,8 @@ use crate::widget::{Context, Widget};
 
 /// A window with a title and a content widget that can be moved by dragging the title.
 pub struct Window<'a, T> {
-    title: Node<'a, T>,
-    content: Node<'a, T>,
+    title: Option<Node<'a, T>>,
+    content: Option<Node<'a, T>>,
 }
 
 /// State for [`Window`](struct.Window.html)
@@ -30,16 +30,27 @@ impl<'a, T: 'a> Window<'a, T> {
     /// Constructs a new `Window`
     pub fn new(title: impl IntoNode<'a, T>, content: impl IntoNode<'a, T>) -> Self {
         Self {
-            title: title.into_node(),
-            content: content.into_node(),
+            title: Some(title.into_node()),
+            content: Some(content.into_node()),
         }
     }
 
+    pub fn extend<I: IntoIterator<Item = N>, N: IntoNode<'a, T>>(mut self, iter: I) -> Self {
+        let mut iter = iter.into_iter();
+        if self.title.is_none() {
+            self.title = iter.next().map(IntoNode::into_node);
+        }
+        if self.content.is_none() {
+            self.content = iter.next().map(IntoNode::into_node);
+        }
+        self
+    }
+
     fn layout(&self, state: &State, viewport: Rectangle, style: &Stylesheet) -> (Rectangle, Rectangle, Rectangle) {
-        let title_size = self.title.size();
+        let title_size = self.title().size();
         let title_width = title_size.0.min_size();
         let title_height = title_size.1.min_size();
-        let content_size = self.content.size();
+        let content_size = self.content().size();
         let content_width = content_size.0.min_size();
         let content_height = content_size.1.min_size();
         let width = title_width.max(content_width);
@@ -80,6 +91,31 @@ impl<'a, T: 'a> Window<'a, T> {
         };
         (layout, align(title), align(content))
     }
+
+    fn content(&self) -> &Node<'a, T> {
+        self.content.as_ref().expect("content of `Window` must be set")
+    }
+
+    fn content_mut(&mut self) -> &mut Node<'a, T> {
+        self.content.as_mut().expect("content of `Window` must be set")
+    }
+
+    fn title(&self) -> &Node<'a, T> {
+        self.title.as_ref().expect("title of `Window` must be set")
+    }
+
+    fn title_mut(&mut self) -> &mut Node<'a, T> {
+        self.title.as_mut().expect("title of `Window` must be set")
+    }
+}
+
+impl<'a, T: 'a> Default for Window<'a, T> {
+    fn default() -> Self {
+        Self {
+            title: None,
+            content: None,
+        }
+    }
 }
 
 impl<'a, T: 'a> Widget<'a, T> for Window<'a, T> {
@@ -98,8 +134,8 @@ impl<'a, T: 'a> Widget<'a, T> for Window<'a, T> {
     }
 
     fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn GenericNode<'a, T>)) {
-        visitor(&mut *self.title);
-        visitor(&mut *self.content);
+        visitor(&mut **self.title_mut());
+        visitor(&mut **self.content_mut());
     }
 
     fn size(&self, _: &State, _: &Stylesheet) -> (Size, Size) {
@@ -116,7 +152,7 @@ impl<'a, T: 'a> Widget<'a, T> for Window<'a, T> {
     }
 
     fn focused(&self, _: &State) -> bool {
-        self.title.focused() || self.content.focused()
+        self.title().focused() || self.content().focused()
     }
 
     fn event(
@@ -130,13 +166,13 @@ impl<'a, T: 'a> Widget<'a, T> for Window<'a, T> {
     ) {
         let (layout, title, content) = self.layout(&*state, viewport, style);
 
-        if self.title.focused() {
-            self.title.event(title, clip, event, context);
+        if self.title().focused() {
+            self.title_mut().event(title, clip, event, context);
             return;
         }
 
-        if self.content.focused() {
-            self.content.event(content, clip, event, context);
+        if self.content().focused() {
+            self.content_mut().event(content, clip, event, context);
             return;
         }
 
@@ -170,8 +206,8 @@ impl<'a, T: 'a> Widget<'a, T> for Window<'a, T> {
             _ => (),
         }
 
-        self.title.event(title, clip, event, context);
-        self.content.event(content, clip, event, context);
+        self.title_mut().event(title, clip, event, context);
+        self.content_mut().event(content, clip, event, context);
     }
 
     fn draw(
@@ -185,8 +221,8 @@ impl<'a, T: 'a> Widget<'a, T> for Window<'a, T> {
 
         let mut result = Vec::new();
         result.extend(style.background.render(layout));
-        result.extend(self.title.draw(title, clip));
-        result.extend(self.content.draw(content, clip));
+        result.extend(self.title_mut().draw(title, clip));
+        result.extend(self.content_mut().draw(content, clip));
         result
     }
 }

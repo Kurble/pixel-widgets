@@ -1,5 +1,3 @@
-use std::hash::Hash;
-
 use crate::draw::Primitive;
 use crate::event::{Event, Key};
 use crate::layout::{Rectangle, Size};
@@ -8,25 +6,25 @@ use crate::stylesheet::Stylesheet;
 use crate::widget::{Context, Widget};
 
 /// Stack child widgets on top of each other, while only the topmost receives events.
-pub struct Layers<'a, T, Id> {
-    layers: Vec<Layer<'a, T, Id>>,
+pub struct Layers<'a, T> {
+    layers: Vec<Layer<'a, T>>,
     background: Option<Node<'a, T>>,
 }
 
-struct Layer<'a, T, Id> {
+struct Layer<'a, T> {
     node: Node<'a, T>,
-    id: Id,
+    id: u64,
 }
 
 /// State for [`Layers`](struct.Layers.html)
-pub struct State<Id> {
+pub struct State {
     cursor_x: f32,
     cursor_y: f32,
-    order: Vec<Id>,
+    order: Vec<u64>,
     background_focused: bool,
 }
 
-impl<'a, T: 'a, Id: 'a + Hash + Eq + Clone> Layers<'a, T, Id> {
+impl<'a, T: 'a> Layers<'a, T> {
     /// Construct new `Layers`
     pub fn new() -> Self {
         Self {
@@ -35,36 +33,33 @@ impl<'a, T: 'a, Id: 'a + Hash + Eq + Clone> Layers<'a, T, Id> {
         }
     }
 
-    /// Construct new `Layers` with a background layer
-    pub fn with_background(background: impl IntoNode<'a, T>) -> Self {
-        Self {
-            layers: Vec::new(),
-            background: Some(background.into_node()),
-        }
-    }
-
     /// Adds a widget
-    pub fn push(mut self, id: Id, layer: impl IntoNode<'a, T>) -> Self {
-        self.layers.push(Layer {
-            node: layer.into_node().with_key(&id),
-            id,
-        });
+    pub fn push(mut self, layer: impl IntoNode<'a, T>) -> Self {
+        if self.background.is_none() {
+            self.background = Some(layer.into_node());
+        } else {
+            let node = layer.into_node();
+            let id = node.get_key();
+            self.layers.push(Layer { node, id });
+        }
         self
     }
 
     /// Adds child widgets using an iterator
-    pub fn extend<I: IntoIterator<Item = (Id, N)>, N: IntoNode<'a, T> + 'a>(mut self, iter: I) -> Self {
-        self.layers.extend(iter.into_iter().map(|(id, layer)| Layer {
-            node: layer.into_node().with_key(&id),
-            id,
+    pub fn extend<I: IntoIterator<Item = N>, N: IntoNode<'a, T> + 'a>(mut self, iter: I) -> Self {
+        let mut iter = iter.into_iter();
+        if self.background.is_none() {
+            self.background = iter.next().map(IntoNode::into_node);
+        }
+        self.layers.extend(iter.map(|layer| {
+            let node = layer.into_node();
+            let id = node.get_key();
+            Layer { node, id }
         }));
         self
     }
 
-    fn ordered_layers<'b>(
-        layers: &'b mut Vec<Layer<'a, T, Id>>,
-        state: &mut State<Id>,
-    ) -> Vec<&'b mut Layer<'a, T, Id>> {
+    fn ordered_layers<'b>(layers: &'b mut Vec<Layer<'a, T>>, state: &mut State) -> Vec<&'b mut Layer<'a, T>> {
         let mut result = layers.iter_mut().collect::<Vec<_>>();
 
         let mut index = 0;
@@ -82,8 +77,17 @@ impl<'a, T: 'a, Id: 'a + Hash + Eq + Clone> Layers<'a, T, Id> {
     }
 }
 
-impl<'a, T: 'a + Send, Id: 'static + Send + Sync + Hash + Eq + Clone> Widget<'a, T> for Layers<'a, T, Id> {
-    type State = State<Id>;
+impl<'a, T: 'a> Default for Layers<'a, T> {
+    fn default() -> Self {
+        Self {
+            layers: vec![],
+            background: None,
+        }
+    }
+}
+
+impl<'a, T: 'a + Send> Widget<'a, T> for Layers<'a, T> {
+    type State = State;
 
     fn mount(&self) -> Self::State {
         State::default()
@@ -106,18 +110,18 @@ impl<'a, T: 'a + Send, Id: 'static + Send + Sync + Hash + Eq + Clone> Widget<'a,
         }
     }
 
-    fn size(&self, _: &State<Id>, style: &Stylesheet) -> (Size, Size) {
+    fn size(&self, _: &State, style: &Stylesheet) -> (Size, Size) {
         (style.width, style.height)
     }
 
-    fn focused(&self, _: &State<Id>) -> bool {
+    fn focused(&self, _: &State) -> bool {
         self.layers.iter().any(|layer| layer.node.focused())
             || self.background.as_ref().map(|bg| bg.focused()).unwrap_or(false)
     }
 
     fn event(
         &mut self,
-        state: &mut State<Id>,
+        state: &mut State,
         layout: Rectangle,
         clip: Rectangle,
         _: &Stylesheet,
@@ -199,13 +203,7 @@ impl<'a, T: 'a + Send, Id: 'static + Send + Sync + Hash + Eq + Clone> Widget<'a,
         state.order.extend(ordered_layers.into_iter().map(|l| l.id.clone()));
     }
 
-    fn draw(
-        &mut self,
-        state: &mut State<Id>,
-        layout: Rectangle,
-        clip: Rectangle,
-        _: &Stylesheet,
-    ) -> Vec<Primitive<'a>> {
+    fn draw(&mut self, state: &mut State, layout: Rectangle, clip: Rectangle, _: &Stylesheet) -> Vec<Primitive<'a>> {
         let mut result = Vec::new();
         if let Some(bg) = self.background.as_mut() {
             result.extend(bg.draw(layout, clip));
@@ -220,13 +218,13 @@ impl<'a, T: 'a + Send, Id: 'static + Send + Sync + Hash + Eq + Clone> Widget<'a,
     }
 }
 
-impl<'a, T: 'a + Send, Id: 'static + Send + Sync + Hash + Eq + Clone> IntoNode<'a, T> for Layers<'a, T, Id> {
+impl<'a, T: 'a + Send> IntoNode<'a, T> for Layers<'a, T> {
     fn into_node(self) -> Node<'a, T> {
         Node::from_widget(self)
     }
 }
 
-impl<Id> Default for State<Id> {
+impl Default for State {
     fn default() -> Self {
         Self {
             cursor_x: 0.0,

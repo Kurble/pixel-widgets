@@ -8,14 +8,10 @@ use crate::stylesheet::{StyleState, Stylesheet};
 use crate::widget::{Context, StateVec, Widget};
 
 /// Pick an item from a dropdown box
-pub struct Dropdown<'a, T> {
-    items: Vec<Item<'a, T>>,
+pub struct Dropdown<'a, T, F> {
+    items: Vec<Node<'a, T>>,
     default_selection: Option<usize>,
-}
-
-struct Item<'a, T> {
-    node: Node<'a, T>,
-    on_select: Option<T>,
+    on_select: F,
 }
 
 /// State for [`Dropdown`](struct.Dropdown.html).
@@ -31,41 +27,46 @@ enum InnerState {
     Pressed { scroll: f32, hover_item: usize },
 }
 
-impl<'a, T: 'a> Dropdown<'a, T> {
-    /// Construct a new dropdown
-    pub fn new() -> Self {
-        Self {
-            items: Vec::new(),
-            default_selection: None,
-        }
-    }
-
+impl<'a, T: 'a, F> Dropdown<'a, T, F> {
     /// Set the default selected item
     pub fn default_selection(mut self, item_index: usize) -> Self {
         self.default_selection = Some(item_index);
         self
     }
 
+    /// Sets the on_select callback for the dropdown, which is called when an item is selected
+    pub fn on_select<N: Fn(usize) -> T>(self, on_select: N) -> Dropdown<'a, T, N> {
+        Dropdown {
+            items: self.items,
+            default_selection: self.default_selection,
+            on_select: on_select,
+        }
+    }
+
     /// Add an item to the dropdown.
-    pub fn push(mut self, item: impl IntoNode<'a, T>, on_select: T) -> Self {
-        self.items.push(Item {
-            node: item.into_node(),
-            on_select: Some(on_select),
-        });
+    pub fn push(mut self, item: impl IntoNode<'a, T>) -> Self {
+        self.items.push(item.into_node());
         self
     }
 
     /// Add multiple items to the dropdown.
-    pub fn extend(mut self, items: impl IntoIterator<Item = (impl IntoNode<'a, T>, T)>) -> Self {
-        self.items.extend(items.into_iter().map(|(item, on_select)| Item {
-            node: item.into_node(),
-            on_select: Some(on_select),
-        }));
+    pub fn extend(mut self, items: impl IntoIterator<Item = impl IntoNode<'a, T>>) -> Self {
+        self.items.extend(items.into_iter().map(IntoNode::into_node));
         self
     }
 }
 
-impl<'a, T: Send + 'a> Widget<'a, T> for Dropdown<'a, T> {
+impl<'a, T: 'a> Default for Dropdown<'a, T, ()> {
+    fn default() -> Self {
+        Self {
+            items: Vec::new(),
+            default_selection: None,
+            on_select: (),
+        }
+    }
+}
+
+impl<'a, T: Send + 'a, F: Send + Fn(usize) -> T> Widget<'a, T> for Dropdown<'a, T, F> {
     type State = State;
 
     fn mount(&self) -> Self::State {
@@ -92,20 +93,20 @@ impl<'a, T: Send + 'a> Widget<'a, T> for Dropdown<'a, T> {
 
     fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn GenericNode<'a, T>)) {
         for item in self.items.iter_mut() {
-            visitor(&mut *item.node);
+            visitor(&mut **item);
         }
     }
 
     fn size(&self, _: &State, style: &Stylesheet) -> (Size, Size) {
         let width = match style.width {
-            Size::Shrink => Size::Exact(self.items.iter().fold(0.0f32, |size, item| match item.node.size().0 {
+            Size::Shrink => Size::Exact(self.items.iter().fold(0.0f32, |size, item| match item.size().0 {
                 Size::Exact(item_size) => size.max(item_size),
                 _ => size,
             })),
             other => other,
         };
         let height = match style.height {
-            Size::Shrink => Size::Exact(self.items.iter().fold(0.0f32, |size, item| match item.node.size().1 {
+            Size::Shrink => Size::Exact(self.items.iter().fold(0.0f32, |size, item| match item.size().1 {
                 Size::Exact(item_size) => size.max(item_size),
                 _ => size,
             })),
@@ -216,7 +217,7 @@ impl<'a, T: Send + 'a> Widget<'a, T> for Dropdown<'a, T> {
             (Event::Release(Key::LeftMouseButton), InnerState::Pressed { hover_item, .. }) => {
                 context.redraw();
                 state.selected_item.replace(hover_item);
-                context.extend(self.items[hover_item].on_select.take());
+                context.push((self.on_select)(hover_item));
                 InnerState::Idle
             }
 
@@ -242,7 +243,7 @@ impl<'a, T: Send + 'a> Widget<'a, T> for Dropdown<'a, T> {
             InnerState::Idle => {
                 result.extend(style.background.render(layout));
                 if let Some(selected) = state.selected_item {
-                    result.extend(self.items[selected].node.draw(content, clip));
+                    result.extend(self.items[selected].draw(content, clip));
                 }
             }
             InnerState::Open { hover_item, .. } | InnerState::Pressed { hover_item, .. } => {
@@ -272,7 +273,7 @@ impl<'a, T: Send + 'a> Widget<'a, T> for Dropdown<'a, T> {
                         right: content.right,
                         bottom: content.bottom + (1 + index) as f32 * layout.height(),
                     };
-                    result.extend(item.node.draw(layout, clip));
+                    result.extend(item.draw(layout, clip));
                 }
             }
         }
@@ -283,7 +284,7 @@ impl<'a, T: Send + 'a> Widget<'a, T> for Dropdown<'a, T> {
     }
 }
 
-impl<'a, T: 'a + Send> IntoNode<'a, T> for Dropdown<'a, T> {
+impl<'a, T: 'a + Send, F: 'a + Send + Fn(usize) -> T> IntoNode<'a, T> for Dropdown<'a, T, F> {
     fn into_node(self) -> Node<'a, T> {
         Node::from_widget(self)
     }

@@ -11,7 +11,7 @@ use crate::widget::{Context, StateVec, Widget};
 
 /// A clickable button
 pub struct Button<'a, T> {
-    content: Node<'a, T>,
+    content: Option<Node<'a, T>>,
     on_clicked: Option<T>,
 }
 
@@ -24,11 +24,20 @@ pub enum State {
     Disabled,
 }
 
+impl<'a, T: 'a> Default for Button<'a, T> {
+    fn default() -> Self {
+        Self {
+            content: None,
+            on_clicked: None,
+        }
+    }
+}
+
 impl<'a, T: 'a> Button<'a, T> {
     /// Construct a new button
     pub fn new<C: IntoNode<'a, T> + 'a>(content: C) -> Self {
         Self {
-            content: content.into_node(),
+            content: Some(content.into_node()),
             on_clicked: None,
         }
     }
@@ -37,6 +46,27 @@ impl<'a, T: 'a> Button<'a, T> {
     pub fn on_clicked(mut self, message: T) -> Self {
         self.on_clicked = Some(message);
         self
+    }
+
+    /// Sets the content of the button to be a paragraph of text.
+    pub fn text(mut self, text: impl Into<String> + 'a) -> Self {
+        self.content = Some(text.into_node());
+        self
+    }
+
+    pub fn extend<I: IntoIterator<Item = N>, N: IntoNode<'a, T>>(mut self, iter: I) -> Self {
+        if self.content.is_none() {
+            self.content = iter.into_iter().next().map(IntoNode::into_node);
+        }
+        self
+    }
+
+    fn content(&self) -> &Node<'a, T> {
+        self.content.as_ref().expect("content of `Button` must be set")
+    }
+
+    fn content_mut(&mut self) -> &mut Node<'a, T> {
+        self.content.as_mut().expect("content of `Button` must be set")
     }
 }
 
@@ -65,13 +95,13 @@ impl<'a, T: 'a + Send> Widget<'a, T> for Button<'a, T> {
     }
 
     fn visit_children(&mut self, visitor: &mut dyn FnMut(&mut dyn GenericNode<'a, T>)) {
-        visitor(&mut *self.content);
+        visitor(&mut **self.content_mut());
     }
 
     fn size(&self, _: &State, style: &Stylesheet) -> (Size, Size) {
         style
             .background
-            .resolve_size((style.width, style.height), self.content.size(), style.padding)
+            .resolve_size((style.width, style.height), self.content().size(), style.padding)
     }
 
     fn event(
@@ -146,7 +176,7 @@ impl<'a, T: 'a + Send> Widget<'a, T> for Button<'a, T> {
             .background
             .render(layout)
             .into_iter()
-            .chain(self.content.draw(content_rect, clip).into_iter())
+            .chain(self.content_mut().draw(content_rect, clip).into_iter())
             .collect()
     }
 }
