@@ -54,12 +54,12 @@ impl<'a, M: 'a + Component> ComponentNode<'a, M> {
         self.props.as_mut()
     }
 
-    pub fn update(&mut self, message: M::Message) -> Vec<M::Output> {
+    pub fn update(&mut self, message: M::Message, context: &mut Context<M::Output>) {
         self.set_dirty();
 
         let (state, runtime) = unsafe { self.component_state.get().as_mut().unwrap() };
 
-        self.props.update(message, state, runtime)
+        self.props.update(message, state, runtime, context)
     }
 
     pub fn view(&self) -> RefMut<Node<'a, M::Message>> {
@@ -157,13 +157,13 @@ impl<'a, M: 'a + Component> GenericNode<'a, M::Output> for ComponentNode<'a, M> 
         }
 
         for message in sub_context {
-            context.extend(self.update(message));
+            self.update(message, context);
         }
 
         let (_, runtime) = unsafe { self.component_state.get().as_mut().unwrap() };
         while runtime.modified {
             for message in runtime.poll(&mut context.task_context()) {
-                context.extend(self.update(message));
+                self.update(message, context);
             }
         }
     }
@@ -177,13 +177,13 @@ impl<'a, M: 'a + Component> GenericNode<'a, M::Output> for ComponentNode<'a, M> 
         }
 
         for message in sub_context {
-            context.extend(self.update(message));
+            self.update(message, context);
         }
 
         let (_, runtime) = unsafe { self.component_state.get().as_mut().unwrap() };
         loop {
             for message in runtime.poll(&mut context.task_context()) {
-                context.extend(self.update(message));
+                self.update(message, context);
             }
             if !runtime.modified {
                 break;

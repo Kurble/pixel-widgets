@@ -166,7 +166,8 @@ impl Component for Alchemy {
         message: Self::Message,
         state: &mut Self::State,
         _: &mut Runtime<Self::Message>,
-    ) -> Vec<Self::Output> {
+        _: &mut Context<()>,
+    ) {
         match message {
             Message::Place(item, pos) => {
                 state.playground.push((item, state.next_item_id, pos));
@@ -215,8 +216,6 @@ impl Component for Alchemy {
                 }
             }
         }
-
-        Vec::new()
     }
 }
 

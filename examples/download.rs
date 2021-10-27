@@ -1,4 +1,4 @@
-use futures::{FutureExt, SinkExt};
+use futures::SinkExt;
 use winit::window::WindowBuilder;
 
 use pixel_widgets::node::Node;
@@ -58,41 +58,36 @@ impl Component for Download {
         message: Self::Message,
         state: &mut Self::State,
         runtime: &mut Runtime<Self::Message>,
-    ) -> Vec<Self::Output> {
+        _: &mut Context<()>,
+    ) {
         match message {
             Message::UrlChanged(url) => {
                 state.url = url;
-                Vec::new()
             }
             Message::DownloadPressed => {
                 let (mut tx, rx) = futures::channel::mpsc::unbounded();
                 let url = state.url.clone();
                 runtime.stream(rx);
-                runtime.wait(
-                    tokio::spawn(async move {
-                        tx.send(Message::ProgressUpdated(0, 1)).await.unwrap();
+                tokio::spawn(async move {
+                    tx.send(Message::ProgressUpdated(0, 1)).await.unwrap();
 
-                        let mut response = reqwest::get(reqwest::Url::parse(url.as_str()).unwrap()).await.unwrap();
-                        let mut progress = 0;
-                        let length = response.content_length().unwrap_or(0) as usize;
+                    let mut response = reqwest::get(reqwest::Url::parse(url.as_str()).unwrap()).await.unwrap();
+                    let mut progress = 0;
+                    let length = response.content_length().unwrap_or(0) as usize;
 
-                        tx.send(Message::ProgressUpdated(0, length)).await.unwrap();
-                        while let Ok(Some(bytes)) = response.chunk().await {
-                            progress += bytes.len();
-                            tx.send(Message::ProgressUpdated(progress, length)).await.unwrap();
-                        }
+                    tx.send(Message::ProgressUpdated(0, length)).await.unwrap();
+                    while let Ok(Some(bytes)) = response.chunk().await {
+                        progress += bytes.len();
+                        tx.send(Message::ProgressUpdated(progress, length)).await.unwrap();
+                    }
 
-                        Message::DownloadFinished
-                    })
-                    .map(Result::unwrap),
-                );
-                Vec::new()
+                    tx.send(Message::DownloadFinished).await.unwrap();
+                });
             }
-            Message::DownloadFinished => Vec::new(),
+            Message::DownloadFinished => (),
             Message::ProgressUpdated(downloaded, size) => {
                 state.progress = downloaded;
                 state.size = size;
-                Vec::new()
             }
         }
     }

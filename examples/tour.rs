@@ -3,17 +3,24 @@ use pixel_widgets::node::Node;
 use pixel_widgets::prelude::*;
 use pixel_widgets::widget::menu::MenuItem;
 
-struct Tour {
-    //
-}
+struct Tour;
 
 struct TourState {
     pub show_dummy: bool,
     pub show_login: bool,
-    pub name: String,
-    pub password: String,
     context_position: Option<(f32, f32)>,
 }
+
+#[derive(Default)]
+struct LoginWindow;
+
+struct LoginWindowState {
+    pub name: String,
+    pub password: String,
+}
+
+#[derive(Default)]
+struct DummyWindow;
 
 enum Message {
     LoginPressed,
@@ -35,8 +42,6 @@ impl Component for Tour {
         TourState {
             show_dummy: false,
             show_login: false,
-            name: "example".to_string(),
-            password: "password".to_string(),
             context_position: None,
         }
     }
@@ -74,75 +79,120 @@ impl Component for Tour {
                     key = 0
                 ],
 
-                :if state.show_dummy => Window [key=1] => {
-                    Row [class="title"] => {
-                        Text [val="Dummy window", class="title"],
-                        Space,
-                        Space [class="close"]
-                    },
-                    Column => {
-                        Text [val="Select a planet from the dropdown list: "],
-                        Dropdown [on_select=Message::PlanetSelected] => {
-                            :for &option in options.iter() => Text [val=option]
-                        }
-                    }
-                },
+                :if state.show_dummy => DummyWindow,
 
-                :if state.show_login => Window [key=2] => {
-                    Row [class="title"] => {
-                        Text [val="Login window", class="title"],
-                        Space,
-                        Space [class="close"]
-                    },
-                    Column => {
-                        Input [
-                            placeholder="username",
-                            val=state.name.as_str(),
-                            on_change=Message::NameChanged,
-                            trigger_key=Key::Enter
-                        ],
-                        Input [
-                            placeholder="password",
-                            val=state.password.as_str(),
-                            on_change=Message::PasswordChanged,
-                            password=true
-                        ],
-                        Button [text="Login", on_clicked=Message::LoginPressed]
+                :if state.show_login => LoginWindow
+            }
+        }
+    }
+
+    fn update(&self, message: Self::Message, state: &mut TourState, _: &mut Runtime<Message>, _: &mut Context<()>) {
+        match message {
+            Message::ShowDummy(show) => state.show_dummy = show,
+            Message::ShowLogin(show) => state.show_login = show,
+            Message::ShowContext(x, y) => state.context_position = Some((x, y)),
+            Message::CloseContext => state.context_position = None,
+            _ => (),
+        }
+    }
+}
+
+impl Component for LoginWindow {
+    type State = LoginWindowState;
+    type Message = Message;
+    type Output = Message;
+
+    fn mount(&self) -> LoginWindowState {
+        LoginWindowState {
+            name: "example".to_string(),
+            password: "password".to_string(),
+        }
+    }
+
+    fn view<'a>(&'a self, state: &'a LoginWindowState) -> Node<'a, Message> {
+        declare_view!{
+            Window => {
+                Row [class="title"] => {
+                    Text [val="Login window", class="title"],
+                    Space,
+                    Space [class="close"]
+                },
+                Column => {
+                    Input [
+                        placeholder="username",
+                        val=state.name.as_str(),
+                        on_change=Message::NameChanged,
+                        trigger_key=Key::Enter
+                    ],
+                    Input [
+                        placeholder="password",
+                        val=state.password.as_str(),
+                        on_change=Message::PasswordChanged,
+                        password=true
+                    ],
+                    Button [text="Login", on_clicked=Message::LoginPressed]
+                }
+            }
+        }
+    }
+
+    fn update(&self, message: Message, state: &mut LoginWindowState, _: &mut Runtime<Message>, _: &mut Context<Message>) {
+        match message {
+            Message::NameChanged(name) => state.name = name,
+            Message::PasswordChanged(password) => state.password = password,
+            Message::LoginPressed => println!("login pressed!"),
+            _ => (),
+        }
+    }
+}
+
+impl<'a> IntoNode<'a, Message> for LoginWindow {
+    fn into_node(self) -> Node<'a, Message> {
+        Node::from_component(self)
+    }
+}
+
+impl Component for DummyWindow {
+    type State = ();
+    type Message = Message;
+    type Output = Message;
+
+    fn mount(&self) -> Self::State {
+        ()
+    }
+
+    fn view<'a>(&'a self, _: &'a Self::State) -> Node<'a, Self::Message> {
+        let options = [
+            "Mercury", "Venus", "Earth", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto",
+        ];
+
+        declare_view!{
+            Window => {
+                Row [class="title"] => {
+                    Text [val="Dummy window", class="title"],
+                    Space,
+                    Space [class="close"]
+                },
+                Column => {
+                    Text [val="Select a planet from the dropdown list: "],
+                    Dropdown [on_select=Message::PlanetSelected] => {
+                        :for &option in options.iter() => Text [val=option]
                     }
                 }
             }
         }
     }
 
-    fn update(&self, message: Self::Message, state: &mut TourState, _: &mut Runtime<Message>) -> Vec<()> {
-        match message {
-            Message::PlanetSelected(planet) => {
-                println!("{} selected from the planets", planet);
-            }
-            Message::ShowDummy(show) => {
-                state.show_dummy = show;
-            }
-            Message::ShowLogin(show) => {
-                state.show_login = show;
-            }
-            Message::ShowContext(x, y) => {
-                state.context_position = Some((x, y));
-            }
-            Message::CloseContext => {
-                state.context_position = None;
-            }
-            Message::LoginPressed => {
-                println!("login pressed!");
-            }
-            Message::NameChanged(name) => {
-                state.name = name;
-            }
-            Message::PasswordChanged(password) => {
-                state.password = password;
-            }
+    fn update(&self, message: Message, _: &mut (), _: &mut Runtime<Message>, _: &mut Context<Message>) {
+        if let Message::PlanetSelected(planet) = message {
+            println!("{} selected from the planets", planet);
         }
+    }
+}
 
-        Vec::new()
+impl<'a> IntoNode<'a, Message> for DummyWindow {
+    fn into_node(self) -> Node<'a, Message> {
+        Node::from_component(self)
     }
 }
 
@@ -152,7 +202,7 @@ async fn main() {
         .with_title("Tour")
         .with_inner_size(winit::dpi::LogicalSize::new(960, 480));
 
-    let mut sandbox = Sandbox::new(Tour {}, window).await;
+    let mut sandbox = Sandbox::new(Tour, window).await;
     sandbox.ui.set_style(Style::from_file("examples/tour.pwss").unwrap());
 
     sandbox.run().await;

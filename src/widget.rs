@@ -265,6 +265,11 @@ impl<Message> Context<Message> {
     pub fn task_context(&self) -> std::task::Context<'_> {
         std::task::Context::from_waker(&self.waker)
     }
+
+    /// Consume self and return the internal vec of messages
+    pub fn into_vec(self) -> Vec<Message> {
+        self.messages
+    }
 }
 
 impl<Message> IntoIterator for Context<Message> {

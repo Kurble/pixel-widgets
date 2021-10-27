@@ -158,30 +158,42 @@ pub mod tracker;
 /// User interface widgets
 pub mod widget;
 
-/// A model that keeps track of the state of your GUI. Serves to control the behaviour and DOM of your GUI.
-/// Styling is handled separately. Once you implemented a model, you can run your GUI using a [`Ui`](struct.Ui.html).
-/// Messages are handled in the separate trait [`UpdateModel`](trait.UpdateModel.html), which you should also implement.
+/// A re-usable component for defining a fragment of a user interface.
 ///
 /// # Examples
-/// The examples in this repository all implement some kind of [`Model`](trait.Model.html), check them out if you just want to read
-/// some code.
+/// The examples in this repository all implement some kind of [`Component`](trait.Component.html), 
+/// check them out if you just want to read some code.
 pub trait Component {
-    type Message: 'static;
-
+    /// Mutable state associated with this `Component`.
     type State: 'static + Any + Send + Sync;
 
-    type Output: 'static;
+    /// The message type this `Component` will receive from it's view.
+    type Message: 'static;
 
+    /// The message type this `Component` submits to its parent.
+    type Output: 'static;    
+
+    /// Create a new `State` for the `Component`. 
+    /// This will be called only once when the `Component` is first created.
     fn mount(&self) -> Self::State;
 
+    /// Generate the view for the `Component`. 
+    /// This will be called just in time before ui rendering. 
+    /// When the `Component` is updated, 
+    ///  the view will be invalidated and the runtime will have to call this function again.
     fn view<'a>(&'a self, state: &'a Self::State) -> Node<'a, Self::Message>;
 
+    /// Update the `Component` state in response to the `message`.
+    /// Asynchronous operations can be submitted to the `runtime`, 
+    ///  which will result in more `update` calls in the future.
+    /// Messages for the parent `Component` or root can be submitted through the `context`.
     fn update(
         &self,
-        message: Self::Message,
-        state: &mut Self::State,
-        runtime: &mut Runtime<Self::Message>,
-    ) -> Vec<Self::Output>;
+        _message: Self::Message,
+        _state: &mut Self::State,
+        _runtime: &mut Runtime<Self::Message>,
+        _context: &mut Context<Self::Output>,
+    ) {}
 }
 
 pub struct Runtime<Message> {
@@ -285,9 +297,11 @@ impl<M: 'static + Component> Ui<M> {
     }
 
     pub fn set_style(&mut self, style: Arc<Style>) {
-        self.root_node.set_dirty();
-        self.style = style.clone();
-        self.root_node.style(&mut Query::from_style(style), (0, 1));
+        if !Arc::ptr_eq(&self.style, &style) {
+            self.root_node.set_dirty();
+            self.style = style.clone();
+            self.root_node.style(&mut Query::from_style(style), (0, 1));
+        }
     }
 
     /// Resizes the viewport.
@@ -307,14 +321,15 @@ impl<M: 'static + Component> Ui<M> {
     /// Updates the model with a message.
     /// This forces the view to be rerendered.
     pub fn update_poll(&mut self, message: M::Message, waker: Waker) -> Vec<M::Output> {
-        let mut result = self.root_node.update(message);
+        let mut context = Context::new(self.needs_redraw(), self.cursor, waker);
+
+        self.root_node.update(message, &mut context);
         while self.root_node.needs_poll() {
-            let mut context = Context::new(self.needs_redraw(), self.cursor, waker.clone());
             self.root_node.poll(&mut context);
-            self.redraw = context.redraw_requested();
-            result.extend(context.into_iter());
         }
-        result
+
+        self.redraw = context.redraw_requested();
+        context.into_vec()
     }
 
     /// Handles an [`Event`](event/struct.Event.html).
@@ -337,17 +352,17 @@ impl<M: 'static + Component> Ui<M> {
 
         self.redraw = context.redraw_requested();
 
-        let mut result = vec![];
+        let mut outer_context = Context::new(self.needs_redraw(), self.cursor, waker.clone());
+
         for message in context {
-            result.extend(self.root_node.update(message));
+            self.root_node.update(message, &mut outer_context);
         }
         while self.root_node.needs_poll() {
-            let mut context = Context::new(self.needs_redraw(), self.cursor, waker.clone());
-            self.root_node.poll(&mut context);
-            self.redraw = context.redraw_requested();
-            result.extend(context.into_iter());
+            self.root_node.poll(&mut outer_context);
         }
-        result
+
+        self.redraw = outer_context.redraw_requested();
+        outer_context.into_vec()
     }
 
     /// Should be called when the waker wakes :)
@@ -363,7 +378,7 @@ impl<M: 'static + Component> Ui<M> {
                 break;
             }
         }
-        context.into_iter().collect()
+        context.into_vec()
     }
 
     /// Generate a [`DrawList`](draw/struct.DrawList.html) for the view.

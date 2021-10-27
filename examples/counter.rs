@@ -36,15 +36,14 @@ impl Component for Counter {
         message: Self::Message,
         state: &mut i32,
         _runtime: &mut Runtime<Self::Message>,
-    ) -> Vec<Self::Output> {
+        _context: &mut Context<()>,
+    ) {
         match message {
             Message::UpPressed => {
                 *state += 1;
-                Vec::new()
             }
             Message::DownPressed => {
                 *state -= 1;
-                Vec::new()
             }
         }
     }
