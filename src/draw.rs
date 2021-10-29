@@ -186,6 +186,14 @@ pub enum Command {
 }
 
 impl Color {
+    pub fn rgb(r: f32, g: f32, b: f32) -> Self {
+        Self::rgba(r, g, b, 1.0)
+    }
+
+    pub fn rgba(r: f32, g: f32, b: f32, a: f32) -> Self {
+        Self { r, g, b, a }
+    }
+
     /// Returns the color white
     pub fn white() -> Color {
         Color {
@@ -239,6 +247,16 @@ impl Color {
     /// Modifies a color with a new alpha component
     pub fn with_alpha(mut self, a: f32) -> Self {
         self.a = a;
+        self
+    }
+
+    /// Modifies a color by blending it towards another color
+    pub fn blend(mut self, other: Color, factor: f32) -> Self {
+        let inverse = 1.0 - factor;
+        self.r = self.r * inverse + other.r * factor;
+        self.g = self.g * inverse + other.g * factor;
+        self.b = self.b * inverse + other.b * factor;
+        self.a = self.a * inverse + other.a * factor;
         self
     }
 }

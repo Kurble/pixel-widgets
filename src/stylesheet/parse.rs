@@ -1,18 +1,28 @@
-use super::tree::RuleTreeBuilder;
 use super::*;
 use anyhow::*;
-use std::sync::{Arc, Mutex};
 
 struct LoadContext<'a, I: Iterator<Item = Token>, R: ReadFn> {
     loader: R,
-    tokens: Peekable<I>,
-    cache: Arc<Mutex<Cache>>,
+    tokens: TokenProvider<I>,
+    cache: &'a mut Cache,
     images: &'a mut HashMap<String, ImageData>,
     patches: &'a mut HashMap<String, Patch>,
     fonts: &'a mut HashMap<String, Font>,
 }
 
-impl<I: Iterator<Item = Token>, L: ReadFn> LoadContext<'_, I, L> {
+struct TokenProvider<I: Iterator<Item = Token>> {
+    tokens: Peekable<I>,
+}
+
+impl<I: Iterator<Item = Token>> TokenProvider<I> {
+    pub fn next(&mut self) -> Option<Token> {
+        self.tokens.next()
+    }
+
+    pub fn peek(&mut self) -> Option<&Token> {
+        self.tokens.peek()
+    }
+
     pub fn take(&mut self, token: TokenValue) -> anyhow::Result<Token> {
         let Token(value, pos) = self.tokens.next().ok_or(anyhow!("EOF"))?;
         if token == value {
@@ -30,29 +40,36 @@ impl<I: Iterator<Item = Token>, L: ReadFn> LoadContext<'_, I, L> {
     }
 }
 
-pub async fn parse(tokens: Vec<Token>, loader: impl ReadFn, size: usize, offset: usize) -> anyhow::Result<Style> {
-    let mut result = Style::new(size, offset);
+pub async fn parse(tokens: Vec<Token>, loader: impl ReadFn) -> anyhow::Result<Arc<Style>> {
+    let mut builder = Style::builder();
 
     let mut images = HashMap::new();
     let mut patches = HashMap::new();
     let mut fonts = HashMap::new();
     let mut context = LoadContext {
         loader,
-        tokens: tokens.into_iter().peekable(),
-        cache: result.cache(),
+        tokens: TokenProvider { tokens: tokens.into_iter().peekable() },
+        cache: &mut builder.cache,
         images: &mut images,
         patches: &mut patches,
         fonts: &mut fonts,
     };
 
-    let mut rule_tree = RuleTreeBuilder::new(Selector::Widget(SelectorWidget::Any));
+    //let mut rule_tree = RuleTreeBuilder::new(Selector::Widget(SelectorWidget::Any));
     while context.tokens.peek().is_some() {
         let (selectors, rules) = parse_rule(&mut context).await?;
-        rule_tree.insert(selectors, rules);
+        builder.rule_tree.insert(selectors, rules);
     }
 
-    result.rule_tree = rule_tree.into();
+    Ok(builder.build())
+}
 
+pub fn parse_selectors(tokens: Vec<Token>) -> anyhow::Result<Vec<Selector>> {
+    let mut p = TokenProvider { tokens: tokens.into_iter().peekable() };
+    let mut result = Vec::new();
+    while p.peek().is_some() {
+        result.push(parse_selector(&mut p)?);
+    }
     Ok(result)
 }
 
@@ -71,10 +88,10 @@ async fn parse_rule<I: Iterator<Item = Token>, L: ReadFn>(
                     declarations.push(parse_declaration(c).await?);
                 }
             }
-            c.take(TokenValue::BraceClose)?;
+            c.tokens.take(TokenValue::BraceClose)?;
             return Ok((selectors, declarations));
         } else {
-            selectors.push(parse_selector(c)?);
+            selectors.push(parse_selector(&mut c.tokens)?);
         }
     }
 }
@@ -84,30 +101,30 @@ async fn parse_declaration<I: Iterator<Item = Token>, L: ReadFn>(
 ) -> anyhow::Result<Declaration> {
     let result = match c.tokens.next() {
         Some(Token(TokenValue::Iden(key), _)) => {
-            c.take(TokenValue::Colon)?;
+            c.tokens.take(TokenValue::Colon)?;
             match key.as_str() {
                 "background" => Ok(Declaration::Background(parse_background(c).await?)),
                 "font" => Ok(Declaration::Font(parse_font(c).await?)),
-                "color" => Ok(Declaration::Color(parse_color(c)?)),
-                "padding" => Ok(Declaration::Padding(parse_rectangle(c)?)),
-                "padding-left" => Ok(Declaration::PaddingLeft(parse_float(c)?)),
-                "padding-right" => Ok(Declaration::PaddingRight(parse_float(c)?)),
-                "padding-top" => Ok(Declaration::PaddingTop(parse_float(c)?)),
-                "padding-bottom" => Ok(Declaration::PaddingBottom(parse_float(c)?)),
-                "margin" => Ok(Declaration::Margin(parse_rectangle(c)?)),
-                "margin-left" => Ok(Declaration::MarginLeft(parse_float(c)?)),
-                "margin-right" => Ok(Declaration::MarginRight(parse_float(c)?)),
-                "margin-top" => Ok(Declaration::MarginTop(parse_float(c)?)),
-                "margin-bottom" => Ok(Declaration::MarginBottom(parse_float(c)?)),
-                "text-size" => Ok(Declaration::TextSize(parse_float(c)?)),
-                "text-wrap" => Ok(Declaration::TextWrap(parse_text_wrap(c)?)),
-                "width" => Ok(Declaration::Width(parse_size(c)?)),
-                "height" => Ok(Declaration::Height(parse_size(c)?)),
-                "layout-direction" => Ok(Declaration::LayoutDirection(parse_direction(c)?)),
-                "align-horizontal" => Ok(Declaration::AlignHorizontal(parse_align(c)?)),
-                "align-vertical" => Ok(Declaration::AlignVertical(parse_align(c)?)),
+                "color" => Ok(Declaration::Color(parse_color(&mut c.tokens)?)),
+                "padding" => Ok(Declaration::Padding(parse_rectangle(&mut c.tokens)?)),
+                "padding-left" => Ok(Declaration::PaddingLeft(parse_float(&mut c.tokens)?)),
+                "padding-right" => Ok(Declaration::PaddingRight(parse_float(&mut c.tokens)?)),
+                "padding-top" => Ok(Declaration::PaddingTop(parse_float(&mut c.tokens)?)),
+                "padding-bottom" => Ok(Declaration::PaddingBottom(parse_float(&mut c.tokens)?)),
+                "margin" => Ok(Declaration::Margin(parse_rectangle(&mut c.tokens)?)),
+                "margin-left" => Ok(Declaration::MarginLeft(parse_float(&mut c.tokens)?)),
+                "margin-right" => Ok(Declaration::MarginRight(parse_float(&mut c.tokens)?)),
+                "margin-top" => Ok(Declaration::MarginTop(parse_float(&mut c.tokens)?)),
+                "margin-bottom" => Ok(Declaration::MarginBottom(parse_float(&mut c.tokens)?)),
+                "text-size" => Ok(Declaration::TextSize(parse_float(&mut c.tokens)?)),
+                "text-wrap" => Ok(Declaration::TextWrap(parse_text_wrap(&mut c.tokens)?)),
+                "width" => Ok(Declaration::Width(parse_size(&mut c.tokens)?)),
+                "height" => Ok(Declaration::Height(parse_size(&mut c.tokens)?)),
+                "layout-direction" => Ok(Declaration::LayoutDirection(parse_direction(&mut c.tokens)?)),
+                "align-horizontal" => Ok(Declaration::AlignHorizontal(parse_align(&mut c.tokens)?)),
+                "align-vertical" => Ok(Declaration::AlignVertical(parse_align(&mut c.tokens)?)),
                 flag => {
-                    let (id, pos) = c.take_identifier()?;
+                    let (id, pos) = c.tokens.take_identifier()?;
                     match id.as_str() {
                         "true" => Ok(Declaration::AddFlag(flag.to_string())),
                         "false" => Ok(Declaration::RemoveFlag(flag.to_string())),
@@ -119,7 +136,7 @@ async fn parse_declaration<I: Iterator<Item = Token>, L: ReadFn>(
         Some(Token(_, pos)) => Err(anyhow!("Expected <property> at {}", pos)),
         None => Err(anyhow!("EOF")),
     }?;
-    c.take(TokenValue::Semi)?;
+    c.tokens.take(TokenValue::Semi)?;
     Ok(result)
 }
 
@@ -132,63 +149,63 @@ async fn parse_background<I: Iterator<Item = Token>, L: ReadFn>(
             match ty.to_lowercase().as_str() {
                 "none" => Ok(Background::None),
                 "image" => {
-                    c.take(TokenValue::ParenOpen)?;
+                    c.tokens.take(TokenValue::ParenOpen)?;
                     let image = match c.tokens.next() {
                         Some(Token(TokenValue::Path(url), _)) => {
                             if c.images.get(&url).is_none() {
                                 let image =
                                     image::load_from_memory(c.loader.read(Path::new(url.as_str())).await?.as_ref())?;
                                 c.images
-                                    .insert(url.clone(), c.cache.lock().unwrap().load_image(image.to_rgba8()));
+                                    .insert(url.clone(), c.cache.load_image(image.to_rgba8()));
                             }
                             Ok(c.images[&url].clone())
                         }
                         Some(Token(_, pos)) => Err(anyhow!("Expected <url> at {}", pos)),
                         None => Err(anyhow!("EOF")),
                     }?;
-                    c.take(TokenValue::Comma)?;
-                    let color = parse_color(c)?;
-                    c.take(TokenValue::ParenClose)?;
+                    c.tokens.take(TokenValue::Comma)?;
+                    let color = parse_color(&mut c.tokens)?;
+                    c.tokens.take(TokenValue::ParenClose)?;
                     Ok(Background::Image(image, color))
                 }
                 "patch" => {
-                    c.take(TokenValue::ParenOpen)?;
+                    c.tokens.take(TokenValue::ParenOpen)?;
                     let image = match c.tokens.next() {
                         Some(Token(TokenValue::Path(url), _)) => {
                             if c.patches.get(&url).is_none() {
                                 let image =
                                     image::load_from_memory(c.loader.read(Path::new(url.as_str())).await?.as_ref())?;
                                 c.patches
-                                    .insert(url.clone(), c.cache.lock().unwrap().load_patch(image.to_rgba8()));
+                                    .insert(url.clone(), c.cache.load_patch(image.to_rgba8()));
                             }
                             Ok(c.patches[&url].clone())
                         }
                         Some(Token(_, pos)) => Err(anyhow!("Expected url at {}", pos)),
                         None => Err(anyhow!("EOF")),
                     }?;
-                    c.take(TokenValue::Comma)?;
-                    let color = parse_color(c)?;
-                    c.take(TokenValue::ParenClose)?;
+                    c.tokens.take(TokenValue::Comma)?;
+                    let color = parse_color(&mut c.tokens)?;
+                    c.tokens.take(TokenValue::ParenClose)?;
                     Ok(Background::Patch(image, color))
                 }
                 _ => Err(anyhow!("Expected `image`, `patch` or `none` at {}", pos)),
             }
         }
-        Token(TokenValue::Color(_), _) => Ok(Background::Color(parse_color(c)?)),
+        Token(TokenValue::Color(_), _) => Ok(Background::Color(parse_color(&mut c.tokens)?)),
         Token(TokenValue::Path(url), _) => {
             c.tokens.next();
             if url.ends_with(".9.png") {
                 if c.patches.get(&url).is_none() {
                     let image = image::load_from_memory(c.loader.read(Path::new(url.as_str())).await?.as_ref())?;
                     c.patches
-                        .insert(url.clone(), c.cache.lock().unwrap().load_patch(image.to_rgba8()));
+                        .insert(url.clone(), c.cache.load_patch(image.to_rgba8()));
                 }
                 Ok(Background::Patch(c.patches[&url].clone(), Color::white()))
             } else {
                 if c.images.get(&url).is_none() {
                     let image = image::load_from_memory(c.loader.read(Path::new(url.as_str())).await?.as_ref())?;
                     c.images
-                        .insert(url.clone(), c.cache.lock().unwrap().load_image(image.to_rgba8()));
+                        .insert(url.clone(), c.cache.load_image(image.to_rgba8()));
                 }
                 Ok(Background::Image(c.images[&url].clone(), Color::white()))
             }
@@ -205,7 +222,7 @@ async fn parse_font<I: Iterator<Item = Token>, L: ReadFn>(c: &mut LoadContext<'_
         Some(Token(TokenValue::Path(url), _)) => {
             if c.fonts.get(&url).is_none() {
                 let font = c.loader.read(Path::new(url.as_str())).await?;
-                let font = c.cache.lock().unwrap().load_font(font);
+                let font = c.cache.load_font(font);
                 c.fonts.insert(url.clone(), font);
             }
             Ok(c.fonts[&url].clone())
@@ -215,7 +232,7 @@ async fn parse_font<I: Iterator<Item = Token>, L: ReadFn>(c: &mut LoadContext<'_
     }
 }
 
-fn parse_selector<I: Iterator<Item = Token>, L: ReadFn>(c: &mut LoadContext<I, L>) -> anyhow::Result<Selector> {
+fn parse_selector<I: Iterator<Item = Token>>(c: &mut TokenProvider<I>) -> anyhow::Result<Selector> {
     match c.tokens.next().ok_or(anyhow!("EOF"))? {
         Token(TokenValue::Star, _) => Ok(Selector::Widget(SelectorWidget::Any)),
         Token(TokenValue::Dot, _) => Ok(Selector::Class(c.take_identifier()?.0)),
@@ -298,16 +315,16 @@ fn parse_selector<I: Iterator<Item = Token>, L: ReadFn>(c: &mut LoadContext<I, L
     }
 }
 
-fn parse_widget<I: Iterator<Item = Token>, L: ReadFn>(c: &mut LoadContext<I, L>) -> Result<SelectorWidget> {
-    match c.tokens.next().ok_or(anyhow!("EOF"))? {
+fn parse_widget<I: Iterator<Item = Token>>(c: &mut TokenProvider<I>) -> Result<SelectorWidget> {
+    match c.next().ok_or(anyhow!("EOF"))? {
         Token(TokenValue::Star, _) => Ok(SelectorWidget::Any),
         Token(TokenValue::Iden(widget), _) => Ok(SelectorWidget::Some(widget)),
         Token(_, pos) => Err(anyhow!("Expected '*' or 'identifier' at {}", pos)),
     }
 }
 
-fn parse_float<I: Iterator<Item = Token>, L: ReadFn>(c: &mut LoadContext<I, L>) -> Result<f32> {
-    match c.tokens.next() {
+fn parse_float<I: Iterator<Item = Token>>(c: &mut TokenProvider<I>) -> Result<f32> {
+    match c.next() {
         Some(Token(TokenValue::Number(number), pos)) => {
             number.parse::<f32>().map_err(|err| anyhow!("{} at {}", err, pos))
         }
@@ -316,8 +333,8 @@ fn parse_float<I: Iterator<Item = Token>, L: ReadFn>(c: &mut LoadContext<I, L>) 
     }
 }
 
-fn parse_usize<I: Iterator<Item = Token>, L: ReadFn>(c: &mut LoadContext<I, L>) -> Result<usize> {
-    match c.tokens.next() {
+fn parse_usize<I: Iterator<Item = Token>>(c: &mut TokenProvider<I>) -> Result<usize> {
+    match c.next() {
         Some(Token(TokenValue::Number(number), pos)) => {
             number.parse::<usize>().map_err(|err| anyhow!("{} at {}", err, pos))
         }
@@ -326,10 +343,10 @@ fn parse_usize<I: Iterator<Item = Token>, L: ReadFn>(c: &mut LoadContext<I, L>) 
     }
 }
 
-fn parse_rectangle<I: Iterator<Item = Token>, L: ReadFn>(c: &mut LoadContext<I, L>) -> Result<Rectangle> {
+fn parse_rectangle<I: Iterator<Item = Token>>(c: &mut TokenProvider<I>) -> Result<Rectangle> {
     let mut numbers = Vec::new();
 
-    while let Token(TokenValue::Number(_), _) = c.tokens.peek().ok_or(anyhow!("EOF"))? {
+    while let Token(TokenValue::Number(_), _) = c.peek().ok_or(anyhow!("EOF"))? {
         numbers.push(parse_float(c)?);
     }
 
@@ -362,8 +379,8 @@ fn parse_rectangle<I: Iterator<Item = Token>, L: ReadFn>(c: &mut LoadContext<I, 
     }
 }
 
-fn parse_text_wrap<I: Iterator<Item = Token>, L: ReadFn>(c: &mut LoadContext<I, L>) -> Result<TextWrap> {
-    match c.tokens.next() {
+fn parse_text_wrap<I: Iterator<Item = Token>>(c: &mut TokenProvider<I>) -> Result<TextWrap> {
+    match c.next() {
         Some(Token(TokenValue::Iden(ty), pos)) => match ty.to_lowercase().as_str() {
             "no-wrap" => Ok(TextWrap::NoWrap),
             "word-wrap" => Ok(TextWrap::WordWrap),
@@ -375,8 +392,8 @@ fn parse_text_wrap<I: Iterator<Item = Token>, L: ReadFn>(c: &mut LoadContext<I, 
     }
 }
 
-fn parse_direction<I: Iterator<Item = Token>, L: ReadFn>(c: &mut LoadContext<I, L>) -> Result<Direction> {
-    match c.tokens.next() {
+fn parse_direction<I: Iterator<Item = Token>>(c: &mut TokenProvider<I>) -> Result<Direction> {
+    match c.next() {
         Some(Token(TokenValue::Iden(ty), pos)) => match ty.to_lowercase().as_str() {
             "top-to-bottom" => Ok(Direction::TopToBottom),
             "left-to-right" => Ok(Direction::LeftToRight),
@@ -395,8 +412,8 @@ fn parse_direction<I: Iterator<Item = Token>, L: ReadFn>(c: &mut LoadContext<I, 
     }
 }
 
-fn parse_align<I: Iterator<Item = Token>, L: ReadFn>(c: &mut LoadContext<I, L>) -> Result<Align> {
-    match c.tokens.next() {
+fn parse_align<I: Iterator<Item = Token>>(c: &mut TokenProvider<I>) -> Result<Align> {
+    match c.next() {
         Some(Token(TokenValue::Iden(ty), pos)) => match ty.to_lowercase().as_str() {
             "begin" | "left" | "top" => Ok(Align::Begin),
             "center" => Ok(Align::Center),
@@ -408,8 +425,8 @@ fn parse_align<I: Iterator<Item = Token>, L: ReadFn>(c: &mut LoadContext<I, L>) 
     }
 }
 
-fn parse_size<I: Iterator<Item = Token>, L: ReadFn>(c: &mut LoadContext<I, L>) -> Result<Size> {
-    match c.tokens.next() {
+fn parse_size<I: Iterator<Item = Token>>(c: &mut TokenProvider<I>) -> Result<Size> {
+    match c.next() {
         Some(Token(TokenValue::Iden(ty), pos)) => match ty.to_lowercase().as_str() {
             "shrink" => Ok(Size::Shrink),
             "fill" => {
@@ -429,8 +446,8 @@ fn parse_size<I: Iterator<Item = Token>, L: ReadFn>(c: &mut LoadContext<I, L>) -
 }
 
 #[allow(clippy::identity_op)] // to keep the code clean and consistent
-fn parse_color<I: Iterator<Item = Token>, L: ReadFn>(c: &mut LoadContext<I, L>) -> Result<Color> {
-    match c.tokens.next().ok_or(anyhow!("EOF"))? {
+fn parse_color<I: Iterator<Item = Token>>(c: &mut TokenProvider<I>) -> Result<Color> {
+    match c.next().ok_or(anyhow!("EOF"))? {
         Token(TokenValue::Color(string), pos) => {
             let int = u32::from_str_radix(string.as_str(), 16).map_err(|err| anyhow!("{} at {}", err, pos))?;
             match string.len() {

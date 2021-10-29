@@ -47,7 +47,7 @@ pub use self::progress::Progress;
 pub use self::row::Row;
 pub use self::scroll::Scroll;
 pub use self::slider::Slider;
-pub use self::space::Space;
+pub use self::spacer::Spacer;
 pub use self::text::Text;
 pub use self::toggle::Toggle;
 pub use self::window::Window;
@@ -83,7 +83,7 @@ pub mod scroll;
 /// A slider for easily picking some number
 pub mod slider;
 /// Empty widget
-pub mod space;
+pub mod spacer;
 /// Widget that renders a paragraph of text.
 pub mod text;
 /// A clickable button that toggles some `bool`.

@@ -1,7 +1,5 @@
 use winit::window::WindowBuilder;
 
-use pixel_widgets::declare_view;
-use pixel_widgets::node::Node;
 use pixel_widgets::prelude::*;
 
 struct Counter;
@@ -54,9 +52,5 @@ async fn main() {
     let window = WindowBuilder::new()
         .with_title("Counter")
         .with_inner_size(winit::dpi::LogicalSize::new(240, 240));
-
-    let mut sandbox = Sandbox::new(Counter, window).await;
-    sandbox.ui.set_style(Style::from_file("examples/counter.pwss").unwrap());
-
-    sandbox.run().await;
+    Sandbox::new(Counter, window).await.run().await;
 }

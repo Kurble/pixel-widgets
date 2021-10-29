@@ -121,7 +121,7 @@ impl Component for Alchemy {
                             DragItem::FromInventory(i) => Message::Place(state.items[i].clone(), pos),
                             DragItem::FromPlayground(i) => Message::MovePlaygroundItem(i, pos),
                         }
-                    ] => { Space },
+                    ] => { Spacer },
 
                     :for (item, id, pos) in state.playground.iter() => Panel [
                         offset = *pos,

@@ -130,6 +130,7 @@ use crate::text::{Font, TextWrap};
 mod parse;
 mod tokenize;
 pub(crate) mod tree;
+mod builder;
 
 use crate::graphics::Graphics;
 use futures::future::Map;
@@ -139,6 +140,8 @@ use std::future::Future;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use tokenize::*;
+
+pub use builder::*;
 
 /// Errors that can be encountered while loading a stylesheet
 #[derive(Debug)]
@@ -353,6 +356,10 @@ impl Style {
         }
     }
 
+    pub fn builder() -> StyleBuilder {
+        StyleBuilder::new()
+    }
+
     pub(crate) fn get(&self, style: &BitSet) -> Arc<Stylesheet> {
         let mut resolved = self.resolved.lock().unwrap();
         if let Some(existing) = resolved.get(style) {
@@ -385,15 +392,13 @@ impl Style {
     pub async fn from_read_fn<P, R>(
         path: P,
         read: R,
-        cache_size: usize,
-        cache_offset: usize,
     ) -> anyhow::Result<Arc<Self>>
     where
         P: AsRef<Path>,
         R: ReadFn,
     {
         let text = String::from_utf8(read.read(path.as_ref()).await?).unwrap();
-        Ok(Arc::new(parse(tokenize(text)?, read, cache_size, cache_offset).await?))
+        Ok(parse(tokenize(text)?, read).await?)
     }
 
     pub fn from_file<P>(path: P) -> anyhow::Result<Arc<Self>>
@@ -403,8 +408,6 @@ impl Style {
         futures::executor::block_on(Self::from_read_fn(
             path,
             |path: &Path| std::future::ready(std::fs::read(path)),
-            512,
-            0,
         ))
     }
 }
@@ -547,3 +550,30 @@ impl std::fmt::Display for Error {
 }
 
 impl std::error::Error for Error {}
+
+impl<'a> From<&'a str> for SelectorWidget {
+    fn from(s: &'a str) -> Self {
+        if s == "*" {
+            SelectorWidget::Any
+        } else {
+            SelectorWidget::Some(s.into())
+        }
+    }
+}
+
+impl<'a> From<&'a str> for StyleState<String> {
+    fn from(s: &'a str) -> Self {
+        match s {
+            "hover" => StyleState::Hover,
+            "pressed" => StyleState::Pressed,
+            "checked" => StyleState::Checked,
+            "disabled" => StyleState::Disabled,
+            "open" => StyleState::Open,
+            "closed" => StyleState::Closed,
+            "drag" => StyleState::Drag,
+            "drop" => StyleState::Drop,
+            "drop-denied" => StyleState::DropDenied,
+            other => StyleState::Custom(other.into()),
+        }
+    }
+}

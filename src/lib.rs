@@ -161,7 +161,7 @@ pub mod widget;
 /// A re-usable component for defining a fragment of a user interface.
 ///
 /// # Examples
-/// The examples in this repository all implement some kind of [`Component`](trait.Component.html), 
+/// The examples in this repository all implement some kind of [`Component`](trait.Component.html),
 /// check them out if you just want to read some code.
 pub trait Component {
     /// Mutable state associated with this `Component`.
@@ -171,20 +171,20 @@ pub trait Component {
     type Message: 'static;
 
     /// The message type this `Component` submits to its parent.
-    type Output: 'static;    
+    type Output: 'static;
 
-    /// Create a new `State` for the `Component`. 
+    /// Create a new `State` for the `Component`.
     /// This will be called only once when the `Component` is first created.
     fn mount(&self) -> Self::State;
 
-    /// Generate the view for the `Component`. 
-    /// This will be called just in time before ui rendering. 
-    /// When the `Component` is updated, 
+    /// Generate the view for the `Component`.
+    /// This will be called just in time before ui rendering.
+    /// When the `Component` is updated,
     ///  the view will be invalidated and the runtime will have to call this function again.
     fn view<'a>(&'a self, state: &'a Self::State) -> Node<'a, Self::Message>;
 
     /// Update the `Component` state in response to the `message`.
-    /// Asynchronous operations can be submitted to the `runtime`, 
+    /// Asynchronous operations can be submitted to the `runtime`,
     ///  which will result in more `update` calls in the future.
     /// Messages for the parent `Component` or root can be submitted through the `context`.
     fn update(
@@ -193,7 +193,8 @@ pub trait Component {
         _state: &mut Self::State,
         _runtime: &mut Runtime<Self::Message>,
         _context: &mut Context<Self::Output>,
-    ) {}
+    ) {
+    }
 }
 
 pub struct Runtime<Message> {
@@ -282,18 +283,18 @@ impl<M: 'static + Component> Ui<M> {
         let mut root_node = ComponentNode::new(model);
         root_node.acquire_state(&mut unsafe { (&mut state as *mut ManagedState).as_mut() }.unwrap().tracker());
 
-        let style = Arc::new(Style::new(512, 0));
+        let style = Style::builder().build();
+        root_node.set_dirty();
+        root_node.style(&mut Query::from_style(style.clone()), (0, 1));
 
-        let mut result = Self {
+        Self {
             root_node,
             _state: state,
             viewport,
             redraw: true,
             cursor: (0.0, 0.0),
             style: style.clone(),
-        };
-        result.set_style(style);
-        result
+        }
     }
 
     pub fn set_style(&mut self, style: Arc<Style>) {
@@ -745,5 +746,13 @@ pub mod prelude {
     #[cfg(feature = "winit")]
     #[cfg(feature = "wgpu")]
     pub use crate::sandbox::Sandbox;
-    pub use crate::{declare_view, layout::Rectangle, node::*, stylesheet::Style, widget::*, Component, Runtime, Ui};
+    pub use crate::{
+        declare_view,
+        draw::Color,
+        layout::{Align, Direction, Rectangle, Size},
+        node::*,
+        stylesheet::Style,
+        widget::*,
+        Component, Runtime, Ui,
+    };
 }

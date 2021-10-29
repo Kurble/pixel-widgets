@@ -281,3 +281,9 @@ impl From<[f32; 4]> for Rectangle {
         }
     }
 }
+
+impl From<f32> for Size {
+    fn from(value: f32) -> Size {
+        Size::Exact(value)
+    }
+}

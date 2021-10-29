@@ -6,9 +6,9 @@ use crate::widget::*;
 
 /// Empty widget
 #[derive(Default)]
-pub struct Space;
+pub struct Spacer;
 
-impl<'a, T> Widget<'a, T> for Space {
+impl<'a, T> Widget<'a, T> for Spacer {
     type State = ();
 
     fn mount(&self) -> Self::State {
@@ -16,7 +16,7 @@ impl<'a, T> Widget<'a, T> for Space {
     }
 
     fn widget(&self) -> &'static str {
-        "space"
+        "spacer"
     }
 
     fn len(&self) -> usize {
@@ -38,7 +38,7 @@ impl<'a, T> Widget<'a, T> for Space {
     }
 }
 
-impl<'a, T: 'a> IntoNode<'a, T> for Space {
+impl<'a, T: 'a> IntoNode<'a, T> for Spacer {
     fn into_node(self) -> Node<'a, T> {
         Node::from_widget(self)
     }
