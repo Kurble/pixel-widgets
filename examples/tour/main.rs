@@ -2,6 +2,7 @@ use pixel_widgets::event::Key;
 use pixel_widgets::prelude::*;
 use pixel_widgets::widget::menu::MenuItem;
 
+#[derive(Default)]
 struct Tour;
 
 struct TourState {

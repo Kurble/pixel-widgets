@@ -40,9 +40,3 @@ impl Component for DummyWindow {
         }
     }
 }
-
-impl<'a> IntoNode<'a, Message> for DummyWindow {
-    fn into_node(self) -> Node<'a, Message> {
-        Node::from_component(self)
-    }
-}

@@ -3,6 +3,7 @@ use winit::window::WindowBuilder;
 use pixel_widgets::prelude::*;
 
 // The main component for our simple application
+#[derive(Default)]
 struct Counter {
     initial_value: i32,
 }

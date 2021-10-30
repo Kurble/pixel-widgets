@@ -4,7 +4,8 @@ use winit::window::WindowBuilder;
 use pixel_widgets::node::Node;
 use pixel_widgets::prelude::*;
 
-struct Download {}
+#[derive(Default)]
+struct Download;
 
 struct DownloadState {
     pub url: String,
@@ -99,7 +100,7 @@ async fn main() {
         .with_title("Downloader")
         .with_inner_size(winit::dpi::LogicalSize::new(320, 240));
 
-    let mut sandbox = Sandbox::new(Download {}, window).await;
+    let mut sandbox = Sandbox::new(Download, window).await;
     sandbox
         .ui
         .set_style(Style::from_file("examples/download.pwss").unwrap());

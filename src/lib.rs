@@ -2,7 +2,9 @@
 //#![deny(missing_docs)]
 
 use std::any::Any;
+use std::collections::hash_map::DefaultHasher;
 use std::future::Future;
+use std::hash::{Hash, Hasher};
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 use std::task::{Poll, Waker};
@@ -53,9 +55,9 @@ pub mod widget;
 /// A re-usable component for defining a fragment of a user interface.
 ///
 /// # Examples
-/// The examples in this repository all implement some kind of [`Component`](trait.Component.html),
+/// The examples in this repository all implement some kind of `Component`,
 /// check them out if you just want to read some code.
-pub trait Component {
+pub trait Component: Default {
     /// Mutable state associated with this `Component`.
     type State: 'static + Any + Send + Sync;
 
@@ -86,6 +88,38 @@ pub trait Component {
         _runtime: &mut Runtime<Self::Message>,
         _context: &mut Context<Self::Output>,
     ) {
+    }
+
+    /// Converts the component into a `Node`. This is used by the library to
+    ///  instantiate the component in a user interface.
+    fn into_node<'a>(self) -> Node<'a, Self::Output>
+    where
+        Self: 'a + Sized,
+    {
+        Node::from_component(self)
+    }
+
+    /// Converts the component into a `Node` and sets a style class to it.
+    fn class<'a>(self, class: &'a str) -> Node<'a, Self::Output>
+    where
+        Self: 'a + Sized,
+    {
+        let mut node = self.into_node();
+        node.set_class(class);
+        node
+    }
+
+    /// Converts the component into a `Node` and sets a custom key to it.
+    fn key<'a, K>(self, key: K) -> Node<'a, Self::Output>
+    where
+        Self: 'a + Sized,
+        K: Hash,
+    {
+        let mut hasher = DefaultHasher::new();
+        key.hash(&mut hasher);
+        let mut node = self.into_node();
+        node.set_key(hasher.finish());
+        node
     }
 }
 

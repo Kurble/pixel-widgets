@@ -62,9 +62,3 @@ impl Component for LoginWindow {
         }
     }
 }
-
-impl<'a> IntoNode<'a, Message> for LoginWindow {
-    fn into_node(self) -> Node<'a, Message> {
-        Node::from_component(self)
-    }
-}
