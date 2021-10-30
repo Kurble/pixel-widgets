@@ -48,6 +48,19 @@ view! {
     }
 }
 ```
+Note that these statements only support single widgets, and no groups. This is unfortunately a limitation of the way the macro works. If you would like to conditionally render multiple widgets, you should wrap them in a layout, like so:
+```rust
+view! {
+    Column => {
+        Text [val = "Title"],
+        :if 2 > 1 => Column => {
+            Text [val = "Line 1"],
+            Text [val = "Line 2"],
+            Text [val = "Line 3"]
+        }
+    }
+}
+```
 
 ## Iteration
 If you are making a list of items, or maybe populating a dropdown, for loops can come in really handy. This example shows how to popuplate a dropdown box using a declarative for loop.
@@ -60,20 +73,7 @@ view! {
     }
 }
 ```
-
-Note that for loops can only yield one widget per iteration. If you want to yield more than one widget per iteration, consider wrapping them in a layout.
-```rust
-let options = ["Option A", "Option B", "Option C"];
-
-view! {
-    Dropdown => {
-        :for option in options => Row => { 
-            Image [image = &icon],
-            Text [val = option]
-        }
-    }
-}
-```
+Like if/else statements, for loops also produce one widget per iteration. The solution is much the same: you should wrap groups of widget in a layout if you need it.
 
 ## Integrating your components
 Not just widgets can be used in declarative syntax. In fact, any type that implements `Default` and has a `into_node()` method can be used. this means you can compose complex user interfaces from components. By default, the `Component` trait already defines an `into_node()` method for you. The only thing left to do is to sure your component implements `Default` and has some builder methods if you need to set any properties on your component.
