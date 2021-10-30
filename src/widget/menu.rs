@@ -63,12 +63,14 @@ impl<'a, T: 'a> Menu<'a, T, Vec<MenuItem<'a, T>>> {
         }
     }
 
+    /// Sets the (x, y) coordinates of the menu relative to it's parent.
     pub fn position(mut self, (x, y): (f32, f32)) -> Self {
         self.x = x;
         self.y = y;
         self
     }
 
+    /// Sets the message to be posted when the menu is closed without selecting an item.
     pub fn on_close(mut self, on_close: T) -> Self {
         self.on_close = Some(on_close);
         self
@@ -493,6 +495,8 @@ impl Default for MenuState {
 }
 
 impl<'a, T: 'a> MenuItem<'a, T> {
+    /// Construct a new `MenuItem` of the item type,
+    ///  with a content node and a message to be posted when this item is selected.
     pub fn item(content: impl IntoNode<'a, T>, on_select: impl Into<Option<T>>) -> Self {
         Self::Item {
             content: content.into_node(),
@@ -500,6 +504,8 @@ impl<'a, T: 'a> MenuItem<'a, T> {
         }
     }
 
+    /// Construct a new `MenuItem` of the sub menu type,
+    ///  with a content node. Sub menu items can be added to the returned value.
     pub fn menu(content: impl IntoNode<'a, T>) -> Self {
         Self::Menu {
             content: content.into_node(),
@@ -507,6 +513,8 @@ impl<'a, T: 'a> MenuItem<'a, T> {
         }
     }
 
+    /// Adds a sub `MenuItem` to this menu.
+    /// Will panic if this is an item instead of a submenu.
     pub fn push(self, item: Self) -> Self {
         if let Self::Menu { content, mut items } = self {
             items.push(item);
@@ -516,6 +524,8 @@ impl<'a, T: 'a> MenuItem<'a, T> {
         }
     }
 
+    /// Adds multiple sub `MenuItem`s to this menu.
+    /// Will panic if this is an item instead of a submenu.
     pub fn extend(self, new_items: impl IntoIterator<Item = Self>) -> Self {
         if let Self::Menu { content, mut items } = self {
             items.extend(new_items.into_iter());

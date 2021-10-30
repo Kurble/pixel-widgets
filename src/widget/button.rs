@@ -54,6 +54,8 @@ impl<'a, T: 'a> Button<'a, T> {
         self
     }
 
+    /// Sets the content of the button from an iterator.
+    /// Note that only the first element will be taken.
     pub fn extend<I: IntoIterator<Item = N>, N: IntoNode<'a, T>>(mut self, iter: I) -> Self {
         if self.content.is_none() {
             self.content = iter.into_iter().next().map(IntoNode::into_node);

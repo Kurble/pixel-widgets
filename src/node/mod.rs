@@ -13,8 +13,10 @@ use crate::Component;
 pub(crate) mod component_node;
 pub(crate) mod widget_node;
 
+/// A node in a user interface element tree.
 pub struct Node<'a, Message>(Box<dyn GenericNode<'a, Message> + 'a>);
 
+#[doc(hidden)]
 pub trait GenericNode<'a, Message>: Send {
     fn get_key(&self) -> u64;
 

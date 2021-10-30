@@ -6,9 +6,11 @@ use crate::stylesheet::Stylesheet;
 use crate::widget::Widget;
 use std::marker::PhantomData;
 
+/// A widget that display an image.
 pub struct Image<'a>(*const ImageData, PhantomData<&'a ()>);
 
 impl<'a> Image<'a> {
+    /// Sets the image to be displayed.
     pub fn image(mut self, image: &'a ImageData) -> Self {
         self.0 = image as _;
         self

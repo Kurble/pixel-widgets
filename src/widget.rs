@@ -12,9 +12,9 @@
 //! - [`Layers`](layers/struct.Layers.html)
 //! - [`Window`](window/struct.Window.html)
 //!
-//! Since pixel-widgets rebuilds the whole ui every time the [`Model`](../trait.Model.html) is modified,
+//! Since pixel-widgets rebuilds the whole [`Component`](../trait.Component.html) every time it is mutated,
 //! most widgets need to keep track of some kind of state across rebuilds. You can manually supply these state
-//! objects in your [`view`](../trait.Model.html#tymethod.view) implementation, or you can use a
+//! objects in your [`view`](../trait.Component.html#tymethod.view) implementation, or you can use a
 //! [`ManagedState`](../tracker/struct.ManagedState.html), which tracks state for your widgets using user defined ids.
 //!
 //! When implementing custom widgets, you need to make sure that the custom widgets do not remember absolute layouts.
@@ -93,6 +93,7 @@ pub mod window;
 
 /// A user interface widget.
 pub trait Widget<'a, Message>: Send {
+    /// The type of state this widget keeps track of.
     type State: Any + Send + Sync;
 
     /// The key of this widget, used for resolving state.

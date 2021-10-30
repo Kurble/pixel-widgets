@@ -39,13 +39,7 @@ impl Component for Counter {
     }
 
     // Updates the component state based on a message.
-    fn update(
-        &self,
-        message: Self::Message,
-        state: &mut i32,
-        _runtime: &mut Runtime<Self::Message>,
-        _context: &mut Context<()>,
-    ) {
+    fn update(&self, message: Self::Message, state: &mut i32, _context: Context<Message, ()>) {
         match message {
             Message::UpPressed => {
                 *state += 1;

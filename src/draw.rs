@@ -186,10 +186,12 @@ pub enum Command {
 }
 
 impl Color {
+    /// Returns an (r, g, b) color with an alpha value of 1.
     pub fn rgb(r: f32, g: f32, b: f32) -> Self {
         Self::rgba(r, g, b, 1.0)
     }
 
+    /// Returns an (r, g, b, a) color.
     pub fn rgba(r: f32, g: f32, b: f32, a: f32) -> Self {
         Self { r, g, b, a }
     }

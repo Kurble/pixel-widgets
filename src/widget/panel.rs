@@ -9,8 +9,13 @@ use crate::widget::{Context, Widget};
 #[allow(missing_docs)]
 pub enum Anchor {
     TopLeft,
+    TopCenter,
     TopRight,
+    CenterLeft,
+    Center,
+    CenterRight,
     BottomLeft,
+    BottomCenter,
     BottomRight,
 }
 
@@ -31,16 +36,19 @@ impl<'a, T: 'a> Panel<'a, T> {
         }
     }
 
+    /// Sets the (x, y) offset from the anchor.
     pub fn offset(mut self, offset: (f32, f32)) -> Self {
         self.offset = offset;
         self
     }
 
+    /// Sets the anchor of the frame.
     pub fn anchor(mut self, anchor: Anchor) -> Self {
         self.anchor = anchor;
         self
     }
 
+    /// Sets the content widget from the first element of an iterator.
     pub fn extend<I: IntoIterator<Item = N>, N: IntoNode<'a, T> + 'a>(mut self, iter: I) -> Self {
         if self.content.is_none() {
             self.content = iter.into_iter().next().map(IntoNode::into_node);
@@ -50,42 +58,67 @@ impl<'a, T: 'a> Panel<'a, T> {
 
     fn layout(&self, layout: Rectangle) -> Option<Rectangle> {
         let (content_width, content_height) = self.content().size();
-        let (left, top) = match self.anchor {
-            Anchor::TopLeft => (true, true),
-            Anchor::TopRight => (false, true),
-            Anchor::BottomLeft => (true, false),
-            Anchor::BottomRight => (false, false),
+        let (h, v) = match self.anchor {
+            Anchor::TopLeft => (0, 0),
+            Anchor::TopCenter => (0, 1),
+            Anchor::TopRight => (0, 2),
+            Anchor::CenterLeft => (1, 0),
+            Anchor::Center => (1, 1),
+            Anchor::CenterRight => (1, 2),
+            Anchor::BottomLeft => (2, 0),
+            Anchor::BottomCenter => (2, 1),
+            Anchor::BottomRight => (2, 2),
         };
-        let available = Rectangle {
-            left: if left { layout.left + self.offset.0 } else { layout.left },
-            right: if left {
-                layout.right
-            } else {
-                layout.right - self.offset.0
-            },
-            top: if top { layout.top + self.offset.1 } else { layout.top },
-            bottom: if top {
-                layout.bottom
-            } else {
-                layout.bottom - self.offset.1
-            },
+
+        let h_available = match h {
+            0 => (layout.left + self.offset.0, layout.right),
+            1 if self.offset.0 > 0.0 => (layout.left + self.offset.0 * 2.0, layout.right),
+            1 => (layout.left, layout.right + self.offset.0 * 2.0),
+            _ => (layout.left, layout.right - self.offset.0),
         };
-        if available.left < available.right && available.top < available.bottom {
+
+        let v_available = match v {
+            0 => (layout.top + self.offset.1, layout.bottom),
+            1 if self.offset.1 > 0.0 => (layout.top + self.offset.1 * 2.0, layout.bottom),
+            1 => (layout.top, layout.bottom + self.offset.1 * 2.0),
+            _ => (layout.top, layout.bottom - self.offset.1),
+        };
+
+        if h_available.0 < h_available.1 && v_available.0 < v_available.1 {
             let width = match content_width {
-                Size::Exact(width) => width.min(available.width()),
-                Size::Fill(_) => available.width(),
+                Size::Exact(width) => width.min(h_available.1 - h_available.0),
+                Size::Fill(_) => h_available.1 - h_available.0,
                 Size::Shrink => 0.0,
             };
             let height = match content_height {
-                Size::Exact(height) => height.min(available.height()),
-                Size::Fill(_) => available.height(),
+                Size::Exact(height) => height.min(v_available.1 - v_available.0),
+                Size::Fill(_) => v_available.1 - v_available.0,
                 Size::Shrink => 0.0,
             };
+
+            let (left, right) = match h {
+                0 => (h_available.0, h_available.0 + width),
+                1 => (
+                    (h_available.0 + h_available.1 - width) * 0.5,
+                    (h_available.0 + h_available.1 + width) * 0.5,
+                ),
+                _ => (h_available.1 - width, h_available.1),
+            };
+
+            let (top, bottom) = match v {
+                0 => (v_available.0, v_available.0 + height),
+                1 => (
+                    (v_available.0 + v_available.1 - height) * 0.5,
+                    (v_available.0 + v_available.1 + height) * 0.5,
+                ),
+                _ => (v_available.1 - height, v_available.1),
+            };
+
             Some(Rectangle {
-                left: if left { available.left } else { available.right - width },
-                right: if left { available.left + width } else { available.right },
-                top: if top { available.top } else { available.bottom - height },
-                bottom: if top { available.top + height } else { available.bottom },
+                left,
+                right,
+                top,
+                bottom,
             })
         } else {
             None

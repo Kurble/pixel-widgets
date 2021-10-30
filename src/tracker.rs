@@ -1,7 +1,7 @@
 use std::any::Any;
 
 /// An [`Widget`](../widget/trait.Widget.html) state tracker.
-pub struct ManagedState {
+pub(crate) struct ManagedState {
     state: Vec<Tracked>,
 }
 
@@ -10,7 +10,7 @@ enum Tracked {
     End,
 }
 
-/// Temporary object used to find state objects for given ids.
+#[doc(hidden)]
 pub struct ManagedStateTracker<'a> {
     tracker: &'a mut ManagedState,
     index: usize,
@@ -19,7 +19,7 @@ pub struct ManagedStateTracker<'a> {
 impl ManagedState {
     /// Retrieve a `ManagedStateTracker` that can be used to build a ui.
     /// Normally you will call this function at the start of your
-    /// [`view`](../trait.Model.html#tymethod.view) implementation.
+    /// [`view`](../trait.Component.html#tymethod.view) implementation.
     pub fn tracker(&mut self) -> ManagedStateTracker {
         ManagedStateTracker {
             tracker: self,
@@ -51,7 +51,8 @@ impl Tracked {
 
 impl<'a> ManagedStateTracker<'a> {
     /// Get a state object for the given id. If such an object doesn't exist yet, it is constructed using the closure.
-    pub fn begin<'i, T, F>(&mut self, id: u64, default: F) -> &'i mut T
+    /// The span of the widget that requests this state object should be closed using [`end`](#method.end).
+    pub(crate) fn begin<'i, T, F>(&mut self, id: u64, default: F) -> &'i mut T
     where
         T: Any + Send + Sync,
         F: FnOnce() -> T,
@@ -88,7 +89,9 @@ impl<'a> ManagedStateTracker<'a> {
         unsafe { self.tracker.state[i].unchecked_mut_ref() }
     }
 
-    pub fn end(&mut self) {
+    /// Ends the span of a widget.
+    /// Should be called after all of it's children have been handled.
+    pub(crate) fn end(&mut self) {
         let search_start = self.index;
         let mut level = 0;
 

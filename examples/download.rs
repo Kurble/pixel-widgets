@@ -54,13 +54,7 @@ impl Component for Download {
         }
     }
 
-    fn update(
-        &self,
-        message: Self::Message,
-        state: &mut Self::State,
-        runtime: &mut Runtime<Self::Message>,
-        _: &mut Context<()>,
-    ) {
+    fn update(&self, message: Message, state: &mut Self::State, mut context: Context<Message, ()>) {
         match message {
             Message::UrlChanged(url) => {
                 state.url = url;
@@ -68,7 +62,7 @@ impl Component for Download {
             Message::DownloadPressed => {
                 let (mut tx, rx) = futures::channel::mpsc::unbounded();
                 let url = state.url.clone();
-                runtime.stream(rx);
+                context.stream(rx);
                 tokio::spawn(async move {
                     tx.send(Message::ProgressUpdated(0, 1)).await.unwrap();
 

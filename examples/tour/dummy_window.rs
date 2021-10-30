@@ -34,7 +34,7 @@ impl Component for DummyWindow {
         }
     }
 
-    fn update(&self, message: Message, _: &mut (), _: &mut Runtime<Message>, _: &mut Context<Message>) {
+    fn update(&self, message: Message, _: &mut (), _: Context<Message, Message>) {
         if let Message::PlanetSelected(planet) = message {
             println!("{} selected from the planets", planet);
         }

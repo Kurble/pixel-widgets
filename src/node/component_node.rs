@@ -1,16 +1,20 @@
 use std::cell::{Cell, RefCell, RefMut};
 use std::collections::hash_map::DefaultHasher;
+use std::future::Future;
 use std::hash::{Hash, Hasher};
 use std::ptr::null_mut;
+use std::task::Poll;
 
+use futures::{FutureExt, Stream, StreamExt};
+
+use crate::component::{Component, Context};
 use crate::draw::Primitive;
 use crate::event::Event;
 use crate::layout::{Rectangle, Size};
 use crate::node::{GenericNode, Node};
 use crate::stylesheet::tree::Query;
 use crate::tracker::{ManagedState, ManagedStateTracker};
-use crate::widget::Context;
-use crate::{Component, Runtime};
+use crate::widget::Context as WidgetContext;
 
 pub struct ComponentNode<'a, M: 'a + Component> {
     props: Box<M>,
@@ -20,6 +24,12 @@ pub struct ComponentNode<'a, M: 'a + Component> {
     style_query: Option<Query>,
     style_position: Option<(usize, usize)>,
     key: u64,
+}
+
+pub struct Runtime<Message> {
+    futures: Vec<Box<dyn Future<Output = Message> + Send + Sync + Unpin>>,
+    streams: Vec<Box<dyn Stream<Item = Message> + Send + Sync + Unpin>>,
+    modified: bool,
 }
 
 impl<'a, M: 'a + Component> ComponentNode<'a, M> {
@@ -54,12 +64,12 @@ impl<'a, M: 'a + Component> ComponentNode<'a, M> {
         self.props.as_mut()
     }
 
-    pub fn update(&mut self, message: M::Message, context: &mut Context<M::Output>) {
+    pub fn update(&mut self, message: M::Message, context: &mut WidgetContext<M::Output>) {
         self.set_dirty();
 
         let (state, runtime) = unsafe { self.component_state.get().as_mut().unwrap() };
 
-        self.props.update(message, state, runtime, context)
+        self.props.update(message, state, Context::new(context, runtime))
     }
 
     pub fn view(&self) -> RefMut<Node<'a, M::Message>> {
@@ -147,7 +157,7 @@ impl<'a, M: 'a + Component> GenericNode<'a, M::Output> for ComponentNode<'a, M> 
         layout: Rectangle,
         clip: Rectangle,
         event: Event,
-        context: &mut Context<<M as Component>::Output>,
+        context: &mut WidgetContext<<M as Component>::Output>,
     ) {
         let mut sub_context = context.sub_context();
         self.view().event(layout, clip, event, &mut sub_context);
@@ -168,7 +178,7 @@ impl<'a, M: 'a + Component> GenericNode<'a, M::Output> for ComponentNode<'a, M> 
         }
     }
 
-    fn poll(&mut self, context: &mut Context<<M as Component>::Output>) {
+    fn poll(&mut self, context: &mut WidgetContext<<M as Component>::Output>) {
         let mut sub_context = context.sub_context();
         self.view().poll(&mut sub_context);
 
@@ -197,5 +207,63 @@ unsafe impl<'a, M: 'a + Component> Send for ComponentNode<'a, M> {}
 impl<'a, M: 'a + Component> Drop for ComponentNode<'a, M> {
     fn drop(&mut self) {
         self.view.replace(None);
+    }
+}
+
+impl<Message> Default for Runtime<Message> {
+    fn default() -> Self {
+        Self {
+            futures: Vec::new(),
+            streams: Vec::new(),
+            modified: false,
+        }
+    }
+}
+
+impl<Message> Runtime<Message> {
+    pub fn wait<F: 'static + Future<Output = Message> + Send + Sync + Unpin>(&mut self, fut: F) {
+        self.futures.push(Box::new(fut));
+        self.modified = true;
+    }
+
+    pub fn stream<S: 'static + Stream<Item = Message> + Send + Sync + Unpin>(&mut self, stream: S) {
+        self.streams.push(Box::new(stream));
+        self.modified = true;
+    }
+
+    pub(crate) fn poll(&mut self, cx: &mut std::task::Context) -> Vec<Message> {
+        self.modified = false;
+
+        let mut result = Vec::new();
+
+        let mut i = 0;
+        while i < self.futures.len() {
+            match self.futures[i].poll_unpin(&mut *cx) {
+                Poll::Ready(message) => {
+                    result.push(message);
+                    drop(self.futures.remove(i));
+                }
+                Poll::Pending => {
+                    i += 1;
+                }
+            }
+        }
+
+        let mut i = 0;
+        while i < self.streams.len() {
+            match self.streams[i].poll_next_unpin(&mut *cx) {
+                Poll::Ready(Some(message)) => {
+                    result.push(message);
+                }
+                Poll::Ready(None) => {
+                    drop(self.streams.remove(i));
+                }
+                Poll::Pending => {
+                    i += 1;
+                }
+            }
+        }
+
+        result
     }
 }

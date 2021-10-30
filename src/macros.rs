@@ -1,3 +1,4 @@
+#[doc = include_str!("../declarative-syntax.md")]
 #[macro_export]
 macro_rules! declare_view {
     { $w1:ident $([$($m1:ident = $v1:expr),+])? $(=>$c1:tt)? } => {

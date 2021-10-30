@@ -25,9 +25,9 @@ pub struct Sandbox<M: 'static + Component> {
 }
 
 #[derive(Clone)]
-pub struct PollUi;
+struct PollUi;
 
-pub struct Waker<T: 'static> {
+struct Waker<T: 'static> {
     message: T,
     event_loop: Mutex<EventLoopProxy<T>>,
 }
@@ -104,6 +104,8 @@ where
         }
     }
 
+    /// Update the root component with a message.
+    /// Returns any output messages from the root component.
     pub fn update(&mut self, message: T::Message) -> Vec<T::Output> {
         let waker = self
             .event_loop

@@ -23,6 +23,7 @@ impl<'a, T: 'a> Progress<'a, T> {
         }
     }
 
+    /// Sets the progress value, which should be in the range [0.0, 1.0]
     pub fn val(mut self, val: f32) -> Self {
         self.progress = val;
         self

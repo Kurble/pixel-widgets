@@ -11,11 +11,11 @@ struct TourState {
     context_position: Option<(f32, f32)>,
 }
 
-mod login_window;
 mod dummy_window;
+mod login_window;
 
-use login_window::LoginWindow;
 use dummy_window::DummyWindow;
+use login_window::LoginWindow;
 
 pub enum Message {
     LoginPressed,
@@ -81,7 +81,7 @@ impl Component for Tour {
         }
     }
 
-    fn update(&self, message: Self::Message, state: &mut TourState, _: &mut Runtime<Message>, _: &mut Context<()>) {
+    fn update(&self, message: Self::Message, state: &mut TourState, _: Context<Message, ()>) {
         match message {
             Message::ShowDummy(show) => state.show_dummy = show,
             Message::ShowLogin(show) => state.show_login = show,
@@ -104,6 +104,6 @@ async fn main() {
         s.select("row").width(Size::Fill(1)).padding_all(2.0);
         s.build()
     });
-    
+
     sandbox.run().await;
 }

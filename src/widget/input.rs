@@ -57,6 +57,7 @@ where
         }
     }
 
+    /// Sets the placeholder text, which is displayed when the input has no value.
     pub fn placeholder(mut self, placeholder: &'a str) -> Self {
         self.placeholder = placeholder;
         self
@@ -68,6 +69,7 @@ where
         self
     }
 
+    /// Sets the current text value of the input.
     pub fn val<N: AsRef<str>>(self, value: N) -> Input<'a, T, F, N> {
         Input {
             placeholder: self.placeholder,
@@ -79,6 +81,7 @@ where
         }
     }
 
+    /// Sets the message to post when the text values changes.
     pub fn on_change<N: Fn(String) -> T>(self, on_change: N) -> Input<'a, T, N, S> {
         Input {
             placeholder: self.placeholder,

@@ -42,6 +42,7 @@ impl<'a, T: 'a> Scroll<'a, T> {
         }
     }
 
+    /// Sets the content widget from the first element of an iterator.
     pub fn extend<I: IntoIterator<Item = N>, N: IntoNode<'a, T>>(mut self, iter: I) -> Self {
         if self.content.is_none() {
             self.content = iter.into_iter().next().map(IntoNode::into_node);

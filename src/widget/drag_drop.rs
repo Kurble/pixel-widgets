@@ -60,16 +60,19 @@ impl<'a, T: DragDropId, Message: 'a> Drag<'a, T, Message> {
         }
     }
 
+    /// Sets the drag and drop context that the drag widget will work with.
     pub fn context(mut self, context: &'a DragDropContext<T>) -> Self {
         self.context = Some(context);
         self
     }
 
+    /// Sets the draggable value
     pub fn val(mut self, value: T) -> Self {
         self.data = Some(value);
         self
     }
 
+    /// Sets the content widget from the first element of an iterator.
     pub fn extend<I: IntoIterator<Item = N>, N: IntoNode<'a, Message>>(mut self, iter: I) -> Self {
         if self.content.is_none() {
             self.content = iter.into_iter().next().map(Frame::new);
@@ -106,11 +109,13 @@ where
         }
     }
 
+    /// Sets the drag and drop context that the drop widget will work with.
     pub fn context(mut self, context: &'a DragDropContext<T>) -> Self {
         self.context = Some(context);
         self
     }
 
+    /// Sets the on_accept delegate. If a draggable value is accepted by this drop target, the delegate should return true.
     pub fn on_accept<N: Fn(T) -> bool>(self, on_accept: N) -> Drop<'a, T, Message, N, OnDrop> {
         Drop {
             context: self.context,
@@ -120,6 +125,9 @@ where
         }
     }
 
+    /// Sets the on_drop delegate.
+    /// The delegate should return a message for it's parent component based on the dropped value.
+    /// The second argument contains the exact (x, y) coordinates where the value was dropped.
     pub fn on_drop<N: Fn(T, (f32, f32)) -> Message>(self, on_drop: N) -> Drop<'a, T, Message, OnAccept, N> {
         Drop {
             context: self.context,
@@ -129,6 +137,7 @@ where
         }
     }
 
+    /// Sets the content widget from the first element of an iterator.
     pub fn extend<I: IntoIterator<Item = N>, N: IntoNode<'a, Message>>(mut self, iter: I) -> Self {
         if self.content.is_none() {
             self.content = iter.into_iter().next().map(Frame::new);

@@ -1,19 +1,14 @@
 #![doc = include_str!("../README.md")]
-//#![deny(missing_docs)]
+#![deny(missing_docs)]
 
-use std::any::Any;
-use std::collections::hash_map::DefaultHasher;
-use std::future::Future;
-use std::hash::{Hash, Hasher};
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
-use std::task::{Poll, Waker};
+use std::task::Waker;
 
-use futures::{FutureExt, Stream, StreamExt};
-
-use node::{GenericNode, Node};
+use node::GenericNode;
 use widget::Context;
 
+use crate::component::Component;
 use crate::draw::DrawList;
 use crate::event::Event;
 use crate::layout::Rectangle;
@@ -28,6 +23,8 @@ pub mod backend;
 mod bitset;
 /// Texture cache for styles and text
 pub mod cache;
+/// The component trait.
+pub mod component;
 /// Primitives used for drawing
 pub mod draw;
 /// User input events
@@ -39,6 +36,8 @@ pub mod layout;
 mod macros;
 /// User interface building blocks
 pub mod node;
+/// Prelude module for pixel-widgets.
+pub mod prelude;
 /// Simple windowing system for those who want to render _just_ widgets.
 #[cfg(feature = "winit")]
 #[cfg(feature = "wgpu")]
@@ -52,145 +51,11 @@ pub mod tracker;
 /// User interface widgets
 pub mod widget;
 
-/// A re-usable component for defining a fragment of a user interface.
-///
-/// # Examples
-/// The examples in this repository all implement some kind of `Component`,
-/// check them out if you just want to read some code.
-pub trait Component: Default {
-    /// Mutable state associated with this `Component`.
-    type State: 'static + Any + Send + Sync;
-
-    /// The message type this `Component` will receive from it's view.
-    type Message: 'static;
-
-    /// The message type this `Component` submits to its parent.
-    type Output: 'static;
-
-    /// Create a new `State` for the `Component`.
-    /// This will be called only once when the `Component` is first created.
-    fn mount(&self) -> Self::State;
-
-    /// Generate the view for the `Component`.
-    /// This will be called just in time before ui rendering.
-    /// When the `Component` is updated,
-    ///  the view will be invalidated and the runtime will have to call this function again.
-    fn view<'a>(&'a self, state: &'a Self::State) -> Node<'a, Self::Message>;
-
-    /// Update the `Component` state in response to the `message`.
-    /// Asynchronous operations can be submitted to the `runtime`,
-    ///  which will result in more `update` calls in the future.
-    /// Messages for the parent `Component` or root can be submitted through the `context`.
-    fn update(
-        &self,
-        _message: Self::Message,
-        _state: &mut Self::State,
-        _runtime: &mut Runtime<Self::Message>,
-        _context: &mut Context<Self::Output>,
-    ) {
-    }
-
-    /// Converts the component into a `Node`. This is used by the library to
-    ///  instantiate the component in a user interface.
-    fn into_node<'a>(self) -> Node<'a, Self::Output>
-    where
-        Self: 'a + Sized,
-    {
-        Node::from_component(self)
-    }
-
-    /// Converts the component into a `Node` and sets a style class to it.
-    fn class<'a>(self, class: &'a str) -> Node<'a, Self::Output>
-    where
-        Self: 'a + Sized,
-    {
-        let mut node = self.into_node();
-        node.set_class(class);
-        node
-    }
-
-    /// Converts the component into a `Node` and sets a custom key to it.
-    fn key<'a, K>(self, key: K) -> Node<'a, Self::Output>
-    where
-        Self: 'a + Sized,
-        K: Hash,
-    {
-        let mut hasher = DefaultHasher::new();
-        key.hash(&mut hasher);
-        let mut node = self.into_node();
-        node.set_key(hasher.finish());
-        node
-    }
-}
-
-pub struct Runtime<Message> {
-    futures: Vec<Box<dyn Future<Output = Message> + Send + Sync + Unpin>>,
-    streams: Vec<Box<dyn Stream<Item = Message> + Send + Sync + Unpin>>,
-    modified: bool,
-}
-
-impl<Message> Default for Runtime<Message> {
-    fn default() -> Self {
-        Self {
-            futures: Vec::new(),
-            streams: Vec::new(),
-            modified: false,
-        }
-    }
-}
-
-impl<Message> Runtime<Message> {
-    pub fn wait<F: 'static + Future<Output = Message> + Send + Sync + Unpin>(&mut self, fut: F) {
-        self.futures.push(Box::new(fut));
-        self.modified = true;
-    }
-
-    pub fn stream<S: 'static + Stream<Item = Message> + Send + Sync + Unpin>(&mut self, stream: S) {
-        self.streams.push(Box::new(stream));
-        self.modified = true;
-    }
-
-    pub(crate) fn poll(&mut self, cx: &mut std::task::Context) -> Vec<Message> {
-        self.modified = false;
-
-        let mut result = Vec::new();
-
-        let mut i = 0;
-        while i < self.futures.len() {
-            match self.futures[i].poll_unpin(&mut *cx) {
-                Poll::Ready(message) => {
-                    result.push(message);
-                    drop(self.futures.remove(i));
-                }
-                Poll::Pending => {
-                    i += 1;
-                }
-            }
-        }
-
-        let mut i = 0;
-        while i < self.streams.len() {
-            match self.streams[i].poll_next_unpin(&mut *cx) {
-                Poll::Ready(Some(message)) => {
-                    result.push(message);
-                }
-                Poll::Ready(None) => {
-                    drop(self.streams.remove(i));
-                }
-                Poll::Pending => {
-                    i += 1;
-                }
-            }
-        }
-
-        result
-    }
-}
-
 /// Entry point for pixel-widgets.
 ///
-/// `Ui` manages a [`Model`](trait.Model.html) and processes it to a [`DrawList`](draw/struct.DrawList.html) that can be rendered using your
-///  own renderer implementation. Alternatively, you can use one of the following included wrappers:
+/// `Ui` manages a root [`Component`](component/trait.Component.html) and processes it to a
+/// [`DrawList`](draw/struct.DrawList.html) that can be rendered using your own renderer implementation.
+/// Alternatively, you can use one of the following included wrappers:
 /// - [`WgpuUi`](backend/wgpu/struct.WgpuUi.html) Renders using [wgpu-rs](https://github.com/gfx-rs/wgpu-rs).
 pub struct Ui<M: 'static + Component> {
     root_node: ComponentNode<'static, M>,
@@ -223,6 +88,7 @@ impl<M: 'static + Component> Ui<M> {
         }
     }
 
+    /// Sets the style of the `Ui`.
     pub fn set_style(&mut self, style: Arc<Style>) {
         if !Arc::ptr_eq(&self.style, &style) {
             self.root_node.set_dirty();
@@ -665,20 +531,4 @@ impl<M: Component> DerefMut for Ui<M> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.root_node.props_mut()
     }
-}
-
-/// prelude module for convenience
-pub mod prelude {
-    #[cfg(feature = "winit")]
-    #[cfg(feature = "wgpu")]
-    pub use crate::sandbox::Sandbox;
-    pub use crate::{
-        declare_view,
-        draw::Color,
-        layout::{Align, Direction, Rectangle, Size},
-        node::*,
-        stylesheet::Style,
-        widget::*,
-        Component, Runtime, Ui,
-    };
 }

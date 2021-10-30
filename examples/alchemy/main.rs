@@ -10,6 +10,7 @@ use pixel_widgets::prelude::*;
 use pixel_widgets::widget::drag_drop::DragDropContext;
 use pixel_widgets::widget::panel::Anchor;
 
+#[derive(Default)]
 pub struct Alchemy {
     items: Vec<Item>,
 }
@@ -161,13 +162,7 @@ impl Component for Alchemy {
         }
     }
 
-    fn update(
-        &self,
-        message: Self::Message,
-        state: &mut Self::State,
-        _: &mut Runtime<Self::Message>,
-        _: &mut Context<()>,
-    ) {
+    fn update(&self, message: Self::Message, state: &mut Self::State, _: Context<Message, ()>) {
         match message {
             Message::Place(item, pos) => {
                 state.playground.push((item, state.next_item_id, pos));

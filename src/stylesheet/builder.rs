@@ -2,11 +2,13 @@ use image::RgbaImage;
 
 use super::*;
 
+/// Builds a style.
 pub struct StyleBuilder {
     pub(crate) cache: Cache,
     pub(crate) rule_tree: tree::RuleTreeBuilder,
 }
 
+/// Builder that adds style declarations to a selected rule.
 pub struct DeclarationBuilder<'a> {
     selector: Vec<Selector>,
     declarations: Vec<Declaration>,
@@ -25,7 +27,10 @@ impl StyleBuilder {
             rule_tree: tree::RuleTreeBuilder::new(Selector::Widget("*".into())),
         };
         s.select("*").color(foreground);
-        s.select("button").padding_all(5.0).margin_all(5.0).background_color(background);
+        s.select("button")
+            .padding_all(5.0)
+            .margin_all(5.0)
+            .background_color(background);
         s.select("button:hover")
             .background_color(background.blend(primary, 0.5));
         s.select("button:pressed").background_color(primary);
@@ -46,8 +51,11 @@ impl StyleBuilder {
             .color(background.blend(primary, 0.5))
             .padding_all(5.0);
         s.select("spacer").width(Size::Fill(1)).height(Size::Fill(1));
-        s.select("window").background_color(background.blend(foreground, 0.2)).padding_all(2.0);
-        s.select("window > *:nth-child(0)").background_color(background.blend(primary, 0.2));
+        s.select("window")
+            .background_color(background.blend(foreground, 0.2))
+            .padding_all(2.0);
+        s.select("window > *:nth-child(0)")
+            .background_color(background.blend(primary, 0.2));
         s
     }
 

@@ -35,6 +35,8 @@ impl<'a, T: 'a> Window<'a, T> {
         }
     }
 
+    /// Sets the title bar widget from the first element of the iterator.
+    /// Sets the content widget from the second element of the iterator.
     pub fn extend<I: IntoIterator<Item = N>, N: IntoNode<'a, T>>(mut self, iter: I) -> Self {
         let mut iter = iter.into_iter();
         if self.title.is_none() {

@@ -20,6 +20,7 @@ impl Text {
         Self { text: text.into() }
     }
 
+    /// Sets the text value.
     pub fn val(mut self, text: impl Into<String>) -> Self {
         self.text = text.into();
         self

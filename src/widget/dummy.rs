@@ -15,6 +15,7 @@ impl Dummy {
         Self { widget }
     }
 
+    /// Sets the widget name for this dummy
     pub fn widget(mut self, widget: &'static str) -> Self {
         self.widget = widget;
         self
