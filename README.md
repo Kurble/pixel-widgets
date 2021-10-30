@@ -67,7 +67,7 @@ impl Component for Counter {
 
     // Generates the widgets for this component, based on the current state.
     fn view(&self, state: &i32) -> Node<Message> {
-        // You can build the view using declarative syntax in the declare_view! macro,
+        // You can build the view using declarative syntax with the view! macro,
         //  but you can also construct widgets using normal rust code.
         view! {
             Column => {
