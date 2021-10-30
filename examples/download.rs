@@ -35,7 +35,7 @@ impl Component for Download {
     }
 
     fn view<'a>(&'a self, state: &'a Self::State) -> Node<'a, Self::Message> {
-        declare_view! {
+        view! {
             Column => {
                 Input [
                     placeholder="download link",

@@ -1,4 +1,5 @@
-The [`declare_view!`](#macro.declare_view) macro allows you to design interactive user interfaces easily, using a declarative syntax.
+# The `view!` macro
+The [`view!`](#macro.view) macro allows you to design interactive user interfaces easily, using a declarative syntax.
 At it's core, the macro allow you to define a single widget and it's children. 
 
 ## A simple view
@@ -6,20 +7,37 @@ Each widget is declared using it's type. The macro will then use the `Default` i
 
 Let's take a look at an example.
 ```rust
-declare_view! {
-    Column {
+view! {
+    Column => {
         Text [val = "Hello world"],
         Button [text = "Click me"]
     }
 }
 ```
 In this example, a column widget is declared with two children. The first child is a `Text` widget, with it's value set to `"Hello world"`. The second child is a `Button` with it's text set to `"Click me"`.
+Setting the value of a `Text` in this case, happens by assigning a `&str` to the `val` property. All of the widgets have many different properties that you can set, and you can find them by viewing the documention of the widget. In rust code, properties are implemented as methods on the widget that follow the builder pattern; They take the widget by value, take a single argument, and return `Self`. Like so:
+```rust
+impl Text {
+    /// Sets the text value.
+    pub fn val(mut self, text: impl Into<String>) -> Self {
+        self.text = text.into();
+        self
+    }
+}
+```
+
+### Built-in properties
+Some properties are provided by the implementation of `Node`, and must be the last property in your list in order for your other properties to be available. Specifically, these are the `key` and `class` properties.
+
+The `key` property is used to set a custom key to the node, which is used by the runtime to identify what state was associated with it after the view was updated. It is useful to set some unique key when you have widgets of the same type, and a new one is inserted or removed in the middle.
+
+The `class` property is used to select rules from the style engine, like you would in css. Unlike css, pixel-widgets does not allow for an `id`, as you don't have access to "the dom", and classes serve the same purpose anyway.
 
 ## Conditional rendering
 While the previous example is already pretty useful when declaring a user interface component, you typically want to turn some parts of your user interface on and off based on the state. Pixel widgets declarative syntax supports if statements for this reason. 
 ```rust
-declare_view! {
-    Column {
+view! {
+    Column => {
         Text [val = "Hello world"],
 
         :if state.show_secret => Text [val = "Secret message"],
@@ -36,9 +54,23 @@ If you are making a list of items, or maybe populating a dropdown, for loops can
 ```rust
 let options = ["Option A", "Option B", "Option C"];
 
-declare_view! {
+view! {
     Dropdown => {
         :for option in options => Text [val=option]
+    }
+}
+```
+
+Note that for loops can only yield one widget per iteration. If you want to yield more than one widget per iteration, consider wrapping them in a layout.
+```rust
+let options = ["Option A", "Option B", "Option C"];
+
+view! {
+    Dropdown => {
+        :for option in options => Row => { 
+            Image [image = &icon],
+            Text [val = option]
+        }
     }
 }
 ```
@@ -48,3 +80,9 @@ Not just widgets can be used in declarative syntax. In fact, any type that imple
 
 ### Properties
 You see, the properties that we have been using through this guide work by calling methods on the default constructed widgets. For a property to work, you must make a method that takes `self` and one argument. It also has to return `Self`. You can then use the method as a property in declarative syntax.
+
+
+## todo
+- document classes
+- further document properties
+- :for multiple widgets per iteration

@@ -112,7 +112,7 @@ impl Component for Alchemy {
             .enumerate()
             .filter(|(_, item)| item.discovered)
             .collect();
-        declare_view! {
+        view! {
             Row [class="game"] => {
                 //playground
                 Layers => {

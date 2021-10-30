@@ -17,7 +17,7 @@ impl Component for DummyWindow {
             "Mercury", "Venus", "Earth", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto",
         ];
 
-        declare_view! {
+        view! {
             Window => {
                 Row [class="title"] => {
                     Text [val="Dummy window", class="title"],

@@ -1,8 +1,8 @@
 #[doc = include_str!("../declarative-syntax.md")]
 #[macro_export]
-macro_rules! declare_view {
+macro_rules! view {
     { $w1:ident $([$($m1:ident = $v1:expr),+])? $(=>$c1:tt)? } => {
-        Option::unwrap(declare_view!{ inner $w1 $([$($m1 = $v1),+])? $(=>$c1)? })
+        Option::unwrap(view!{ inner $w1 $([$($m1 = $v1),+])? $(=>$c1)? })
     };
 
     {
@@ -17,7 +17,7 @@ macro_rules! declare_view {
             ),+})?
     } => {
         Some($widget::default()
-            $($(.extend(declare_view!{
+            $($(.extend(view!{
                 inner
                 $(:for $x in $i =>)?
                 $(:if $(let $y =)? $yc =>)?
@@ -35,7 +35,7 @@ macro_rules! declare_view {
             $([$($modifier:ident = $value:expr),+])?
             $(=>$content:tt)?
     } => {
-        $i.into_iter().flat_map(|$x| declare_view!{ inner $widget $([$($modifier = $value),+])? $(=>$content)?})
+        $i.into_iter().flat_map(|$x| view!{ inner $widget $([$($modifier = $value),+])? $(=>$content)?})
     };
     {
         inner :if $(let $x:pat =)? $xc:expr => $w1:ident
@@ -46,10 +46,10 @@ macro_rules! declare_view {
             $(=>$c2:tt)?)*
     } => {
         if $(let $x =)? $xc {
-            declare_view!{ inner $w1 $([$($m1 = $v1),+])? $(=>$c1)?}
+            view!{ inner $w1 $([$($m1 = $v1),+])? $(=>$c1)?}
         }
         $(else if $(let $y =)? $yc {
-            declare_view!{ inner $w2 $([$($m2 = $v2),+])? $(=>$c2)?}
+            view!{ inner $w2 $([$($m2 = $v2),+])? $(=>$c2)?}
         })*
         else {
             None
@@ -67,13 +67,13 @@ macro_rules! declare_view {
             $(=>$c3:tt)?
     } => {
         if $(let $x =)? $xc {
-            declare_view!{ inner $w1 $([$($m1 = $v1),+])? $(=>$c1)?}
+            view!{ inner $w1 $([$($m1 = $v1),+])? $(=>$c1)?}
         }
         $(else if $(let $y =)? $yc {
-            declare_view!{ inner $w2 $([$($m2 = $v2),+])? $(=>$c2)?}
+            view!{ inner $w2 $([$($m2 = $v2),+])? $(=>$c2)?}
         })*
         else {
-            declare_view!{ inner $w3 $([$($m3 = $v3),+])? $(=>$c3)?}
+            view!{ inner $w3 $([$($m3 = $v3),+])? $(=>$c3)?}
         }
     };
 }

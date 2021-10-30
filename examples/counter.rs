@@ -29,7 +29,7 @@ impl Component for Counter {
     fn view(&self, state: &i32) -> Node<Message> {
         // You can build the view using declarative syntax in the declare_view! macro,
         //  but you can also construct widgets using normal rust code.
-        declare_view! {
+        view! {
             Column => {
                 Button [text="Up", on_clicked=Message::UpPressed],
                 Text [val=format!("Count: {}", *state)],

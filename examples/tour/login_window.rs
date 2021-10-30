@@ -21,7 +21,7 @@ impl Component for LoginWindow {
     }
 
     fn view<'a>(&'a self, state: &'a LoginWindowState) -> Node<'a, Message> {
-        declare_view! {
+        view! {
             Window => {
                 Row [class="title"] => {
                     Text [val="Login window", class="title"],

@@ -46,7 +46,7 @@ impl Component for Tour {
             "Mercury", "Venus", "Earth", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto",
         ];
 
-        declare_view! {
+        view! {
             Layers => {
                 Column => {
                     Button [text="Menu", on_clicked=Message::ShowContext(0.0, 32.0)],
