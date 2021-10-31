@@ -13,6 +13,15 @@ use crate::stylesheet::Stylesheet;
 use crate::text::{Text, TextWrap};
 use crate::widget::{Context, Widget};
 
+#[cfg(target_os = "macos")]
+const BACKWARDS_DELETE: char = '\x7f';
+#[cfg(not(target_os = "macos"))]
+const BACKWARDS_DELETE: char = '\x08';
+#[cfg(target_os = "macos")]
+const FORWARD_DELETE: char = '\x08';
+#[cfg(not(target_os = "macos"))]
+const FORWARD_DELETE: char = '\x7f';
+
 /// State for [`Input`](struct.Input.html)
 pub struct State {
     scroll_x: f32,
@@ -291,7 +300,7 @@ where
 
                 InnerState::Focused(from, to, _) => match event {
                     Event::Text(c) => match c {
-                        '\x08' => {
+                        BACKWARDS_DELETE => {
                             context.redraw();
                             let (from, to) = (from.min(to), from.max(to));
 
@@ -306,7 +315,7 @@ where
                                 new_text.replace(format!("{}{}", head, tail.split_at(codepoint(tail, 1)).1));
                             }
                         }
-                        '\x7f' => {
+                        FORWARD_DELETE => {
                             context.redraw();
                             let (from, to) = (from.min(to), from.max(to));
                             state.inner = InnerState::Focused(from, from, Instant::now());
@@ -349,7 +358,7 @@ where
 
                     #[cfg(feature = "clipboard")]
                     Event::Press(Key::C) => {
-                        if state.modifiers.ctrl {
+                        if state.modifiers.command {
                             let (a, b) = (
                                 codepoint(self.value.as_ref(), from.min(to)),
                                 codepoint(self.value.as_ref(), from.max(to)),
@@ -363,7 +372,7 @@ where
 
                     #[cfg(feature = "clipboard")]
                     Event::Press(Key::X) => {
-                        if state.modifiers.ctrl {
+                        if state.modifiers.command {
                             context.redraw();
                             let (from, to) = (from.min(to), from.max(to));
                             let (a, b) = (codepoint(self.value.as_ref(), from), codepoint(self.value.as_ref(), to));
@@ -384,7 +393,7 @@ where
 
                     #[cfg(feature = "clipboard")]
                     Event::Press(Key::V) => {
-                        if state.modifiers.ctrl {
+                        if state.modifiers.command {
                             context.redraw();
                             let (from, to) = (from.min(to), from.max(to));
                             let paste_text = ClipboardContext::new().and_then(|mut cc| cc.get_contents()).ok();
@@ -412,7 +421,13 @@ where
 
                     Event::Press(Key::Left) => {
                         context.redraw();
-                        if state.modifiers.shift {
+                        if state.modifiers.command {
+                            if state.modifiers.shift {
+                                state.inner = InnerState::Focused(from, 0, Instant::now());
+                            } else {
+                                state.inner = InnerState::Focused(0, 0, Instant::now());
+                            }
+                        } else if state.modifiers.shift {
                             state.inner = InnerState::Focused(from, if to > 0 { to - 1 } else { 0 }, Instant::now());
                         } else {
                             let (from, to) = (from.min(to), from.max(to));
@@ -426,7 +441,13 @@ where
 
                     Event::Press(Key::Right) => {
                         context.redraw();
-                        if state.modifiers.shift {
+                        if state.modifiers.command {
+                            if state.modifiers.shift {
+                                state.inner = InnerState::Focused(from, value_len, Instant::now());
+                            } else {
+                                state.inner = InnerState::Focused(value_len, value_len, Instant::now());
+                            }
+                        } else if state.modifiers.shift {
                             state.inner = InnerState::Focused(from, (to + 1).min(value_len), Instant::now());
                         } else {
                             let (from, to) = (from.min(to), from.max(to));
@@ -605,6 +626,7 @@ impl Default for State {
                 alt: false,
                 shift: false,
                 logo: false,
+                command: false,
             },
             inner: InnerState::Idle,
             cursor: (0.0, 0.0),

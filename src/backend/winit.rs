@@ -67,6 +67,10 @@ fn convert_mods(x: winit::event::ModifiersState) -> Modifiers {
         alt: x.alt(),
         shift: x.shift(),
         logo: x.logo(),
+        #[cfg(target_os = "macos")]
+        command: x.logo(),
+        #[cfg(not(target_os = "macos"))]
+        command: x.ctrl(),
     }
 }
 

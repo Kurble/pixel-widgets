@@ -96,6 +96,9 @@ pub struct Modifiers {
     pub shift: bool,
     /// `true` if the windows/super/command key is pressed, `false otherwise.
     pub logo: bool,
+    /// `true` if the primary key combination key is presesed, `false` otherwise.
+    /// This is command on macos, control on other OS'es.
+    pub command: bool,
 }
 
 #[allow(missing_docs)]
@@ -106,6 +109,7 @@ impl Modifiers {
             alt: false,
             shift: false,
             logo: false,
+            command: false,
         }
     }
 
@@ -115,6 +119,10 @@ impl Modifiers {
             alt: false,
             shift: false,
             logo: false,
+            #[cfg(target_os = "macos")]
+            command: false,
+            #[cfg(not(target_os = "macos"))]
+            command: true,
         }
     }
 
@@ -124,6 +132,7 @@ impl Modifiers {
             alt: true,
             shift: false,
             logo: false,
+            command: false,
         }
     }
 
@@ -133,6 +142,7 @@ impl Modifiers {
             alt: false,
             shift: true,
             logo: false,
+            command: false,
         }
     }
 
@@ -142,6 +152,10 @@ impl Modifiers {
             alt: false,
             shift: false,
             logo: true,
+            #[cfg(target_os = "macos")]
+            command: true,
+            #[cfg(not(target_os = "macos"))]
+            command: false,
         }
     }
 }
