@@ -240,7 +240,7 @@ impl<M: Component> Ui<M> {
                                             },
                                         },
                                         wgpu::ImageCopyTexture {
-                                            texture: &texture,
+                                            texture,
                                             mip_level: 0,
                                             origin: wgpu::Origin3d {
                                                 x: offset[0],

@@ -72,7 +72,7 @@ impl Cache {
 
     /// Take updates for the texture system from the cache
     pub fn take_updates(&mut self) -> Vec<Update> {
-        mem::replace(&mut self.updates, Vec::new())
+        mem::take(&mut self.updates)
     }
 
     pub(crate) fn draw_text<F: FnMut(Rectangle, Rectangle)>(

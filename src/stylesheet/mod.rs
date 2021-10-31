@@ -58,6 +58,7 @@ where
     F: Future<Output = Result<Vec<u8>, E>>,
     E: Into<anyhow::Error>,
 {
+    #[allow(clippy::type_complexity)]
     type Future = Map<F, fn(Result<Vec<u8>, E>) -> anyhow::Result<Vec<u8>>>;
 
     fn read(&self, path: &Path) -> Self::Future {
@@ -249,7 +250,7 @@ impl Style {
             return existing.clone();
         }
         let mut computed = self.default.clone();
-        for rule in self.rule_tree.iter_declarations(&style) {
+        for rule in self.rule_tree.iter_declarations(style) {
             rule.apply(&mut computed);
         }
         let result = Arc::new(computed);

@@ -71,7 +71,7 @@ impl<'a, T: 'a> Layers<'a, T> {
         }
 
         state.order.clear();
-        state.order.extend(result.iter().map(|l| l.id.clone()));
+        state.order.extend(result.iter().map(|l| l.id));
 
         result
     }
@@ -200,7 +200,7 @@ impl<'a, T: 'a + Send> Widget<'a, T> for Layers<'a, T> {
         }
 
         state.order.clear();
-        state.order.extend(ordered_layers.into_iter().map(|l| l.id.clone()));
+        state.order.extend(ordered_layers.into_iter().map(|l| l.id));
     }
 
     fn draw(&mut self, state: &mut State, layout: Rectangle, clip: Rectangle, _: &Stylesheet) -> Vec<Primitive<'a>> {

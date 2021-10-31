@@ -11,9 +11,7 @@ pub struct Spacer;
 impl<'a, T> Widget<'a, T> for Spacer {
     type State = ();
 
-    fn mount(&self) -> Self::State {
-        ()
-    }
+    fn mount(&self) {}
 
     fn widget(&self) -> &'static str {
         "spacer"

@@ -83,9 +83,7 @@ impl<'a, T> Hash for Column<'a, T> {
 impl<'a, T: 'a + Send> Widget<'a, T> for Column<'a, T> {
     type State = ();
 
-    fn mount(&self) -> Self::State {
-        ()
-    }
+    fn mount(&self) {}
 
     fn widget(&self) -> &'static str {
         "column"

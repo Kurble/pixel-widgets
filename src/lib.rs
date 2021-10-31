@@ -84,7 +84,7 @@ impl<M: 'static + Component> Ui<M> {
             viewport,
             redraw: true,
             cursor: (0.0, 0.0),
-            style: style.clone(),
+            style,
         }
     }
 
@@ -145,7 +145,7 @@ impl<M: 'static + Component> Ui<M> {
 
         self.redraw = context.redraw_requested();
 
-        let mut outer_context = Context::new(self.needs_redraw(), self.cursor, waker.clone());
+        let mut outer_context = Context::new(self.needs_redraw(), self.cursor, waker);
 
         for message in context {
             self.root_node.update(message, &mut outer_context);
@@ -523,7 +523,7 @@ impl<M: Component> Deref for Ui<M> {
     type Target = M;
 
     fn deref(&self) -> &Self::Target {
-        &self.root_node.props()
+        self.root_node.props()
     }
 }
 

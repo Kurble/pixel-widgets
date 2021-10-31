@@ -30,9 +30,7 @@ impl Text {
 impl<'a, T> Widget<'a, T> for Text {
     type State = ();
 
-    fn mount(&self) -> Self::State {
-        ()
-    }
+    fn mount(&self) {}
 
     fn widget(&self) -> &'static str {
         "text"

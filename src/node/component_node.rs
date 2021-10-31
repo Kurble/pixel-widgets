@@ -116,9 +116,8 @@ impl<'a, M: 'a + Component> GenericNode<'a, M::Output> for ComponentNode<'a, M> 
     fn set_class(&mut self, _: &'a str) {}
 
     fn acquire_state(&mut self, tracker: &mut ManagedStateTracker<'a>) {
-        self.state.replace(Some(
-            tracker.begin::<ManagedState, _>(self.key, || ManagedState::default()),
-        ));
+        self.state
+            .replace(Some(tracker.begin::<ManagedState, _>(self.key, ManagedState::default)));
         tracker.end();
     }
 

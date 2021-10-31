@@ -43,9 +43,7 @@ impl<'a, T: 'a> Default for Frame<'a, T> {
 impl<'a, T: 'a> Widget<'a, T> for Frame<'a, T> {
     type State = ();
 
-    fn mount(&self) -> Self::State {
-        ()
-    }
+    fn mount(&self) {}
 
     fn widget(&self) -> &'static str {
         "frame"

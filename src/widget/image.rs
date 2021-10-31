@@ -32,9 +32,7 @@ unsafe impl<'a> Send for Image<'a> {}
 impl<'a, T: 'a> Widget<'a, T> for Image<'a> {
     type State = ();
 
-    fn mount(&self) -> Self::State {
-        ()
-    }
+    fn mount(&self) {}
 
     fn widget(&self) -> &'static str {
         "image"

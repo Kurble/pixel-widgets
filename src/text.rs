@@ -105,7 +105,7 @@ impl<'a, 'b: 'a> WordWrapper<'a, 'b> {
             }
             (self.f)(glyph, b - self.final_x, c - self.final_x, self.final_y);
 
-            while let Some((ch, glyph, b, c)) = self.iter.next() {
+            for (ch, glyph, b, c) in &mut self.iter {
                 if c - self.final_x > self.width {
                     self.final_x = b;
                     self.final_y += self.height;

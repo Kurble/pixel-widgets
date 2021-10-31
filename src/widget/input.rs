@@ -467,7 +467,7 @@ where
         match state.inner {
             InnerState::Dragging(_, pos, _) | InnerState::Focused(_, pos, _) => {
                 let mut measure_text = Text {
-                    text: Cow::Borrowed(new_text.as_ref().map(String::as_str).unwrap_or(self.value.as_ref())),
+                    text: Cow::Borrowed(new_text.as_deref().unwrap_or_else(|| self.value.as_ref())),
                     font: stylesheet.font.clone(),
                     size: stylesheet.text_size,
                     wrap: TextWrap::NoWrap,

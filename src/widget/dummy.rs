@@ -31,9 +31,7 @@ impl Default for Dummy {
 impl<'a, T: 'a> Widget<'a, T> for Dummy {
     type State = ();
 
-    fn mount(&self) -> Self::State {
-        ()
-    }
+    fn mount(&self) {}
 
     fn widget(&self) -> &'static str {
         self.widget

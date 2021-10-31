@@ -147,9 +147,7 @@ impl<'a, T: 'a> Default for Panel<'a, T> {
 impl<'a, T: 'a> Widget<'a, T> for Panel<'a, T> {
     type State = ();
 
-    fn mount(&self) -> Self::State {
-        ()
-    }
+    fn mount(&self) {}
 
     fn widget(&self) -> &'static str {
         "panel"

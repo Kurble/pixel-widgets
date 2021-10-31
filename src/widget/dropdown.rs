@@ -39,7 +39,7 @@ impl<'a, T: 'a, F> Dropdown<'a, T, F> {
         Dropdown {
             items: self.items,
             default_selection: self.default_selection,
-            on_select: on_select,
+            on_select,
         }
     }
 
@@ -70,9 +70,10 @@ impl<'a, T: Send + 'a, F: Send + Fn(usize) -> T> Widget<'a, T> for Dropdown<'a, 
     type State = State;
 
     fn mount(&self) -> Self::State {
-        let mut state = State::default();
-        state.selected_item = self.default_selection.map(|i| i.min(self.items.len() - 1));
-        state
+        State {
+            selected_item: self.default_selection.map(|i| i.min(self.items.len() - 1)),
+            ..Default::default()
+        }
     }
 
     fn widget(&self) -> &'static str {

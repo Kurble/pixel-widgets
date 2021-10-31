@@ -131,7 +131,7 @@ impl<'a, Message, W: Widget<'a, Message>> GenericNode<'a, Message> for WidgetNod
 
         // resolve children style
         query.ancestors.push(self.selector_matches.clone());
-        let own_siblings = std::mem::replace(&mut query.siblings, Vec::new());
+        let own_siblings = std::mem::take(&mut query.siblings);
         let mut i = 0;
         let len = self.widget.len();
         self.widget.visit_children(&mut |child| {
@@ -159,7 +159,7 @@ impl<'a, Message, W: Widget<'a, Message>> GenericNode<'a, Message> for WidgetNod
         }
 
         query.ancestors.push(additions);
-        let own_siblings = std::mem::replace(&mut query.siblings, Vec::new());
+        let own_siblings = std::mem::take(&mut query.siblings);
         self.widget.visit_children(&mut |child| child.add_matches(&mut *query));
         query.siblings = own_siblings;
         query.siblings.push(query.ancestors.pop().unwrap());
@@ -182,7 +182,7 @@ impl<'a, Message, W: Widget<'a, Message>> GenericNode<'a, Message> for WidgetNod
         }
 
         query.ancestors.push(removals);
-        let own_siblings = std::mem::replace(&mut query.siblings, Vec::new());
+        let own_siblings = std::mem::take(&mut query.siblings);
         self.widget
             .visit_children(&mut |child| child.remove_matches(&mut *query));
         query.siblings = own_siblings;

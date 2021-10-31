@@ -24,7 +24,7 @@ impl<I: Iterator<Item = Token>> TokenProvider<I> {
     }
 
     pub fn take(&mut self, token: TokenValue) -> anyhow::Result<Token> {
-        let Token(value, pos) = self.tokens.next().ok_or(anyhow!("EOF"))?;
+        let Token(value, pos) = self.tokens.next().ok_or_else(|| anyhow!("EOF"))?;
         if token == value {
             Ok(Token(value, pos))
         } else {
@@ -33,7 +33,7 @@ impl<I: Iterator<Item = Token>> TokenProvider<I> {
     }
 
     pub fn take_identifier(&mut self) -> anyhow::Result<(String, TokenPos)> {
-        match self.tokens.next().ok_or(anyhow!("EOF"))? {
+        match self.tokens.next().ok_or_else(|| anyhow!("EOF"))? {
             Token(TokenValue::Iden(id), pos) => Ok((id, pos)),
             Token(_, pos) => Err(anyhow!("Expected 'Identifier' at {}", pos)),
         }
@@ -48,7 +48,9 @@ pub async fn parse(tokens: Vec<Token>, loader: impl ReadFn) -> anyhow::Result<Ar
     let mut fonts = HashMap::new();
     let mut context = LoadContext {
         loader,
-        tokens: TokenProvider { tokens: tokens.into_iter().peekable() },
+        tokens: TokenProvider {
+            tokens: tokens.into_iter().peekable(),
+        },
         cache: &mut builder.cache,
         images: &mut images,
         patches: &mut patches,
@@ -65,7 +67,9 @@ pub async fn parse(tokens: Vec<Token>, loader: impl ReadFn) -> anyhow::Result<Ar
 }
 
 pub fn parse_selectors(tokens: Vec<Token>) -> anyhow::Result<Vec<Selector>> {
-    let mut p = TokenProvider { tokens: tokens.into_iter().peekable() };
+    let mut p = TokenProvider {
+        tokens: tokens.into_iter().peekable(),
+    };
     let mut result = Vec::new();
     while p.peek().is_some() {
         result.push(parse_selector(&mut p)?);
@@ -79,7 +83,7 @@ async fn parse_rule<I: Iterator<Item = Token>, L: ReadFn>(
     let mut selectors = Vec::new();
     let mut declarations = Vec::new();
     loop {
-        if let Token(TokenValue::BraceOpen, _) = c.tokens.peek().ok_or(anyhow!("EOF"))? {
+        if let Token(TokenValue::BraceOpen, _) = c.tokens.peek().ok_or_else(|| anyhow!("EOF"))? {
             c.tokens.next();
             loop {
                 if let Some(&Token(TokenValue::BraceClose, _)) = c.tokens.peek() {
@@ -143,7 +147,7 @@ async fn parse_declaration<I: Iterator<Item = Token>, L: ReadFn>(
 async fn parse_background<I: Iterator<Item = Token>, L: ReadFn>(
     c: &mut LoadContext<'_, I, L>,
 ) -> anyhow::Result<Background> {
-    match c.tokens.peek().cloned().ok_or(anyhow!("EOF"))? {
+    match c.tokens.peek().cloned().ok_or_else(|| anyhow!("EOF"))? {
         Token(TokenValue::Iden(ty), pos) => {
             c.tokens.next();
             match ty.to_lowercase().as_str() {
@@ -155,8 +159,7 @@ async fn parse_background<I: Iterator<Item = Token>, L: ReadFn>(
                             if c.images.get(&url).is_none() {
                                 let image =
                                     image::load_from_memory(c.loader.read(Path::new(url.as_str())).await?.as_ref())?;
-                                c.images
-                                    .insert(url.clone(), c.cache.load_image(image.to_rgba8()));
+                                c.images.insert(url.clone(), c.cache.load_image(image.to_rgba8()));
                             }
                             Ok(c.images[&url].clone())
                         }
@@ -175,8 +178,7 @@ async fn parse_background<I: Iterator<Item = Token>, L: ReadFn>(
                             if c.patches.get(&url).is_none() {
                                 let image =
                                     image::load_from_memory(c.loader.read(Path::new(url.as_str())).await?.as_ref())?;
-                                c.patches
-                                    .insert(url.clone(), c.cache.load_patch(image.to_rgba8()));
+                                c.patches.insert(url.clone(), c.cache.load_patch(image.to_rgba8()));
                             }
                             Ok(c.patches[&url].clone())
                         }
@@ -197,15 +199,13 @@ async fn parse_background<I: Iterator<Item = Token>, L: ReadFn>(
             if url.ends_with(".9.png") {
                 if c.patches.get(&url).is_none() {
                     let image = image::load_from_memory(c.loader.read(Path::new(url.as_str())).await?.as_ref())?;
-                    c.patches
-                        .insert(url.clone(), c.cache.load_patch(image.to_rgba8()));
+                    c.patches.insert(url.clone(), c.cache.load_patch(image.to_rgba8()));
                 }
                 Ok(Background::Patch(c.patches[&url].clone(), Color::white()))
             } else {
                 if c.images.get(&url).is_none() {
                     let image = image::load_from_memory(c.loader.read(Path::new(url.as_str())).await?.as_ref())?;
-                    c.images
-                        .insert(url.clone(), c.cache.load_image(image.to_rgba8()));
+                    c.images.insert(url.clone(), c.cache.load_image(image.to_rgba8()));
                 }
                 Ok(Background::Image(c.images[&url].clone(), Color::white()))
             }
@@ -233,7 +233,7 @@ async fn parse_font<I: Iterator<Item = Token>, L: ReadFn>(c: &mut LoadContext<'_
 }
 
 fn parse_selector<I: Iterator<Item = Token>>(c: &mut TokenProvider<I>) -> anyhow::Result<Selector> {
-    match c.tokens.next().ok_or(anyhow!("EOF"))? {
+    match c.tokens.next().ok_or_else(|| anyhow!("EOF"))? {
         Token(TokenValue::Star, _) => Ok(Selector::Widget(SelectorWidget::Any)),
         Token(TokenValue::Dot, _) => Ok(Selector::Class(c.take_identifier()?.0)),
         Token(TokenValue::Iden(widget), _) => Ok(Selector::Widget(SelectorWidget::Some(widget))),
@@ -261,7 +261,7 @@ fn parse_selector<I: Iterator<Item = Token>>(c: &mut TokenProvider<I>) -> anyhow
                 }
                 "nth-child" => {
                     c.take(TokenValue::ParenOpen)?;
-                    let result = match c.tokens.next().ok_or(anyhow!("EOF"))? {
+                    let result = match c.tokens.next().ok_or_else(|| anyhow!("EOF"))? {
                         Token(TokenValue::Iden(special), pos) => match special.as_str() {
                             "odd" => Ok(Selector::NthMod(1, 2)),
                             "even" => Ok(Selector::NthMod(0, 2)),
@@ -277,7 +277,7 @@ fn parse_selector<I: Iterator<Item = Token>>(c: &mut TokenProvider<I>) -> anyhow
                 }
                 "nth-last-child" => {
                     c.take(TokenValue::ParenOpen)?;
-                    let result = match c.tokens.next().ok_or(anyhow!("EOF"))? {
+                    let result = match c.tokens.next().ok_or_else(|| anyhow!("EOF"))? {
                         Token(TokenValue::Iden(special), pos) => match special.as_str() {
                             "odd" => Ok(Selector::NthLastMod(1, 2)),
                             "even" => Ok(Selector::NthLastMod(0, 2)),
@@ -316,7 +316,7 @@ fn parse_selector<I: Iterator<Item = Token>>(c: &mut TokenProvider<I>) -> anyhow
 }
 
 fn parse_widget<I: Iterator<Item = Token>>(c: &mut TokenProvider<I>) -> Result<SelectorWidget> {
-    match c.next().ok_or(anyhow!("EOF"))? {
+    match c.next().ok_or_else(|| anyhow!("EOF"))? {
         Token(TokenValue::Star, _) => Ok(SelectorWidget::Any),
         Token(TokenValue::Iden(widget), _) => Ok(SelectorWidget::Some(widget)),
         Token(_, pos) => Err(anyhow!("Expected '*' or 'identifier' at {}", pos)),
@@ -346,7 +346,7 @@ fn parse_usize<I: Iterator<Item = Token>>(c: &mut TokenProvider<I>) -> Result<us
 fn parse_rectangle<I: Iterator<Item = Token>>(c: &mut TokenProvider<I>) -> Result<Rectangle> {
     let mut numbers = Vec::new();
 
-    while let Token(TokenValue::Number(_), _) = c.peek().ok_or(anyhow!("EOF"))? {
+    while let Token(TokenValue::Number(_), _) = c.peek().ok_or_else(|| anyhow!("EOF"))? {
         numbers.push(parse_float(c)?);
     }
 
@@ -447,7 +447,7 @@ fn parse_size<I: Iterator<Item = Token>>(c: &mut TokenProvider<I>) -> Result<Siz
 
 #[allow(clippy::identity_op)] // to keep the code clean and consistent
 fn parse_color<I: Iterator<Item = Token>>(c: &mut TokenProvider<I>) -> Result<Color> {
-    match c.next().ok_or(anyhow!("EOF"))? {
+    match c.next().ok_or_else(|| anyhow!("EOF"))? {
         Token(TokenValue::Color(string), pos) => {
             let int = u32::from_str_radix(string.as_str(), 16).map_err(|err| anyhow!("{} at {}", err, pos))?;
             match string.len() {

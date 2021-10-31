@@ -183,6 +183,12 @@ impl BitSet {
     }
 }
 
+impl Default for BitSet {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 pub struct BitIter<'a> {
     remaining: &'a [u64],
     offset: usize,

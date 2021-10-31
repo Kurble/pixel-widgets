@@ -78,7 +78,7 @@ impl StyleBuilder {
     ///  style declarations to the selected widgets.
     /// The `DeclarationBuilder` will automatically apply the declarations to this `StyleBuilder`
     ///  when it is dropped.
-    pub fn select<'a, S: AsRef<str>>(&'a mut self, selector: S) -> DeclarationBuilder<'a> {
+    pub fn select<S: AsRef<str>>(&mut self, selector: S) -> DeclarationBuilder {
         DeclarationBuilder {
             selector: parse_selectors(tokenize(selector.as_ref().to_string()).unwrap()).unwrap(),
             declarations: Vec::new(),
@@ -109,6 +109,12 @@ impl StyleBuilder {
             },
             rule_tree: self.rule_tree.into(),
         })
+    }
+}
+
+impl Default for StyleBuilder {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
