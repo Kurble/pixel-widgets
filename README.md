@@ -56,8 +56,8 @@ enum Message {
 }
 
 impl Component for Counter {
-    type Message = Message;
     type State = i32;
+    type Message = Message;
     type Output = ();
 
     // Creates the state of our component when it's first constructed.
@@ -79,7 +79,7 @@ impl Component for Counter {
     }
 
     // Updates the component state based on a message.
-    fn update(&self, message: Self::Message, mut state: State<i32>, _context: Context<Message, ()>) {
+    fn update(&self, message: Message, mut state: State<i32>, _context: Context<Message, ()>) {
         match message {
             Message::UpPressed => *state += 1,
             Message::DownPressed => *state -= 1,
