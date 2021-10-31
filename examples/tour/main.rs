@@ -81,7 +81,7 @@ impl Component for Tour {
         }
     }
 
-    fn update(&self, message: Self::Message, state: &mut TourState, _: Context<Message, ()>) {
+    fn update(&self, message: Self::Message, mut state: State<TourState>, _: Context<Message, ()>) {
         match message {
             Message::ShowDummy(show) => state.show_dummy = show,
             Message::ShowLogin(show) => state.show_login = show,

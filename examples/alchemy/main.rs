@@ -162,7 +162,8 @@ impl Component for Alchemy {
         }
     }
 
-    fn update(&self, message: Self::Message, state: &mut Self::State, _: Context<Message, ()>) {
+    fn update(&self, message: Self::Message, mut state: State<AlchemyState>, _: Context<Message, ()>) {
+        let state = &mut *state;
         match message {
             Message::Place(item, pos) => {
                 state.playground.push((item, state.next_item_id, pos));

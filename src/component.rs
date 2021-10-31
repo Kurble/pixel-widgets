@@ -5,7 +5,7 @@ use std::hash::{Hash, Hasher};
 
 use futures::Stream;
 
-use crate::node::component_node::Runtime;
+use crate::node::component_node::{Runtime, State};
 use crate::node::Node;
 use crate::widget::Context as WidgetContext;
 
@@ -41,7 +41,7 @@ pub trait Component: Default {
     fn update(
         &self,
         _message: Self::Message,
-        _state: &mut Self::State,
+        _state: State<Self::State>,
         _context: Context<Self::Message, Self::Output>,
     ) {
     }

@@ -54,7 +54,7 @@ impl Component for Download {
         }
     }
 
-    fn update(&self, message: Message, state: &mut Self::State, mut context: Context<Message, ()>) {
+    fn update(&self, message: Message, mut state: State<Self::State>, mut context: Context<Message, ()>) {
         match message {
             Message::UrlChanged(url) => {
                 state.url = url;

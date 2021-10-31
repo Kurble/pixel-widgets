@@ -39,7 +39,7 @@ enum Message {
 }
 ```
 
-And finally, we must implement [`Component`](trait.Component.html)
+And finally, we must implement [`Component`](component/trait.Component.html)
 ```rust
 use pixel_widgets::prelude::*;
 
@@ -66,7 +66,7 @@ impl Component for Counter {
     }
 
     // Generates the widgets for this component, based on the current state.
-    fn view(&self, state: &i32) -> Node<Message> {
+    fn view<'a>(&'a self, state: &'a i32) -> Node<'a, Message> {
         // You can build the view using declarative syntax with the view! macro,
         //  but you can also construct widgets using normal rust code.
         view! {
@@ -79,19 +79,10 @@ impl Component for Counter {
     }
 
     // Updates the component state based on a message.
-    fn update(
-        &self,
-        message: Self::Message,
-        state: &mut i32,
-        _context: Context<Message, ()>,
-    ) {
+    fn update(&self, message: Self::Message, mut state: State<i32>, _context: Context<Message, ()>) {
         match message {
-            Message::UpPressed => {
-                *state += 1;
-            }
-            Message::DownPressed => {
-                *state -= 1;
-            }
+            Message::UpPressed => *state += 1,
+            Message::DownPressed => *state -= 1,
         }
     }
 }

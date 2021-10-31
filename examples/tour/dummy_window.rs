@@ -8,9 +8,7 @@ impl Component for DummyWindow {
     type Message = Message;
     type Output = Message;
 
-    fn mount(&self) -> Self::State {
-        ()
-    }
+    fn mount(&self) {}
 
     fn view<'a>(&'a self, _: &'a Self::State) -> Node<'a, Self::Message> {
         let options = [
@@ -34,7 +32,7 @@ impl Component for DummyWindow {
         }
     }
 
-    fn update(&self, message: Message, _: &mut (), _: Context<Message, Message>) {
+    fn update(&self, message: Message, _: State<()>, _: Context<Message, Message>) {
         if let Message::PlanetSelected(planet) = message {
             println!("{} selected from the planets", planet);
         }

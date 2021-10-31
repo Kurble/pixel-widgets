@@ -5,6 +5,7 @@ pub use crate::{
     component::{Component, Context},
     draw::Color,
     layout::{Align, Direction, Rectangle, Size},
+    node::component_node::State,
     node::*,
     stylesheet::Style,
     view,

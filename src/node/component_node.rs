@@ -2,6 +2,7 @@ use std::cell::{Cell, RefCell, RefMut};
 use std::collections::hash_map::DefaultHasher;
 use std::future::Future;
 use std::hash::{Hash, Hasher};
+use std::ops::{Deref, DerefMut};
 use std::ptr::null_mut;
 use std::task::Poll;
 
@@ -30,6 +31,13 @@ pub struct Runtime<Message> {
     futures: Vec<Box<dyn Future<Output = Message> + Send + Sync + Unpin>>,
     streams: Vec<Box<dyn Stream<Item = Message> + Send + Sync + Unpin>>,
     modified: bool,
+}
+
+/// Mutable state accessor.
+/// By wrapping the mutable reference, the runtime knows if the state was mutated at all.
+pub struct State<'a, T> {
+    inner: &'a mut T,
+    dirty: &'a mut bool,
 }
 
 impl<'a, M: 'a + Component> ComponentNode<'a, M> {
@@ -65,11 +73,22 @@ impl<'a, M: 'a + Component> ComponentNode<'a, M> {
     }
 
     pub fn update(&mut self, message: M::Message, context: &mut WidgetContext<M::Output>) {
-        self.set_dirty();
+        let mut dirty = false;
 
         let (state, runtime) = unsafe { self.component_state.get().as_mut().unwrap() };
 
-        self.props.update(message, state, Context::new(context, runtime))
+        self.props.update(
+            message,
+            State {
+                inner: state,
+                dirty: &mut dirty,
+            },
+            Context::new(context, runtime),
+        );
+
+        if dirty {
+            self.set_dirty();
+        }
     }
 
     pub fn view(&self) -> RefMut<Node<'a, M::Message>> {
@@ -264,5 +283,20 @@ impl<Message> Runtime<Message> {
         }
 
         result
+    }
+}
+
+impl<'a, T> Deref for State<'a, T> {
+    type Target = T;
+
+    fn deref(&self) -> &T {
+        self.inner
+    }
+}
+
+impl<'a, T> DerefMut for State<'a, T> {
+    fn deref_mut(&mut self) -> &mut T {
+        *self.dirty = true;
+        self.inner
     }
 }

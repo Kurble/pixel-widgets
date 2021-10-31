@@ -47,7 +47,7 @@ impl Component for LoginWindow {
         }
     }
 
-    fn update(&self, message: Message, state: &mut LoginWindowState, _: Context<Message, Message>) {
+    fn update(&self, message: Message, mut state: State<LoginWindowState>, _: Context<Message, Message>) {
         match message {
             Message::NameChanged(name) => state.name = name,
             Message::PasswordChanged(password) => state.password = password,
