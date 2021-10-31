@@ -10,6 +10,7 @@ repository = "https://github.com/Kurble/pixel-widgets"
 documentation = "https://docs.rs/pixel-widgets"
 keywords = ["gui", "ui", "wgpu", "interface", "widgets"]
 categories = ["gui"]
+resolver = "2"
 
 [features]
 default = ["clipboard", "winit", "wgpu"]
@@ -20,7 +21,7 @@ image = "0.23"
 smallvec = "1"
 zerocopy = "0.3"
 futures = "0.3"
-wgpu = { version = "0.8", optional = true }
+wgpu = { version = "0.11", optional = true }
 winit = { version = "0.25", optional = true }
 clipboard = { version = "0.5", optional = true }
 notify = "5.0.0-pre.3"

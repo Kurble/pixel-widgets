@@ -83,8 +83,7 @@ impl Component for Counter {
         &self,
         message: Self::Message,
         state: &mut i32,
-        _runtime: &mut Runtime<Self::Message>,
-        _context: &mut Context<()>,
+        _context: Context<Message, ()>,
     ) {
         match message {
             Message::UpPressed => {

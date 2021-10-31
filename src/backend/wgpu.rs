@@ -39,14 +39,13 @@ impl<M: Component> Ui<M> {
         let shader_module = device.create_shader_module(&ShaderModuleDescriptor {
             label: Some("wgpu.wgsl"),
             source: wgpu::ShaderSource::Wgsl(include_str!("wgpu.wgsl").into()),
-            flags: ShaderFlags::VALIDATION,
         });
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: None,
             entries: &[
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
-                    visibility: wgpu::ShaderStage::FRAGMENT,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Texture {
                         sample_type: wgpu::TextureSampleType::Float { filterable: true },
                         multisampled: false,
@@ -56,7 +55,7 @@ impl<M: Component> Ui<M> {
                 },
                 wgpu::BindGroupLayoutEntry {
                     binding: 1,
-                    visibility: wgpu::ShaderStage::FRAGMENT,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Sampler {
                         filtering: true,
                         comparison: false,
@@ -78,7 +77,7 @@ impl<M: Component> Ui<M> {
                 entry_point: "vs_main",
                 buffers: &[wgpu::VertexBufferLayout {
                     array_stride: std::mem::size_of::<Vertex>() as u64,
-                    step_mode: wgpu::InputStepMode::Vertex,
+                    step_mode: wgpu::VertexStepMode::Vertex,
                     attributes: &[
                         wgpu::VertexAttribute {
                             format: VertexFormat::Float32x2,
@@ -115,7 +114,7 @@ impl<M: Component> Ui<M> {
                 targets: &[wgpu::ColorTargetState {
                     format,
                     blend: Some(wgpu::BlendState::ALPHA_BLENDING),
-                    write_mask: wgpu::ColorWrite::ALL,
+                    write_mask: wgpu::ColorWrites::ALL,
                 }],
             }),
         });
@@ -182,7 +181,7 @@ impl<M: Component> Ui<M> {
                                         sample_count: 1,
                                         dimension: wgpu::TextureDimension::D2,
                                         format: wgpu::TextureFormat::Rgba8Unorm,
-                                        usage: wgpu::TextureUsage::SAMPLED | wgpu::TextureUsage::COPY_DST,
+                                        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
                                     };
                                     let texture = if data.is_empty() {
                                         device.create_texture(&texture_desc)
@@ -229,7 +228,7 @@ impl<M: Component> Ui<M> {
                                     let staging = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                                         label: None,
                                         contents: data.as_slice(),
-                                        usage: wgpu::BufferUsage::COPY_SRC,
+                                        usage: wgpu::BufferUsages::COPY_SRC,
                                     });
                                     cmd.copy_buffer_to_texture(
                                         wgpu::ImageCopyBuffer {
@@ -248,6 +247,7 @@ impl<M: Component> Ui<M> {
                                                 y: offset[1],
                                                 z: 0,
                                             },
+                                            aspect: wgpu::TextureAspect::All,
                                         },
                                         wgpu::Extent3d {
                                             width: size[0],
@@ -268,7 +268,7 @@ impl<M: Component> Ui<M> {
                     .replace(device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                         label: None,
                         contents: vertices.as_bytes(),
-                        usage: wgpu::BufferUsage::VERTEX,
+                        usage: wgpu::BufferUsages::VERTEX,
                     }));
             }
         }

@@ -19,8 +19,7 @@ pub struct Sandbox<M: 'static + Component> {
     adapter: wgpu::Adapter,
     device: wgpu::Device,
     queue: wgpu::Queue,
-    swap_chain: wgpu::SwapChain,
-    sc_desc: wgpu::SwapChainDescriptor,
+    surface_config: wgpu::SurfaceConfiguration,
     window: Window,
 }
 
@@ -50,11 +49,12 @@ where
 
         let swapchain_format = wgpu::TextureFormat::Bgra8Unorm;
 
-        let instance = wgpu::Instance::new(wgpu::BackendBit::PRIMARY);
+        let instance = wgpu::Instance::new(wgpu::Backends::PRIMARY);
         let surface = unsafe { instance.create_surface(&window) };
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
                 power_preference: wgpu::PowerPreference::LowPower,
+                force_fallback_adapter: false,
                 compatible_surface: Some(&surface),
             })
             .await
@@ -74,15 +74,15 @@ where
             .await
             .expect("Failed retrieve device and queue");
 
-        let sc_desc = wgpu::SwapChainDescriptor {
-            usage: wgpu::TextureUsage::RENDER_ATTACHMENT,
+        let surface_config = wgpu::SurfaceConfiguration {
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: swapchain_format,
             width: size.width,
             height: size.height,
             present_mode: wgpu::PresentMode::Mailbox,
         };
 
-        let swap_chain = device.create_swap_chain(&surface, &sc_desc);
+        surface.configure(&device, &surface_config);
 
         let ui = crate::backend::wgpu::Ui::new(
             root_component,
@@ -98,8 +98,7 @@ where
             adapter,
             device,
             queue,
-            swap_chain,
-            sc_desc,
+            surface_config,
             window,
         }
     }
@@ -140,17 +139,18 @@ where
                     ..
                 } => {
                     // Recreate the swap chain with the new size
-                    self.sc_desc.width = size.width;
-                    self.sc_desc.height = size.height;
-                    self.swap_chain = self.device.create_swap_chain(&self.surface, &self.sc_desc);
+                    self.surface_config.width = size.width;
+                    self.surface_config.height = size.height;
+                    self.surface.configure(&self.device, &self.surface_config);
                     self.ui
                         .resize(Rectangle::from_wh(size.width as f32, size.height as f32));
                 }
                 Event::RedrawRequested(_) => {
                     let frame = self
-                        .swap_chain
-                        .get_current_frame()
+                        .surface
+                        .get_current_texture()
                         .expect("Failed to acquire next swap chain texture");
+                    let view = frame.texture.create_view(&wgpu::TextureViewDescriptor::default());
                     let mut encoder = self
                         .device
                         .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
@@ -158,7 +158,7 @@ where
                         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                             label: None,
                             color_attachments: &[wgpu::RenderPassColorAttachment {
-                                view: &frame.output.view,
+                                view: &view,
                                 resolve_target: None,
                                 ops: wgpu::Operations {
                                     load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
@@ -172,6 +172,7 @@ where
                     }
 
                     self.queue.submit(Some(encoder.finish()));
+                    frame.present();
                 }
                 Event::WindowEvent {
                     event: WindowEvent::CloseRequested,
