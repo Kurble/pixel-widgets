@@ -113,47 +113,47 @@ impl Component for Alchemy {
             .filter(|(_, item)| item.discovered)
             .collect();
         view! {
-            Row [class="game"] => {
+            Row(class="game") => {
                 //playground
-                Layers => {
-                    Drop [
+                Layers() => {
+                    Drop(
                         context=cx,
                         on_drop=move |drag_item, pos| match drag_item {
                             DragItem::FromInventory(i) => Message::Place(state.items[i].clone(), pos),
                             DragItem::FromPlayground(i) => Message::MovePlaygroundItem(i, pos),
                         }
-                    ] => { Spacer },
+                    ) => { Spacer() }
 
-                    :for (item, id, pos) in state.playground.iter() => Panel [
+                    :for (item, id, pos) in state.playground.iter() => Panel(
                         offset = *pos,
                         anchor = Anchor::TopLeft,
                         key = id
-                    ] => {
-                        Drop [
+                     ) => {
+                        Drop(
                             context = cx,
                             on_drop = move |drag_item, _| match drag_item {
                                 DragItem::FromInventory(other_id) => Message::CombineInventory(*id, other_id),
                                 DragItem::FromPlayground(other_id) => Message::CombinePlayground(*id, other_id),
                             }
-                        ] => {
-                            Drag [
+                        ) => {
+                            Drag(
                                 context = cx,
                                 val = DragItem::FromPlayground(*id)
-                            ] => { Image [image=&item.image] }
+                            ) => { Image(image=&item.image) }
                         }
                     }
-                },
+                }
 
                 // inventory
-                Scroll => {
-                    Column => {
-                        :for row in filtered.chunks(4) => Row => {
-                            :for (i, item) in row.iter() => Drag [
+                Scroll() => {
+                    Column() => {
+                        :for row in filtered.chunks(4) => Row() => {
+                            :for (i, item) in row.iter() => Drag(
                                 context = cx,
                                 val = DragItem::FromInventory(*i),
                                 key = *i
-                            ] => {
-                                Image [image=&item.image]
+                            ) => {
+                                Image(image=&item.image)
                             }
                         }
                     }

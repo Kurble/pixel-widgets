@@ -7,16 +7,24 @@ Each widget is declared using it's type. The macro will then use the `Default` i
 
 Let's take a look at an example.
 ```rust
-view! {
-    Column => {
-        Text [val = "Hello world"],
-        Button [text = "Click me"]
+use pixel_widgets::prelude::*;
+
+fn view<'a>() -> Node<'a, ()> {
+    view! {
+        Column() => {
+            Text(val = "Hello world")
+            Button(text = "Click me")
+        }
     }
 }
 ```
 In this example, a column widget is declared with two children. The first child is a `Text` widget, with it's value set to `"Hello world"`. The second child is a `Button` with it's text set to `"Click me"`.
 Setting the value of a `Text` in this case, happens by assigning a `&str` to the `val` property. All of the widgets have many different properties that you can set, and you can find them by viewing the documention of the widget. In rust code, properties are implemented as methods on the widget that follow the builder pattern; They take the widget by value, take a single argument, and return `Self`. Like so:
 ```rust
+pub struct Text {
+    text: String,
+}
+
 impl Text {
     /// Sets the text value.
     pub fn val(mut self, text: impl Into<String>) -> Self {
@@ -36,27 +44,41 @@ The `class` property is used to select rules from the style engine, like you wou
 ## Conditional rendering
 While the previous example is already pretty useful when declaring a user interface component, you typically want to turn some parts of your user interface on and off based on the state. Pixel widgets declarative syntax supports if statements for this reason. 
 ```rust
-view! {
-    Column => {
-        Text [val = "Hello world"],
+use pixel_widgets::prelude::*;
 
-        :if state.show_secret => Text [val = "Secret message"],
+struct State {
+    show_secret: bool,
+    foo: bool,
+    bar: bool,
+}
 
-        :if state.foo => Text [val = "foo"],
-        :else if state.bar => Text [val = "bar"],
-        :else => Text [val = "foobar"],
+fn view<'a>(state: &'a State) -> Node<'a, ()> {
+    view! {
+        Column() => {
+            Text(val = "Hello world")
+
+            :if state.show_secret => Text(val = "Secret message")
+
+            :if state.foo => Text(val = "foo")
+            :else if state.bar => Text(val = "bar")
+            :else => Text(val = "foobar")
+        }
     }
 }
 ```
 Note that these statements only support single widgets, and no groups. This is unfortunately a limitation of the way the macro works. If you would like to conditionally render multiple widgets, you should wrap them in a layout, like so:
 ```rust
-view! {
-    Column => {
-        Text [val = "Title"],
-        :if 2 > 1 => Column => {
-            Text [val = "Line 1"],
-            Text [val = "Line 2"],
-            Text [val = "Line 3"]
+use pixel_widgets::prelude::*;
+
+fn view<'a>() -> Node<'a, ()> {
+    view! {
+        Column() => {
+            Text(val = "Title")
+            :if 2 > 1 => Column() => {
+                Text(val = "Line 1")
+                Text(val = "Line 2")
+                Text(val = "Line 3")
+            }
         }
     }
 }
@@ -65,11 +87,19 @@ view! {
 ## Iteration
 If you are making a list of items, or maybe populating a dropdown, for loops can come in really handy. This example shows how to popuplate a dropdown box using a declarative for loop.
 ```rust
-let options = ["Option A", "Option B", "Option C"];
+use pixel_widgets::prelude::*;
 
-view! {
-    Dropdown => {
-        :for option in options => Text [val=option]
+enum Msg {
+    Selected(usize),
+}
+
+fn view<'a>() -> Node<'a, Msg> {
+    let options = ["Option A", "Option B", "Option C"];
+
+    view! {
+        Dropdown(on_select = Msg::Selected) => {
+            :for option in options => Text(val=option)
+        }
     }
 }
 ```
@@ -80,9 +110,3 @@ Not just widgets can be used in declarative syntax. In fact, any type that imple
 
 ### Properties
 You see, the properties that we have been using through this guide work by calling methods on the default constructed widgets. For a property to work, you must make a method that takes `self` and one argument. It also has to return `Self`. You can then use the method as a property in declarative syntax.
-
-
-## todo
-- document classes
-- further document properties
-- :for multiple widgets per iteration

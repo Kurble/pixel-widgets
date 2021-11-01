@@ -47,18 +47,18 @@ impl Component for Tour {
         ];
 
         view! {
-            Layers => {
-                Column => {
-                    Button [text="Menu", on_clicked=Message::ShowContext(0.0, 32.0)],
-                    Spacer,
-                    Row => {
-                        Spacer,
-                        Button [text="Open dummy", on_clicked=Message::ShowDummy(!state.show_dummy)],
-                        Button [text="Open login", on_clicked=Message::ShowLogin(!state.show_login)]
+            Layers() => {
+                Column() => {
+                    Button(text="Menu", on_clicked=Message::ShowContext(0.0, 32.0))
+                    Spacer()
+                    Row() => {
+                        Spacer()
+                        Button(text="Open dummy", on_clicked=Message::ShowDummy(!state.show_dummy))
+                        Button(text="Open login", on_clicked=Message::ShowLogin(!state.show_login))
                     }
-                },
+                }
 
-                :if let Some(pos) = state.context_position => Menu [
+                :if let Some(pos) = state.context_position => Menu(
                     position=pos,
                     on_close=Message::CloseContext,
                     items=vec![
@@ -72,11 +72,11 @@ impl Component for Tour {
                         MenuItem::item("Option D", None)
                     ],
                     key = 0
-                ],
+                )
 
-                :if state.show_dummy => DummyWindow,
+                :if state.show_dummy => DummyWindow()
 
-                :if state.show_login => LoginWindow
+                :if state.show_login => LoginWindow()
             }
         }
     }

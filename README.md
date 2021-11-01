@@ -40,10 +40,11 @@ enum Message {
 ```
 
 And finally, we must implement [`Component`](component/trait.Component.html)
-```rust
+```rust no_run
 use pixel_widgets::prelude::*;
 
 // The main component for our simple application
+#[derive(Default)]
 struct Counter {
     initial_value: i32,
 }
@@ -70,10 +71,10 @@ impl Component for Counter {
         // You can build the view using declarative syntax with the view! macro,
         //  but you can also construct widgets using normal rust code.
         view! {
-            Column => {
-                Button [text="Up", on_clicked=Message::UpPressed],
-                Text [val=format!("Count: {}", *state)],
-                Button [text="Down", on_clicked=Message::DownPressed]
+            Column() => {
+                Button(text="Up", on_clicked=Message::UpPressed)
+                Text(val=format!("Count: {}", *state))
+                Button(text="Down", on_clicked=Message::DownPressed)
             }
         }
     }
@@ -92,7 +93,7 @@ async fn main() {
     let window = winit::window::WindowBuilder::new()
         .with_title("Counter")
         .with_inner_size(winit::dpi::LogicalSize::new(240, 240));
-    Sandbox::new(Counter, window).await.run().await;
+    Sandbox::new(Counter { initial_value: 15 }, window).await.run().await;
 }
 ```
 # Examples

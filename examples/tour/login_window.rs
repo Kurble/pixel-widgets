@@ -22,26 +22,26 @@ impl Component for LoginWindow {
 
     fn view<'a>(&'a self, state: &'a LoginWindowState) -> Node<'a, Message> {
         view! {
-            Window => {
-                Row [class="title"] => {
-                    Text [val="Login window", class="title"],
-                    Spacer,
-                    Spacer [class="close"]
-                },
-                Column => {
-                    Input [
+            Window() => {
+                Row(class="title") => {
+                    Text(val="Login window", class="title")
+                    Spacer()
+                    Spacer(class="close")
+                }
+                Column() => {
+                    Input(
                         placeholder="username",
                         val=state.name.as_str(),
                         on_change=Message::NameChanged,
                         trigger_key=Key::Enter
-                    ],
-                    Input [
+                    )
+                    Input(
                         placeholder="password",
                         val=state.password.as_str(),
                         on_change=Message::PasswordChanged,
                         password=true
-                    ],
-                    Button [text="Login", on_clicked=Message::LoginPressed]
+                    )
+                    Button(text="Login", on_clicked=Message::LoginPressed)
                 }
             }
         }

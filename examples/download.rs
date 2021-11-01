@@ -36,20 +36,20 @@ impl Component for Download {
 
     fn view<'a>(&'a self, state: &'a Self::State) -> Node<'a, Self::Message> {
         view! {
-            Column => {
-                Input [
+            Column() => {
+                Input(
                     placeholder="download link",
                     val=state.url.as_str(),
                     on_change=Message::UrlChanged
-                ],
+                )
 
-                Button [
+                Button(
                     text="Download",
                     on_clicked=Message::DownloadPressed
-                ],
+                )
 
-                Text [val=format!("Downloaded: {} / {} bytes", state.progress, state.size)],
-                Progress [val=state.progress as f32 / state.size as f32]
+                Text(val=format!("Downloaded: {} / {} bytes", state.progress, state.size))
+                Progress(val=state.progress as f32 / state.size as f32)
             }
         }
     }
