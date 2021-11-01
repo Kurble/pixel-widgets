@@ -99,11 +99,11 @@ async fn main() {
         .with_inner_size(winit::dpi::LogicalSize::new(960, 480));
 
     let mut sandbox = Sandbox::new(Tour, window).await;
-    sandbox.ui.set_style({
-        let mut s = Style::builder();
-        s.select("row").width(Size::Fill(1)).padding_all(2.0);
-        s.build()
-    });
+    sandbox.ui.set_style(
+        Style::builder()
+            .rule(RuleBuilder::new("row").width(Size::Fill(1)).padding_all(2.0))
+            .build(),
+    );
 
     sandbox.run().await;
 }

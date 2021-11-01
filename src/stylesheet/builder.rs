@@ -4,15 +4,15 @@ use super::*;
 
 /// Builds a style.
 pub struct StyleBuilder {
+    // maybe, instead of a cache, I could build a list of data to build later?
     pub(crate) cache: Cache,
     pub(crate) rule_tree: tree::RuleTreeBuilder,
 }
 
 /// Builder that adds style declarations to a selected rule.
-pub struct DeclarationBuilder<'a> {
+pub struct RuleBuilder {
     selector: Vec<Selector>,
     declarations: Vec<Declaration>,
-    root: &'a mut tree::RuleTreeBuilder,
 }
 
 impl StyleBuilder {
@@ -22,41 +22,48 @@ impl StyleBuilder {
     }
     /// Returns a new `StyleBuilder`.
     pub fn new_themed(foreground: Color, background: Color, primary: Color) -> Self {
-        let mut s = Self {
+        Self {
             cache: Cache::new(512, 0),
             rule_tree: tree::RuleTreeBuilder::new(Selector::Widget("*".into())),
-        };
-        s.select("*").color(foreground);
-        s.select("button")
-            .padding_all(5.0)
-            .margin_all(5.0)
-            .background_color(background);
-        s.select("button:hover")
-            .background_color(background.blend(primary, 0.5));
-        s.select("button:pressed").background_color(primary);
-        s.select("dropdown")
-            .background_color(background)
-            .color(background.blend(primary, 0.5))
-            .padding_all(5.0)
-            .margin_all(5.0);
-        s.select("input")
-            .width(300.0)
-            .background_color(Color::white())
-            .color(Color::black())
-            .padding_all(5.0)
-            .margin_all(5.0);
-        s.select("layers").width(Size::Fill(1)).height(Size::Fill(1));
-        s.select("menu")
-            .background_color(background)
-            .color(background.blend(primary, 0.5))
-            .padding_all(5.0);
-        s.select("spacer").width(Size::Fill(1)).height(Size::Fill(1));
-        s.select("window")
-            .background_color(background.blend(foreground, 0.2))
-            .padding_all(2.0);
-        s.select("window > *:nth-child(0)")
-            .background_color(background.blend(primary, 0.2));
-        s
+        }
+        .rule(RuleBuilder::new("*").color(foreground))
+        .rule(
+            RuleBuilder::new("button")
+                .padding_all(5.0)
+                .margin_all(5.0)
+                .background_color(background),
+        )
+        .rule(RuleBuilder::new("button:hover").background_color(background.blend(primary, 0.5)))
+        .rule(RuleBuilder::new("button:pressed").background_color(primary))
+        .rule(
+            RuleBuilder::new("dropdown")
+                .background_color(background)
+                .color(background.blend(primary, 0.5))
+                .padding_all(5.0)
+                .margin_all(5.0),
+        )
+        .rule(
+            RuleBuilder::new("input")
+                .width(300.0)
+                .background_color(Color::white())
+                .color(Color::black())
+                .padding_all(5.0)
+                .margin_all(5.0),
+        )
+        .rule(RuleBuilder::new("layers").width(Size::Fill(1)).height(Size::Fill(1)))
+        .rule(
+            RuleBuilder::new("menu")
+                .background_color(background)
+                .color(background.blend(primary, 0.5))
+                .padding_all(5.0),
+        )
+        .rule(RuleBuilder::new("spacer").width(Size::Fill(1)).height(Size::Fill(1)))
+        .rule(
+            RuleBuilder::new("window")
+                .background_color(background.blend(foreground, 0.2))
+                .padding_all(2.0),
+        )
+        .rule(RuleBuilder::new("window > *:nth-child(0)").background_color(background.blend(primary, 0.2)))
     }
 
     /// Puts an `RgbaImage` in the style cache.
@@ -78,12 +85,14 @@ impl StyleBuilder {
     ///  style declarations to the selected widgets.
     /// The `DeclarationBuilder` will automatically apply the declarations to this `StyleBuilder`
     ///  when it is dropped.
-    pub fn select<S: AsRef<str>>(&mut self, selector: S) -> DeclarationBuilder {
-        DeclarationBuilder {
-            selector: parse_selectors(tokenize(selector.as_ref().to_string()).unwrap()).unwrap(),
-            declarations: Vec::new(),
-            root: &mut self.rule_tree,
-        }
+    pub fn rule(mut self, builder: RuleBuilder) -> Self {
+        self.rule_tree.insert(builder.selector.as_slice(), builder.declarations);
+        self
+    }
+
+    /// Puts a StyleBuilder in a scope.
+    pub fn scope<S: AsRef<str>>(self, _selector: S, _builder: StyleBuilder) -> Self {
+        todo!()
     }
 
     /// Builds the `Style`.
@@ -118,7 +127,14 @@ impl Default for StyleBuilder {
     }
 }
 
-impl<'a> DeclarationBuilder<'a> {
+impl RuleBuilder {
+    /// Constructs a new `RuleBuilder` for a selector
+    pub fn new<S: AsRef<str>>(selector: S) -> Self {
+        Self {
+            selector: parse_selectors(tokenize(selector.as_ref().to_string()).unwrap()).unwrap(),
+            declarations: Vec::new(),
+        }
+    }
     /// Sets the background
     pub fn background(mut self, value: Background) -> Self {
         self.declarations.push(Declaration::Background(value));
@@ -274,14 +290,5 @@ impl<'a> DeclarationBuilder<'a> {
     pub fn remove_flag(mut self, value: String) -> Self {
         self.declarations.push(Declaration::RemoveFlag(value));
         self
-    }
-}
-
-impl<'a> Drop for DeclarationBuilder<'a> {
-    fn drop(&mut self) {
-        if !self.declarations.is_empty() {
-            self.root
-                .insert(self.selector.as_slice(), std::mem::take(&mut self.declarations));
-        }
     }
 }

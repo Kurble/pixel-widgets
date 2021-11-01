@@ -7,7 +7,7 @@ pub use crate::{
     layout::{Align, Direction, Rectangle, Size},
     node::component_node::State,
     node::*,
-    stylesheet::Style,
+    stylesheet::{RuleBuilder, Style, StyleBuilder},
     view,
     widget::*,
     Ui,
