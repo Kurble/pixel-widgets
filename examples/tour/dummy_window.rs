@@ -16,16 +16,16 @@ impl Component for DummyWindow {
         ];
 
         view! {
-            Window() => {
-                Row(class="title") => {
-                    Text(val="Dummy window", class="title")
-                    Spacer()
-                    Spacer(class="close")
+            Window => {
+                Row { class: "title" } => {
+                    Text { val: "Dummy window", class: "title" }
+                    Spacer
+                    Spacer { class: "close" }
                 }
-                Column() => {
-                    Text(val="Select a planet from the dropdown list: ")
-                    Dropdown(on_select=Message::PlanetSelected) => {
-                        :for &option in options.iter() => Text(val=option)
+                Column => {
+                    Text { val: "Select a planet from the dropdown list: " }
+                    Dropdown { on_select: Message::PlanetSelected } => {
+                        :for &option in options.iter() => Text { val: option }
                     }
                 }
             }

@@ -3,7 +3,7 @@ The [`view!`](#macro.view) macro allows you to design interactive user interface
 At it's core, the macro allow you to define a single widget and it's children. 
 
 ## A simple view
-Each widget is declared using it's type. The macro will then use the `Default` implementation of the widget to construct it. Optionally you can add some properties to the declaration, in between `[]` brackets. Finally, you have the option to add child widgets to the declaration in between `{}` braces.
+Each widget is declared using it's type. The macro will then use the `Default` implementation of the widget to construct it. Optionally you can add some properties to the declaration, as if you were filling in a struct. Finally, you have the option to add child widgets to the declaration in between `=> {}` braces.
 
 Let's take a look at an example.
 ```rust
@@ -11,9 +11,9 @@ use pixel_widgets::prelude::*;
 
 fn view<'a>() -> Node<'a, ()> {
     view! {
-        Column() => {
-            Text(val = "Hello world")
-            Button(text = "Click me")
+        Column => {
+            Text { val: "Hello world" },
+            Button { text: "Click me" },
         }
     }
 }
@@ -54,14 +54,14 @@ struct State {
 
 fn view<'a>(state: &'a State) -> Node<'a, ()> {
     view! {
-        Column() => {
-            Text(val = "Hello world")
+        Column => {
+            Text { val: "Hello world" },
 
-            :if state.show_secret => Text(val = "Secret message")
+            :if state.show_secret => Text { val: "Secret message" },
 
-            :if state.foo => Text(val = "foo")
-            :else if state.bar => Text(val = "bar")
-            :else => Text(val = "foobar")
+            :if state.foo => Text { val: "foo" },
+            :else if state.bar => Text { val: "bar" },
+            :else => Text { val: "foobar"},
         }
     }
 }
@@ -72,12 +72,12 @@ use pixel_widgets::prelude::*;
 
 fn view<'a>() -> Node<'a, ()> {
     view! {
-        Column() => {
-            Text(val = "Title")
-            :if 2 > 1 => Column() => {
-                Text(val = "Line 1")
-                Text(val = "Line 2")
-                Text(val = "Line 3")
+        Column => {
+            Text { val: "Title" },
+            :if 2 > 1 => Column => {
+                Text { val: "Line 1" },
+                Text { val: "Line 2" },
+                Text { val: "Line 3" },
             }
         }
     }
@@ -97,8 +97,8 @@ fn view<'a>() -> Node<'a, Msg> {
     let options = ["Option A", "Option B", "Option C"];
 
     view! {
-        Dropdown(on_select = Msg::Selected) => {
-            :for option in options => Text(val=option)
+        Dropdown { on_select: Msg::Selected } => {
+            :for option in options => Text { val: option },
         }
     }
 }

@@ -30,10 +30,10 @@ impl Component for Counter {
         // You can build the view using declarative syntax with the view! macro,
         //  but you can also construct widgets using normal rust code.
         view! {
-            Column() => {
-                Button(text="Up", on_clicked=Message::UpPressed)
-                Text(val=format!("Count: {}", *state))
-                Button(text="Down", on_clicked=Message::DownPressed)
+            Column => {
+                Button { text: "Up", on_clicked: Message::UpPressed },
+                Text { val: format!("Count: {}", *state) },
+                Button { text: "Down", on_clicked: Message::DownPressed },
             }
         }
     }
