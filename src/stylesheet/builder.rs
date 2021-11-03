@@ -1,18 +1,30 @@
 use image::RgbaImage;
 
 use super::*;
+use anyhow::*;
 
 /// Builds a style.
 pub struct StyleBuilder {
-    // maybe, instead of a cache, I could build a list of data to build later?
-    pub(crate) cache: Cache,
+    pub(crate) images: HashMap<String, RgbaImage>,
+    pub(crate) patches: HashMap<String, RgbaImage>,
+    pub(crate) fonts: HashMap<String, Vec<u8>>,
     pub(crate) rule_tree: tree::RuleTreeBuilder,
 }
+
+/// Handle to an image in a `StyleBuilder`.
+#[derive(Debug)]
+pub struct ImageId(pub(crate) String);
+/// Handle to a patch in a `StyleBuilder`.
+#[derive(Debug)]
+pub struct PatchId(pub(crate) String);
+/// Handle to a font in a `StyleBuilder`.
+#[derive(Debug)]
+pub struct FontId(pub(crate) String);
 
 /// Builder that adds style declarations to a selected rule.
 pub struct RuleBuilder {
     selector: Vec<Selector>,
-    declarations: Vec<Declaration>,
+    declarations: Vec<Declaration<ImageId, PatchId, FontId>>,
 }
 
 impl StyleBuilder {
@@ -23,7 +35,9 @@ impl StyleBuilder {
     /// Returns a new `StyleBuilder`.
     pub fn new_themed(foreground: Color, background: Color, primary: Color) -> Self {
         Self {
-            cache: Cache::new(512, 0),
+            images: Default::default(),
+            patches: Default::default(),
+            fonts: Default::default(),
             rule_tree: tree::RuleTreeBuilder::new(Selector::Widget("*".into())),
         }
         .rule(RuleBuilder::new("*").color(foreground))
@@ -67,18 +81,69 @@ impl StyleBuilder {
     }
 
     /// Puts an `RgbaImage` in the style cache.
-    pub fn load_image(&mut self, image: RgbaImage) -> ImageData {
-        self.cache.load_image(image)
+    pub fn load_image(&mut self, key: impl Into<String>, image: impl FnOnce() -> Result<RgbaImage>) -> Result<ImageId> {
+        let key = key.into();
+        if let std::collections::hash_map::Entry::Vacant(v) = self.images.entry(key.clone()) {
+            v.insert(image()?);
+        }
+        Ok(ImageId(key))
     }
 
     /// Puts a 9 patch `RgbaImage` in the style cache.
-    pub fn load_patch(&mut self, image: RgbaImage) -> Patch {
-        self.cache.load_patch(image)
+    pub fn load_patch(&mut self, key: impl Into<String>, patch: impl FnOnce() -> Result<RgbaImage>) -> Result<PatchId> {
+        let key = key.into();
+        if let std::collections::hash_map::Entry::Vacant(v) = self.patches.entry(key.clone()) {
+            v.insert(patch()?);
+        }
+        Ok(PatchId(key))
     }
 
     /// Puts a font loaded from a .ttf file in the style cache.
-    pub fn load_font(&mut self, font: impl Into<Vec<u8>>) -> Font {
-        self.cache.load_font(font)
+    pub fn load_font(&mut self, key: impl Into<String>, font: impl FnOnce() -> Result<Vec<u8>>) -> Result<FontId> {
+        let key = key.into();
+        if let std::collections::hash_map::Entry::Vacant(v) = self.fonts.entry(key.clone()) {
+            v.insert(font()?);
+        }
+        Ok(FontId(key))
+    }
+
+    /// Puts an `RgbaImage` in the style cache.
+    pub async fn load_image_async(
+        &mut self,
+        key: impl Into<String>,
+        image: impl Future<Output = Result<RgbaImage>>,
+    ) -> Result<ImageId> {
+        let key = key.into();
+        if let std::collections::hash_map::Entry::Vacant(v) = self.images.entry(key.clone()) {
+            v.insert(image.await?);
+        }
+        Ok(ImageId(key))
+    }
+
+    /// Puts a 9 patch `RgbaImage` in the style cache.
+    pub async fn load_patch_async(
+        &mut self,
+        key: impl Into<String>,
+        patch: impl Future<Output = Result<RgbaImage>>,
+    ) -> Result<PatchId> {
+        let key = key.into();
+        if let std::collections::hash_map::Entry::Vacant(v) = self.patches.entry(key.clone()) {
+            v.insert(patch.await?);
+        }
+        Ok(PatchId(key))
+    }
+
+    /// Puts a font loaded from a .ttf file in the style cache.
+    pub async fn load_font_async(
+        &mut self,
+        key: impl Into<String>,
+        font: impl Future<Output = Result<Vec<u8>>>,
+    ) -> Result<FontId> {
+        let key = key.into();
+        if let std::collections::hash_map::Entry::Vacant(v) = self.fonts.entry(key.clone()) {
+            v.insert(font.await?);
+        }
+        Ok(FontId(key))
     }
 
     /// Creates a `DeclarationBuilder` for the supplied selector. This can be used to add
@@ -96,10 +161,36 @@ impl StyleBuilder {
     }
 
     /// Builds the `Style`.
-    pub fn build(mut self) -> Arc<Style> {
-        let font = self.cache.load_font(include_bytes!("default_font.ttf").to_vec());
+    pub fn build(self) -> Arc<Style> {
+        let mut cache = Cache::new(512, 0);
+
+        let font = cache.load_font(include_bytes!("default_font.ttf").to_vec());
+
+        let images = self
+            .images
+            .into_iter()
+            .map(|(key, value)| (key, cache.load_image(value)))
+            .collect::<HashMap<String, ImageData>>();
+        let patches = self
+            .patches
+            .into_iter()
+            .map(|(key, value)| (key, cache.load_patch(value)))
+            .collect::<HashMap<String, Patch>>();
+        let fonts = self
+            .fonts
+            .into_iter()
+            .map(|(key, value)| (key, cache.load_font(value)))
+            .collect::<HashMap<String, Font>>();
+
+        println!("{:?}", self.rule_tree);
+
+        let mut rule_tree = tree::RuleTree::default();
+        self.rule_tree.flatten(&mut rule_tree, &images, &patches, &fonts);
+
+        println!("{:?}", rule_tree);
+
         Arc::new(Style {
-            cache: Arc::new(Mutex::new(self.cache)),
+            cache: Arc::new(Mutex::new(cache)),
             resolved: Default::default(),
             default: Stylesheet {
                 background: Background::None,
@@ -116,7 +207,7 @@ impl StyleBuilder {
                 align_vertical: Align::Begin,
                 flags: Vec::new(),
             },
-            rule_tree: self.rule_tree.into(),
+            rule_tree,
         })
     }
 }
@@ -135,25 +226,28 @@ impl RuleBuilder {
             declarations: Vec::new(),
         }
     }
-    /// Sets the background
-    pub fn background(mut self, value: Background) -> Self {
-        self.declarations.push(Declaration::Background(value));
+    /// Clears the background
+    pub fn background_none(mut self) -> Self {
+        self.declarations.push(Declaration::BackgroundNone);
         self
     }
     /// Sets the background to a color
-    pub fn background_color(self, color: Color) -> Self {
-        self.background(Background::Color(color))
+    pub fn background_color(mut self, color: Color) -> Self {
+        self.declarations.push(Declaration::BackgroundColor(color));
+        self
     }
     /// Sets the background to a colored image
-    pub fn background_image(self, image_data: ImageData, color: Color) -> Self {
-        self.background(Background::Image(image_data, color))
+    pub fn background_image(mut self, image_data: ImageId, color: Color) -> Self {
+        self.declarations.push(Declaration::BackgroundImage(image_data, color));
+        self
     }
     /// Sets the background to a colored patch
-    pub fn background_patch(self, patch: Patch, color: Color) -> Self {
-        self.background(Background::Patch(patch, color))
+    pub fn background_patch(mut self, patch: PatchId, color: Color) -> Self {
+        self.declarations.push(Declaration::BackgroundPatch(patch, color));
+        self
     }
     /// Sets the font
-    pub fn font(mut self, value: Font) -> Self {
+    pub fn font(mut self, value: FontId) -> Self {
         self.declarations.push(Declaration::Font(value));
         self
     }

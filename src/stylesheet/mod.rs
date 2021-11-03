@@ -100,11 +100,17 @@ pub struct Stylesheet {
 
 /// A property and a value
 #[derive(Debug)]
-pub enum Declaration {
-    /// background
-    Background(Background),
+pub enum Declaration<I = ImageId, P = PatchId, F = FontId> {
+    /// no background
+    BackgroundNone,
+    /// background color
+    BackgroundColor(Color),
+    /// background image
+    BackgroundImage(I, Color),
+    /// background patch
+    BackgroundPatch(P, Color),
     /// font
-    Font(Font),
+    Font(F),
     /// color
     Color(Color),
     /// padding
@@ -307,11 +313,14 @@ impl Stylesheet {
     }
 }
 
-impl Declaration {
+impl Declaration<ImageData, Patch, Font> {
     /// Apply values to a `Stylesheet`.
     pub fn apply(&self, stylesheet: &mut Stylesheet) {
         match self {
-            Declaration::Background(x) => stylesheet.background = x.clone(),
+            Declaration::BackgroundNone => stylesheet.background = Background::None,
+            Declaration::BackgroundColor(x) => stylesheet.background = Background::Color(x.clone()),
+            Declaration::BackgroundImage(x, y) => stylesheet.background = Background::Image(x.clone(), y.clone()),
+            Declaration::BackgroundPatch(x, y) => stylesheet.background = Background::Patch(x.clone(), y.clone()),
             Declaration::Font(x) => stylesheet.font = x.clone(),
             Declaration::Color(x) => stylesheet.color = *x,
             Declaration::Padding(x) => stylesheet.padding = *x,
