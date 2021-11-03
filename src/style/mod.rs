@@ -46,7 +46,7 @@ pub struct Style {
 }
 
 #[doc(hidden)]
-pub trait ReadFn {
+pub trait ReadFn: 'static + Clone {
     type Future: Future<Output = anyhow::Result<Vec<u8>>>;
 
     fn read(&self, path: &Path) -> Self::Future;
@@ -54,7 +54,7 @@ pub trait ReadFn {
 
 impl<T, F, E> ReadFn for T
 where
-    T: Fn(&Path) -> F,
+    T: 'static + Fn(&Path) -> F + Clone,
     F: Future<Output = Result<Vec<u8>, E>>,
     E: Into<anyhow::Error>,
 {

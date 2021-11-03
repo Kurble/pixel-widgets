@@ -3,13 +3,17 @@ use image::RgbaImage;
 use super::*;
 use crate::component::Component;
 use anyhow::*;
+use std::pin::Pin;
+
+type RgbaImageFuture = Pin<Box<dyn Future<Output = Result<RgbaImage>>>>;
+type DataFuture = Pin<Box<dyn Future<Output = Result<Vec<u8>>>>>;
 
 /// Builds a style.
 #[derive(Default)]
 pub struct StyleBuilder {
-    pub(crate) images: HashMap<String, RgbaImage>,
-    pub(crate) patches: HashMap<String, RgbaImage>,
-    pub(crate) fonts: HashMap<String, Vec<u8>>,
+    pub(crate) images: HashMap<String, RgbaImageFuture>,
+    pub(crate) patches: HashMap<String, RgbaImageFuture>,
+    pub(crate) fonts: HashMap<String, DataFuture>,
     pub(crate) rule_tree: tree::RuleTreeBuilder,
 }
 
@@ -95,69 +99,81 @@ impl StyleBuilder {
     }
 
     /// Puts an `RgbaImage` in the style cache.
-    pub fn load_image(&mut self, key: impl Into<String>, image: impl FnOnce() -> Result<RgbaImage>) -> Result<ImageId> {
+    pub fn load_image(
+        &mut self,
+        key: impl Into<String>,
+        image: impl FnOnce() -> Result<RgbaImage> + 'static,
+    ) -> Result<ImageId> {
         let key = key.into();
         if let std::collections::hash_map::Entry::Vacant(v) = self.images.entry(key.clone()) {
-            v.insert(image()?);
+            v.insert(Box::pin(async move { image() }));
         }
         Ok(ImageId(key))
     }
 
     /// Puts a 9 patch `RgbaImage` in the style cache.
-    pub fn load_patch(&mut self, key: impl Into<String>, patch: impl FnOnce() -> Result<RgbaImage>) -> Result<PatchId> {
+    pub fn load_patch(
+        &mut self,
+        key: impl Into<String>,
+        patch: impl FnOnce() -> Result<RgbaImage> + 'static,
+    ) -> Result<PatchId> {
         let key = key.into();
         if let std::collections::hash_map::Entry::Vacant(v) = self.patches.entry(key.clone()) {
-            v.insert(patch()?);
+            v.insert(Box::pin(async move { patch() }));
         }
         Ok(PatchId(key))
     }
 
     /// Puts a font loaded from a .ttf file in the style cache.
-    pub fn load_font(&mut self, key: impl Into<String>, font: impl FnOnce() -> Result<Vec<u8>>) -> Result<FontId> {
+    pub fn load_font(
+        &mut self,
+        key: impl Into<String>,
+        font: impl FnOnce() -> Result<Vec<u8>> + 'static,
+    ) -> Result<FontId> {
         let key = key.into();
         if let std::collections::hash_map::Entry::Vacant(v) = self.fonts.entry(key.clone()) {
-            v.insert(font()?);
+            v.insert(Box::pin(async move { font() }));
         }
         Ok(FontId(key))
     }
 
     /// Puts an `RgbaImage` in the style cache.
-    pub async fn load_image_async(
+    pub fn load_image_async(
         &mut self,
         key: impl Into<String>,
-        image: impl Future<Output = Result<RgbaImage>>,
-    ) -> Result<ImageId> {
+        image: impl Future<Output = Result<RgbaImage>> + 'static,
+    ) -> ImageId {
         let key = key.into();
         if let std::collections::hash_map::Entry::Vacant(v) = self.images.entry(key.clone()) {
-            v.insert(image.await?);
+            v.insert(Box::pin(image));
         }
-        Ok(ImageId(key))
+        ImageId(key)
     }
 
     /// Puts a 9 patch `RgbaImage` in the style cache.
-    pub async fn load_patch_async(
+    pub fn load_patch_async(
         &mut self,
         key: impl Into<String>,
-        patch: impl Future<Output = Result<RgbaImage>>,
-    ) -> Result<PatchId> {
+        patch: impl Future<Output = Result<RgbaImage>> + 'static,
+    ) -> PatchId {
         let key = key.into();
         if let std::collections::hash_map::Entry::Vacant(v) = self.patches.entry(key.clone()) {
-            v.insert(patch.await?);
+            v.insert(Box::pin(patch));
         }
-        Ok(PatchId(key))
+        PatchId(key)
     }
 
     /// Puts a font loaded from a .ttf file in the style cache.
-    pub async fn load_font_async(
+    pub fn load_font_async(
         &mut self,
         key: impl Into<String>,
-        font: impl Future<Output = Result<Vec<u8>>>,
-    ) -> Result<FontId> {
+        font: impl Future<Output = Result<Vec<u8>>> + 'static,
+    ) -> FontId {
         let key = key.into();
         if let std::collections::hash_map::Entry::Vacant(v) = self.fonts.entry(key.clone()) {
-            v.insert(font.await?);
+            v.insert(Box::pin(font));
         }
-        Ok(FontId(key))
+        FontId(key)
     }
 
     /// Creates a `DeclarationBuilder` for the supplied selector. This can be used to add
@@ -206,28 +222,27 @@ impl StyleBuilder {
     }
 
     /// Builds the `Style`.
-    pub fn build(mut self) -> Style {
-        let mut cache = Cache::new(512, 0);
-
+    pub async fn build_async(mut self) -> Style {
         self = Self::base(Color::white(), Color::rgb(0.3, 0.3, 0.3), Color::blue()).merge(self);
+
+        let mut cache = Cache::new(512, 0);
 
         let font = cache.load_font(include_bytes!("default_font.ttf").to_vec());
 
-        let images = self
-            .images
-            .into_iter()
-            .map(|(key, value)| (key, cache.load_image(value)))
-            .collect::<HashMap<String, ImageData>>();
-        let patches = self
-            .patches
-            .into_iter()
-            .map(|(key, value)| (key, cache.load_patch(value)))
-            .collect::<HashMap<String, Patch>>();
-        let fonts = self
-            .fonts
-            .into_iter()
-            .map(|(key, value)| (key, cache.load_font(value)))
-            .collect::<HashMap<String, Font>>();
+        let mut images = HashMap::new();
+        for (key, value) in self.images {
+            images.insert(key, cache.load_image(value.await.unwrap()));
+        }
+
+        let mut patches = HashMap::new();
+        for (key, value) in self.patches {
+            patches.insert(key, cache.load_patch(value.await.unwrap()));
+        }
+
+        let mut fonts = HashMap::new();
+        for (key, value) in self.fonts {
+            fonts.insert(key, cache.load_font(value.await.unwrap()));
+        }
 
         let mut rule_tree = tree::RuleTree::default();
         self.rule_tree.flatten(&mut rule_tree, &images, &patches, &fonts);
@@ -252,6 +267,11 @@ impl StyleBuilder {
             },
             rule_tree,
         }
+    }
+
+    /// Builds the `Style`.
+    pub fn build(self) -> Style {
+        futures::executor::block_on(self.build_async())
     }
 }
 
