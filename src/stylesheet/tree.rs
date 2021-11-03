@@ -1,13 +1,13 @@
 use crate::bitset::BitSet;
 use crate::draw::Patch;
-use crate::stylesheet::{Declaration, FontId, ImageId, PatchId, Selector, SelectorWidget, Style, StyleState};
+use crate::stylesheet::{Declaration, FontId, ImageId, PatchId, Selector, Style, StyleState};
 use crate::text::Font;
 use crate::widget::image::ImageData;
 use std::collections::HashMap;
 use std::iter::FromIterator;
 use std::sync::Arc;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub(crate) struct RuleTree {
     rules: Vec<Rule>,
 }
@@ -106,18 +106,6 @@ impl RuleTree {
         }
 
         result
-    }
-}
-
-impl Default for RuleTree {
-    fn default() -> Self {
-        Self {
-            rules: vec![Rule {
-                selector: Selector::Widget(SelectorWidget::Any),
-                declarations: vec![],
-                children: vec![],
-            }],
-        }
     }
 }
 

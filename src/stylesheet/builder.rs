@@ -182,12 +182,8 @@ impl StyleBuilder {
             .map(|(key, value)| (key, cache.load_font(value)))
             .collect::<HashMap<String, Font>>();
 
-        println!("{:?}", self.rule_tree);
-
         let mut rule_tree = tree::RuleTree::default();
         self.rule_tree.flatten(&mut rule_tree, &images, &patches, &fonts);
-
-        println!("{:?}", rule_tree);
 
         Arc::new(Style {
             cache: Arc::new(Mutex::new(cache)),
