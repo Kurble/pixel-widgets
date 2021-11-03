@@ -7,14 +7,15 @@ use wgpu::*;
 
 use crate::draw::{Command as DrawCommand, DrawList, Update, Vertex};
 use crate::layout::Rectangle;
+use crate::style::Style;
 use crate::Component;
 use std::num::NonZeroU32;
 use wgpu::util::DeviceExt;
 
 /// Wrapper for [`Ui`](../../struct.Ui.html) that adds wgpu rendering.
 /// Requires the "wgpu" feature.
-pub struct Ui<M: 'static + Component> {
-    inner: crate::Ui<M>,
+pub struct Ui<C: 'static + Component> {
+    inner: crate::Ui<C>,
     pipeline: RenderPipeline,
     bind_group_layout: BindGroupLayout,
     sampler: Sampler,
@@ -28,14 +29,20 @@ struct TextureEntry {
     bind_group: BindGroup,
 }
 
-impl<M: Component> Ui<M> {
+impl<C: Component> Ui<C> {
     /// Constructs a new `Ui` using the default style.
     /// This is not recommended as the default style is very empty and only renders white text.
-    pub fn new(root_component: M, viewport: Rectangle, format: wgpu::TextureFormat, device: &Device) -> Self {
-        Self::new_inner(crate::Ui::new(root_component, viewport), format, device)
+    pub fn new(
+        root_component: C,
+        viewport: Rectangle,
+        style: impl Into<Style>,
+        format: wgpu::TextureFormat,
+        device: &Device,
+    ) -> Self {
+        Self::new_inner(crate::Ui::new(root_component, viewport, style), format, device)
     }
 
-    fn new_inner(inner: crate::Ui<M>, format: wgpu::TextureFormat, device: &Device) -> Self {
+    fn new_inner(inner: crate::Ui<C>, format: wgpu::TextureFormat, device: &Device) -> Self {
         let shader_module = device.create_shader_module(&ShaderModuleDescriptor {
             label: Some("wgpu.wgsl"),
             source: wgpu::ShaderSource::Wgsl(include_str!("wgpu.wgsl").into()),
@@ -302,15 +309,15 @@ impl<M: Component> Ui<M> {
     }
 }
 
-impl<M: Component> Deref for Ui<M> {
-    type Target = crate::Ui<M>;
+impl<C: Component> Deref for Ui<C> {
+    type Target = crate::Ui<C>;
 
     fn deref(&self) -> &Self::Target {
         &self.inner
     }
 }
 
-impl<M: Component> DerefMut for Ui<M> {
+impl<C: Component> DerefMut for Ui<C> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.inner
     }

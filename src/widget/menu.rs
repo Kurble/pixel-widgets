@@ -4,7 +4,7 @@ use crate::draw::Primitive;
 use crate::event::{Event, Key};
 use crate::layout::{Rectangle, Size};
 use crate::node::{GenericNode, IntoNode, Node};
-use crate::stylesheet::Stylesheet;
+use crate::style::Stylesheet;
 use crate::widget::{Context, Widget};
 
 /// A (context) menu with nestable items

@@ -9,7 +9,7 @@ use crate::draw::*;
 use crate::event::{Event, Key, Modifiers};
 use crate::layout::{Rectangle, Size};
 use crate::node::{GenericNode, IntoNode, Node};
-use crate::stylesheet::Stylesheet;
+use crate::style::Stylesheet;
 use crate::text::{Text, TextWrap};
 use crate::widget::{Context, Widget};
 

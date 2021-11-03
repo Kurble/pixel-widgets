@@ -6,7 +6,7 @@ use crate::draw::*;
 use crate::event::{Event, Key};
 use crate::layout::{Rectangle, Size};
 use crate::node::{GenericNode, IntoNode, Node};
-use crate::stylesheet::{StyleState, Stylesheet};
+use crate::style::{StyleState, Stylesheet};
 use crate::widget::{Context, StateVec, Widget};
 
 /// A clickable button

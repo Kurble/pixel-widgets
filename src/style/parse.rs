@@ -38,10 +38,10 @@ impl<I: Iterator<Item = Token>> TokenProvider<I> {
     }
 }
 
-pub async fn parse(tokens: Vec<Token>, loader: impl ReadFn) -> anyhow::Result<Arc<Style>> {
+pub async fn parse(tokens: Vec<Token>, loader: impl ReadFn) -> anyhow::Result<StyleBuilder> {
     let mut builder = Style::builder();
 
-    let mut rule_tree = RuleTreeBuilder::new(Selector::Widget(SelectorWidget::Any));
+    let mut rule_tree = RuleTreeBuilder::new();
 
     {
         let mut context = LoadContext {
@@ -60,7 +60,7 @@ pub async fn parse(tokens: Vec<Token>, loader: impl ReadFn) -> anyhow::Result<Ar
 
     builder.rule_tree.merge(rule_tree);
 
-    Ok(builder.build())
+    Ok(builder)
 }
 
 pub fn parse_selectors(tokens: Vec<Token>) -> anyhow::Result<Vec<Selector>> {

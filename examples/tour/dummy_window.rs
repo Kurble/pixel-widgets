@@ -32,6 +32,10 @@ impl Component for DummyWindow {
         }
     }
 
+    fn style() -> StyleBuilder {
+        StyleBuilder::default().rule(RuleBuilder::new("window").background_color(Color::rgb(0.5, 0.3, 0.3)))
+    }
+
     fn update(&self, message: Message, _: State<()>, _: Context<Message, Message>) {
         if let Message::PlanetSelected(planet) = message {
             println!("{} selected from the planets", planet);

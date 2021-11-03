@@ -1,6 +1,7 @@
 use pixel_widgets::event::Key;
 use pixel_widgets::prelude::*;
 use pixel_widgets::widget::menu::MenuItem;
+use winit::window::WindowBuilder;
 
 #[derive(Default)]
 struct Tour;
@@ -74,9 +75,9 @@ impl Component for Tour {
                     key: 0
                 }
 
-                :if state.show_dummy => DummyWindow
+                :if state.show_dummy => DummyWindow,
 
-                :if state.show_login => LoginWindow
+                :if state.show_login => LoginWindow,
             }
         }
     }
@@ -94,16 +95,17 @@ impl Component for Tour {
 
 #[tokio::main]
 async fn main() {
-    let window = winit::window::WindowBuilder::new()
-        .with_title("Tour")
-        .with_inner_size(winit::dpi::LogicalSize::new(960, 480));
-
-    let mut sandbox = Sandbox::new(Tour, window).await;
-    sandbox.ui.set_style(
+    Sandbox::new(
+        Tour,
         Style::builder()
-            .rule(RuleBuilder::new("row").width(Size::Fill(1)).padding_all(2.0))
-            .build(),
-    );
-
-    sandbox.run().await;
+            .rule(RuleBuilder::new("row").fill_width().padding_all(2.0))
+            .component::<DummyWindow>()
+            .component::<LoginWindow>(),
+        WindowBuilder::new()
+            .with_title("Tour")
+            .with_inner_size(winit::dpi::LogicalSize::new(960, 480)),
+    )
+    .await
+    .run()
+    .await;
 }

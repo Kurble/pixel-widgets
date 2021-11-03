@@ -5,7 +5,7 @@ use std::ops::{Deref, DerefMut};
 use crate::draw::Primitive;
 use crate::event::Event;
 use crate::layout::{Rectangle, Size};
-use crate::stylesheet::tree::Query;
+use crate::style::tree::Query;
 use crate::tracker::ManagedStateTracker;
 use crate::widget::{Context, Widget};
 use crate::Component;

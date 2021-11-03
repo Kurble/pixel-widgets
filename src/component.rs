@@ -7,6 +7,7 @@ use futures::Stream;
 
 use crate::node::component_node::{Runtime, State};
 use crate::node::Node;
+use crate::style::StyleBuilder;
 use crate::widget::Context as WidgetContext;
 
 /// A re-usable component for defining a fragment of a user interface.
@@ -44,6 +45,11 @@ pub trait Component: Default {
         _state: State<Self::State>,
         _context: Context<Self::Message, Self::Output>,
     ) {
+    }
+
+    /// Returns a `StyleBuilder` with styling information scoped to this component.
+    fn style() -> StyleBuilder {
+        StyleBuilder::default()
     }
 
     /// Converts the component into a `Node`. This is used by the library to

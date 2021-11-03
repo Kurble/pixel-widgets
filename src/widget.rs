@@ -30,7 +30,7 @@ use crate::draw::Primitive;
 use crate::event::Event;
 use crate::layout::*;
 use crate::node::GenericNode;
-use crate::stylesheet::*;
+use crate::style::*;
 
 pub use self::button::Button;
 pub use self::column::Column;

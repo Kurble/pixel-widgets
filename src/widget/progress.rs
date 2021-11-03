@@ -1,7 +1,7 @@
 use crate::draw::Primitive;
 use crate::layout::{Direction, Rectangle, Size};
 use crate::node::{GenericNode, IntoNode, Node};
-use crate::stylesheet::Stylesheet;
+use crate::style::Stylesheet;
 use crate::widget::{Dummy, Widget};
 
 /// A progress bar that fill up according to some progress

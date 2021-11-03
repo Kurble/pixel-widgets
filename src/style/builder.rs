@@ -1,9 +1,11 @@
 use image::RgbaImage;
 
 use super::*;
+use crate::component::Component;
 use anyhow::*;
 
 /// Builds a style.
+#[derive(Default)]
 pub struct StyleBuilder {
     pub(crate) images: HashMap<String, RgbaImage>,
     pub(crate) patches: HashMap<String, RgbaImage>,
@@ -28,56 +30,68 @@ pub struct RuleBuilder {
 }
 
 impl StyleBuilder {
-    /// Returns a new `StyleBuilder`.
-    pub fn new() -> Self {
-        Self::new_themed(Color::white(), Color::rgb(0.3, 0.3, 0.3), Color::blue())
+    fn base(foreground: Color, background: Color, primary: Color) -> Self {
+        Self::default()
+            .rule(RuleBuilder::new("*").color(foreground))
+            .rule(
+                RuleBuilder::new("button")
+                    .padding_all(5.0)
+                    .margin_all(5.0)
+                    .background_color(background),
+            )
+            .rule(RuleBuilder::new("button:hover").background_color(background.blend(primary, 0.5)))
+            .rule(RuleBuilder::new("button:pressed").background_color(primary))
+            .rule(
+                RuleBuilder::new("dropdown")
+                    .background_color(background)
+                    .color(background.blend(primary, 0.5))
+                    .padding_all(5.0)
+                    .margin_all(5.0),
+            )
+            .rule(
+                RuleBuilder::new("input")
+                    .width(300.0)
+                    .background_color(Color::white())
+                    .color(Color::black())
+                    .padding_all(5.0)
+                    .margin_all(5.0),
+            )
+            .rule(RuleBuilder::new("layers").fill_width().fill_height())
+            .rule(
+                RuleBuilder::new("menu")
+                    .background_color(background)
+                    .color(background.blend(primary, 0.5))
+                    .padding_all(5.0),
+            )
+            .rule(RuleBuilder::new("spacer").fill_width().fill_height())
+            .rule(
+                RuleBuilder::new("window")
+                    .background_color(background.blend(foreground, 0.2))
+                    .padding_all(2.0),
+            )
+            .rule(RuleBuilder::new("window > *:nth-child(0)").background_color(background.blend(primary, 0.2)))
     }
-    /// Returns a new `StyleBuilder`.
-    pub fn new_themed(foreground: Color, background: Color, primary: Color) -> Self {
-        Self {
-            images: Default::default(),
-            patches: Default::default(),
-            fonts: Default::default(),
-            rule_tree: tree::RuleTreeBuilder::new(Selector::Widget("*".into())),
-        }
-        .rule(RuleBuilder::new("*").color(foreground))
-        .rule(
-            RuleBuilder::new("button")
-                .padding_all(5.0)
-                .margin_all(5.0)
-                .background_color(background),
-        )
-        .rule(RuleBuilder::new("button:hover").background_color(background.blend(primary, 0.5)))
-        .rule(RuleBuilder::new("button:pressed").background_color(primary))
-        .rule(
-            RuleBuilder::new("dropdown")
-                .background_color(background)
-                .color(background.blend(primary, 0.5))
-                .padding_all(5.0)
-                .margin_all(5.0),
-        )
-        .rule(
-            RuleBuilder::new("input")
-                .width(300.0)
-                .background_color(Color::white())
-                .color(Color::black())
-                .padding_all(5.0)
-                .margin_all(5.0),
-        )
-        .rule(RuleBuilder::new("layers").width(Size::Fill(1)).height(Size::Fill(1)))
-        .rule(
-            RuleBuilder::new("menu")
-                .background_color(background)
-                .color(background.blend(primary, 0.5))
-                .padding_all(5.0),
-        )
-        .rule(RuleBuilder::new("spacer").width(Size::Fill(1)).height(Size::Fill(1)))
-        .rule(
-            RuleBuilder::new("window")
-                .background_color(background.blend(foreground, 0.2))
-                .padding_all(2.0),
-        )
-        .rule(RuleBuilder::new("window > *:nth-child(0)").background_color(background.blend(primary, 0.2)))
+
+    /// Asynchronously load a stylesheet from a .pwss file. See the [style module documentation](../index.html) on how to write
+    /// .pwss files.
+    pub async fn from_read_fn<P, R>(path: P, read: R) -> anyhow::Result<Self>
+    where
+        P: AsRef<Path>,
+        R: ReadFn,
+    {
+        let text = String::from_utf8(read.read(path.as_ref()).await?).unwrap();
+        Ok(parse(tokenize(text)?, read).await?)
+    }
+
+    /// Synchronously load a stylesheet from a .pwss file. See the [style module documentation](../index.html) on how to write
+    /// .pwss files.
+    pub fn from_file<P>(path: P) -> anyhow::Result<Self>
+    where
+        P: AsRef<Path>,
+    {
+        futures::executor::block_on(Self::from_read_fn(path, |path: &Path| {
+            std::future::ready(std::fs::read(path))
+        }))
     }
 
     /// Puts an `RgbaImage` in the style cache.
@@ -155,14 +169,47 @@ impl StyleBuilder {
         self
     }
 
-    /// Puts a StyleBuilder in a scope.
-    pub fn scope<S: AsRef<str>>(self, _selector: S, _builder: StyleBuilder) -> Self {
-        todo!()
+    /// Put the current contents behind a scope
+    pub fn scope<S: AsRef<str>>(mut self, selector: S) -> Self {
+        let mut old = std::mem::take(&mut self.rule_tree);
+
+        let selector = parse_selectors(tokenize(selector.as_ref().to_string()).unwrap()).unwrap();
+        if let Some(new_root) = selector.as_slice().last() {
+            old.selector = new_root.clone();
+        }
+        self.rule_tree.select(selector.as_slice()).merge(old);
+
+        self
+    }
+
+    /// Merge with another `StyleBuilder`.
+    pub fn merge(mut self, builder: StyleBuilder) -> Self {
+        self.images.extend(builder.images);
+        self.patches.extend(builder.patches);
+        self.fonts.extend(builder.fonts);
+        self.rule_tree.merge(builder.rule_tree);
+        self
+    }
+
+    /// Include the scoped style of a `Component`.
+    pub fn component<C: Component>(mut self) -> Self {
+        let mut builder = C::style();
+        self.images.extend(builder.images);
+        self.patches.extend(builder.patches);
+        self.fonts.extend(builder.fonts);
+        let name = std::any::type_name::<C>().to_string();
+        builder.rule_tree.selector = Selector::Widget(SelectorWidget::Some(name.clone()));
+        self.rule_tree
+            .select(&[Selector::Widget(SelectorWidget::Some(name))])
+            .merge(builder.rule_tree);
+        self
     }
 
     /// Builds the `Style`.
-    pub fn build(self) -> Arc<Style> {
+    pub fn build(mut self) -> Style {
         let mut cache = Cache::new(512, 0);
+
+        self = Self::base(Color::white(), Color::rgb(0.3, 0.3, 0.3), Color::blue()).merge(self);
 
         let font = cache.load_font(include_bytes!("default_font.ttf").to_vec());
 
@@ -185,7 +232,7 @@ impl StyleBuilder {
         let mut rule_tree = tree::RuleTree::default();
         self.rule_tree.flatten(&mut rule_tree, &images, &patches, &fonts);
 
-        Arc::new(Style {
+        Style {
             cache: Arc::new(Mutex::new(cache)),
             resolved: Default::default(),
             default: Stylesheet {
@@ -204,13 +251,13 @@ impl StyleBuilder {
                 flags: Vec::new(),
             },
             rule_tree,
-        })
+        }
     }
 }
 
-impl Default for StyleBuilder {
-    fn default() -> Self {
-        Self::new()
+impl Into<Style> for StyleBuilder {
+    fn into(self) -> Style {
+        self.build()
     }
 }
 
@@ -351,9 +398,19 @@ impl RuleBuilder {
         self.declarations.push(Declaration::Width(value.into()));
         self
     }
+    /// Sets the preferred width to Size::Fill(1)
+    pub fn fill_width(mut self) -> Self {
+        self.declarations.push(Declaration::Width(Size::Fill(1)));
+        self
+    }
     /// Sets the preferred height
     pub fn height(mut self, value: impl Into<Size>) -> Self {
         self.declarations.push(Declaration::Height(value.into()));
+        self
+    }
+    /// Sets the preferred height to Size::Fill(1)
+    pub fn fill_height(mut self) -> Self {
+        self.declarations.push(Declaration::Height(Size::Fill(1)));
         self
     }
     /// Sets the direction for layouting

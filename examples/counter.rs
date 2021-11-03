@@ -49,9 +49,14 @@ impl Component for Counter {
 
 #[tokio::main]
 async fn main() {
-    let window = WindowBuilder::new()
-        .with_title("Counter")
-        .with_inner_size(winit::dpi::LogicalSize::new(240, 240));
-    let component = Counter { initial_value: 15 };
-    Sandbox::new(component, window).await.run().await;
+    Sandbox::new(
+        Counter { initial_value: 15 },
+        StyleBuilder::default(),
+        WindowBuilder::new()
+            .with_title("Counter")
+            .with_inner_size(winit::dpi::LogicalSize::new(240, 240)),
+    )
+    .await
+    .run()
+    .await;
 }

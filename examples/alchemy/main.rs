@@ -220,10 +220,11 @@ async fn main() {
     let window = WindowBuilder::new()
         .with_title("Alchemy Game")
         .with_inner_size(winit::dpi::LogicalSize::new(800, 360));
-
-    let style = Style::from_file("examples/alchemy/alchemy.pwss").unwrap();
-    let mut sandbox = Sandbox::new(Alchemy::new(style.graphics()), window).await;
-    sandbox.ui.set_style(style);
-
-    sandbox.run().await;
+    let style = StyleBuilder::from_file("examples/alchemy/alchemy.pwss")
+        .unwrap()
+        .build();
+    Sandbox::new(Alchemy::new(style.graphics()), style, window)
+        .await
+        .run()
+        .await;
 }

@@ -156,6 +156,8 @@ pub enum Declaration<I = ImageId, P = PatchId, F = FontId> {
 /// A stylesheet selector, which widgets have to match against.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Selector {
+    /// Should be ignored when building
+    Root,
     /// Match a widget
     Widget(SelectorWidget),
     /// Match a widget that is a direct child of the parent
@@ -247,7 +249,7 @@ impl Style {
 
     /// Returns a new `StyleBuilder`.
     pub fn builder() -> StyleBuilder {
-        StyleBuilder::new()
+        StyleBuilder::default()
     }
 
     pub(crate) fn get(&self, style: &BitSet) -> Arc<Stylesheet> {
@@ -275,28 +277,6 @@ impl Style {
     /// Retrieve a `Graphics` loader that can be used to load images
     pub fn graphics(&self) -> Graphics {
         Graphics { cache: self.cache() }
-    }
-
-    /// Asynchronously load a stylesheet from a .pwss file. See the [module documentation](index.html) on how to write
-    /// .pwss files.
-    pub async fn from_read_fn<P, R>(path: P, read: R) -> anyhow::Result<Arc<Self>>
-    where
-        P: AsRef<Path>,
-        R: ReadFn,
-    {
-        let text = String::from_utf8(read.read(path.as_ref()).await?).unwrap();
-        Ok(parse(tokenize(text)?, read).await?)
-    }
-
-    /// Synchronously load a stylesheet from a .pwss file. See the [module documentation](index.html) on how to write
-    /// .pwss files.
-    pub fn from_file<P>(path: P) -> anyhow::Result<Arc<Self>>
-    where
-        P: AsRef<Path>,
-    {
-        futures::executor::block_on(Self::from_read_fn(path, |path: &Path| {
-            std::future::ready(std::fs::read(path))
-        }))
     }
 }
 

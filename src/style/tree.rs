@@ -1,6 +1,6 @@
 use crate::bitset::BitSet;
 use crate::draw::Patch;
-use crate::stylesheet::{Declaration, FontId, ImageId, PatchId, Selector, Style, StyleState};
+use crate::style::{Declaration, FontId, ImageId, PatchId, Selector, Style, StyleState};
 use crate::text::Font;
 use crate::widget::image::ImageData;
 use std::collections::HashMap;
@@ -21,9 +21,9 @@ pub(crate) struct Rule {
 
 #[derive(Debug)]
 pub(crate) struct RuleTreeBuilder {
-    selector: Selector,
-    declarations: Vec<Declaration<ImageId, PatchId, FontId>>,
-    children: Vec<RuleTreeBuilder>,
+    pub selector: Selector,
+    pub declarations: Vec<Declaration<ImageId, PatchId, FontId>>,
+    pub children: Vec<RuleTreeBuilder>,
 }
 
 #[derive(Clone)]
@@ -110,9 +110,9 @@ impl RuleTree {
 }
 
 impl RuleTreeBuilder {
-    pub fn new(selector: Selector) -> Self {
+    pub fn new() -> Self {
         RuleTreeBuilder {
-            selector,
+            selector: Selector::Root,
             declarations: Vec::new(),
             children: Vec::new(),
         }
@@ -120,8 +120,13 @@ impl RuleTreeBuilder {
 
     /// Recursively insert some rules at the selectors path
     pub fn insert(&mut self, selectors: impl AsRef<[Selector]>, rules: Vec<Declaration<ImageId, PatchId, FontId>>) {
+        self.select(selectors).declarations.extend(rules);
+    }
+
+    /// Get or create a `RuleTreeBuilder` at the selector path
+    pub fn select(&mut self, selectors: impl AsRef<[Selector]>) -> &mut Self {
         match selectors.as_ref().get(0) {
-            None => self.declarations.extend(rules),
+            None => self,
             Some(selector) => {
                 let mut index = self.children.len();
 
@@ -140,7 +145,7 @@ impl RuleTreeBuilder {
                     });
                 }
 
-                self.children[index].insert(&selectors.as_ref()[1..], rules);
+                self.children[index].select(&selectors.as_ref()[1..])
             }
         }
     }
@@ -171,6 +176,7 @@ impl RuleTreeBuilder {
         fonts: &HashMap<String, Font>,
     ) -> usize {
         let index = into.rules.len();
+
         into.rules.push(Rule {
             selector: self.selector,
             declarations: self
@@ -211,7 +217,14 @@ impl RuleTreeBuilder {
             let child = child.flatten(into, images, patches, fonts);
             into.rules[index].children.push(child);
         }
+
         index
+    }
+}
+
+impl Default for RuleTreeBuilder {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

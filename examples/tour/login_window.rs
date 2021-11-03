@@ -47,6 +47,10 @@ impl Component for LoginWindow {
         }
     }
 
+    fn style() -> StyleBuilder {
+        StyleBuilder::default().rule(RuleBuilder::new("window").background_color(Color::rgb(0.3, 0.3, 0.5)))
+    }
+
     fn update(&self, message: Message, mut state: State<LoginWindowState>, _: Context<Message, Message>) {
         match message {
             Message::NameChanged(name) => state.name = name,
