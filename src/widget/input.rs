@@ -90,7 +90,7 @@ where
         }
     }
 
-    /// Sets the message to post when the text values changes.
+    /// Sets the message to post when the text value should be changed to a new value.
     pub fn on_change<N: Fn(String) -> T>(self, on_change: N) -> Input<'a, T, N, S> {
         Input {
             placeholder: self.placeholder,
@@ -108,7 +108,7 @@ where
         self
     }
 
-    /// Sets a key that will trigger input focus
+    /// Sets a keyboard key that will trigger input focus
     pub fn trigger_key(mut self, key: Key) -> Self {
         self.trigger.replace(key);
         self

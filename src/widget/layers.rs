@@ -25,7 +25,7 @@ pub struct State {
 }
 
 impl<'a, T: 'a> Layers<'a, T> {
-    /// Construct new `Layers`
+    /// Construct a new `Layers` widget
     pub fn new() -> Self {
         Self {
             layers: Vec::new(),
@@ -33,7 +33,7 @@ impl<'a, T: 'a> Layers<'a, T> {
         }
     }
 
-    /// Adds a widget
+    /// Adds a child widget
     pub fn push(mut self, layer: impl IntoNode<'a, T>) -> Self {
         if self.background.is_none() {
             self.background = Some(layer.into_node());

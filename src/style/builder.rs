@@ -76,6 +76,48 @@ impl StyleBuilder {
             .rule(RuleBuilder::new("window > *:nth-child(0)").background_color(background.blend(primary, 0.2)))
     }
 
+    /// Add a rule defined in a [`RuleBuilder`](struct.RuleBuilder.html) to the `StyleBuilder`.
+    pub fn rule(mut self, builder: RuleBuilder) -> Self {
+        self.rule_tree.insert(builder.selector.as_slice(), builder.declarations);
+        self
+    }
+
+    /// Prepend the given selector to all rules in this `StyleBuilder`.
+    pub fn scope<S: AsRef<str>>(mut self, selector: S) -> Self {
+        let mut old = std::mem::take(&mut self.rule_tree);
+
+        let selector = parse_selectors(tokenize(selector.as_ref().to_string()).unwrap()).unwrap();
+        if let Some(new_root) = selector.as_slice().last() {
+            old.selector = new_root.clone();
+        }
+        self.rule_tree.select(selector.as_slice()).merge(old);
+
+        self
+    }
+
+    /// Merge with another `StyleBuilder`.
+    pub fn merge(mut self, builder: StyleBuilder) -> Self {
+        self.images.extend(builder.images);
+        self.patches.extend(builder.patches);
+        self.fonts.extend(builder.fonts);
+        self.rule_tree.merge(builder.rule_tree);
+        self
+    }
+
+    /// Include the scoped style of a `Component`.
+    pub fn component<C: Component>(mut self) -> Self {
+        let mut builder = C::style();
+        self.images.extend(builder.images);
+        self.patches.extend(builder.patches);
+        self.fonts.extend(builder.fonts);
+        let name = std::any::type_name::<C>().to_string();
+        builder.rule_tree.selector = Selector::Widget(SelectorWidget::Some(name.clone()));
+        self.rule_tree
+            .select(&[Selector::Widget(SelectorWidget::Some(name))])
+            .merge(builder.rule_tree);
+        self
+    }
+
     /// Asynchronously load a stylesheet from a .pwss file. See the [style module documentation](../index.html) on how to write
     /// .pwss files.
     pub async fn from_read_fn<P, R>(path: P, read: R) -> anyhow::Result<Self>
@@ -168,57 +210,12 @@ impl StyleBuilder {
         FontId(key)
     }
 
-    /// Creates a `DeclarationBuilder` for the supplied selector. This can be used to add
-    ///  style declarations to the selected widgets.
-    /// The `DeclarationBuilder` will automatically apply the declarations to this `StyleBuilder`
-    ///  when it is dropped.
-    pub fn rule(mut self, builder: RuleBuilder) -> Self {
-        self.rule_tree.insert(builder.selector.as_slice(), builder.declarations);
-        self
-    }
-
-    /// Put the current contents behind a scope
-    pub fn scope<S: AsRef<str>>(mut self, selector: S) -> Self {
-        let mut old = std::mem::take(&mut self.rule_tree);
-
-        let selector = parse_selectors(tokenize(selector.as_ref().to_string()).unwrap()).unwrap();
-        if let Some(new_root) = selector.as_slice().last() {
-            old.selector = new_root.clone();
-        }
-        self.rule_tree.select(selector.as_slice()).merge(old);
-
-        self
-    }
-
-    /// Merge with another `StyleBuilder`.
-    pub fn merge(mut self, builder: StyleBuilder) -> Self {
-        self.images.extend(builder.images);
-        self.patches.extend(builder.patches);
-        self.fonts.extend(builder.fonts);
-        self.rule_tree.merge(builder.rule_tree);
-        self
-    }
-
-    /// Include the scoped style of a `Component`.
-    pub fn component<C: Component>(mut self) -> Self {
-        let mut builder = C::style();
-        self.images.extend(builder.images);
-        self.patches.extend(builder.patches);
-        self.fonts.extend(builder.fonts);
-        let name = std::any::type_name::<C>().to_string();
-        builder.rule_tree.selector = Selector::Widget(SelectorWidget::Some(name.clone()));
-        self.rule_tree
-            .select(&[Selector::Widget(SelectorWidget::Some(name))])
-            .merge(builder.rule_tree);
-        self
-    }
-
     /// Builds the `Style`. All loading of images, 9 patches and fonts happens in this method.
     /// If any of them fail, an error is returned.
     pub async fn build_async(mut self) -> Result<Style> {
         self = Self::base(Color::white(), Color::rgb(0.3, 0.3, 0.3), Color::blue()).merge(self);
 
-        let mut cache = Cache::new(512, 0);
+        let mut cache = Cache::new(512);
 
         let font = cache.load_font(include_bytes!("default_font.ttf").to_vec()).unwrap();
 
@@ -297,7 +294,17 @@ impl TryInto<Style> for StyleBuilder {
 }
 
 impl RuleBuilder {
-    /// Constructs a new `RuleBuilder` for a selector. The selector follows the same syntax as the [.pwss file format](../index.html).
+    /// Constructs a new `RuleBuilder` for the given selector.
+    /// The selector must follow the same syntax as the [.pwss file format](../index.html).
+    ///
+    /// Panics if the selector can't be parsed.
+    ///
+    /// ```rust
+    /// use pixel_widgets::prelude::*;
+    ///
+    /// // Sets the background of the first direct child of any window widget
+    /// RuleBuilder::new("window > * :nth-child(0)").background_color(Color::red());
+    /// ```
     pub fn new<S: AsRef<str>>(selector: S) -> Self {
         Self {
             selector: parse_selectors(tokenize(selector.as_ref().to_string()).unwrap()).unwrap(),

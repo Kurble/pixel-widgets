@@ -31,7 +31,6 @@ pub struct WidgetNode<'a, Message, W: Widget<'a, Message>> {
 }
 
 impl<'a, Message, W: Widget<'a, Message>> WidgetNode<'a, Message, W> {
-    /// Construct a new `Node` from an [`Widget`](trait.Widget.html).
     pub fn new(widget: W) -> Self {
         let key = widget.key();
         Self {

@@ -56,7 +56,7 @@ pub mod widget;
 /// `Ui` manages a root [`Component`](component/trait.Component.html) and processes it to a
 /// [`DrawList`](draw/struct.DrawList.html) that can be rendered using your own renderer implementation.
 /// Alternatively, you can use one of the following included wrappers:
-/// - [`WgpuUi`](backend/wgpu/struct.WgpuUi.html) Renders using [wgpu-rs](https://github.com/gfx-rs/wgpu-rs).
+/// - [`wgpu::Ui`](backend/wgpu/struct.Ui.html) Renders using [wgpu](https://github.com/gfx-rs/wgpu).
 pub struct Ui<M: 'static + Component> {
     root_node: ComponentNode<'static, M>,
     _state: ManagedState,

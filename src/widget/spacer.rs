@@ -4,7 +4,7 @@ use crate::node::{IntoNode, Node};
 use crate::style::Stylesheet;
 use crate::widget::*;
 
-/// Empty widget
+/// Empty widget. Default size is (fill(1), fill(1)).
 #[derive(Default)]
 pub struct Spacer;
 

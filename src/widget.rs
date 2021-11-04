@@ -1,23 +1,11 @@
+//! Widgets are defined using the [`Widget`](trait.Widget.html) trait.
+//! You can choose to implement widgets yourself, or you can use the built in widgets defined in this module.
 //!
-//! Widgets in pixel-widgets are defined using the [`Widget`](trait.Widget.html) trait.
-//! You can choose to implement widgets yourself, or you can use the built in widgets that come with pixel-widgets:
-//! - [`Button`](button/struct.Button.html)
-//! - [`Toggle`](toggle/struct.Toggle.html)
-//! - [`Column`](column/struct.Column.html)
-//! - [`Row`](row/struct.Row.html)
-//! - [`Text`](text/struct.Text.html)
-//! - [`Space`](space/struct.Space.html)
-//! - [`Input`](input/struct.Input.html)
-//! - [`Scroll`](scroll/struct.Scroll.html)
-//! - [`Layers`](layers/struct.Layers.html)
-//! - [`Window`](window/struct.Window.html)
-//!
-//! Since pixel-widgets rebuilds the whole [`Component`](../trait.Component.html) every time it is mutated,
-//! most widgets need to keep track of some kind of state across rebuilds. You can manually supply these state
-//! objects in your [`view`](../trait.Component.html#tymethod.view) implementation, or you can use a
-//! [`ManagedState`](../tracker/struct.ManagedState.html), which tracks state for your widgets using user defined ids.
-//!
-//! When implementing custom widgets, you need to make sure that the custom widgets do not remember absolute layouts.
+//! Since the whole [`Component`](../trait.Component.html) every time it is mutated,
+//! most widgets need to keep track of some kind of state across rebuilds.
+//! This is managed automatically by the component, identified by the [`key`](trait.Widget.html#method.key) method.
+//! When implementing custom widgets, you need to make sure that the returned `u64` key is as unique as possible.
+//! You also need to make sure that the custom widgets do not remember absolute layouts.
 //! Widgets like [`Scroll`](scroll/struct.Scroll.html) can change the layout without needing a rebuild of the ui.
 use std::any::Any;
 use std::collections::hash_map::DefaultHasher;
@@ -237,12 +225,12 @@ impl<Message> Context<Message> {
         }
     }
 
-    /// Push a message to the current [`Model`].
+    /// Push a message to the parnet [`Component`](../component/trait.Component.html).
     pub fn push(&mut self, message: Message) {
         self.messages.push(message);
     }
 
-    /// Push multiple messages to the current [`Model`] using an iterator.
+    /// Push multiple messages to the parent [`Component`](../component/trait.Component.html) using an iterator.
     pub fn extend<I: IntoIterator<Item = Message>>(&mut self, iter: I) {
         self.messages.extend(iter);
     }
@@ -262,13 +250,11 @@ impl<Message> Context<Message> {
         self.cursor
     }
 
-    /// Get a task context
-    pub fn task_context(&self) -> std::task::Context<'_> {
+    pub(crate) fn task_context(&self) -> std::task::Context<'_> {
         std::task::Context::from_waker(&self.waker)
     }
 
-    /// Consume self and return the internal vec of messages
-    pub fn into_vec(self) -> Vec<Message> {
+    pub(crate) fn into_vec(self) -> Vec<Message> {
         self.messages
     }
 }
