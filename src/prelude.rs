@@ -12,6 +12,6 @@ pub use crate::{
         Style,
     },
     view,
-    widget::*,
+    widget::prelude::*,
     Ui,
 };

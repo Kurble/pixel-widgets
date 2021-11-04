@@ -10,7 +10,7 @@ use crate::event::{Event, Key};
 use crate::layout::{Rectangle, Size};
 use crate::node::{GenericNode, IntoNode, Node};
 use crate::style::{StyleState, Stylesheet};
-use crate::widget::{Context, Frame, StateVec, Widget};
+use crate::widget::{frame::Frame, Context, StateVec, Widget};
 
 /// Message type for communicating between `Drag` and `Drop` widgets
 pub trait DragDropId: 'static + Copy + Any + Send + Sync {}

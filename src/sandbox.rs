@@ -93,6 +93,7 @@ where
         let ui = crate::backend::wgpu::Ui::new(
             root_component,
             Rectangle::from_wh(size.width as f32, size.height as f32),
+            window.scale_factor() as f32,
             style,
             swapchain_format,
             &device,

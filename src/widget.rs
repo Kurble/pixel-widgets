@@ -20,25 +20,30 @@ use crate::layout::*;
 use crate::node::GenericNode;
 use crate::style::*;
 
-pub use self::button::Button;
-pub use self::column::Column;
-pub use self::drag_drop::{Drag, Drop};
-pub use self::dropdown::Dropdown;
-pub use self::dummy::Dummy;
-pub use self::frame::Frame;
-pub use self::image::Image;
-pub use self::input::Input;
-pub use self::layers::Layers;
-pub use self::menu::Menu;
-pub use self::panel::Panel;
-pub use self::progress::Progress;
-pub use self::row::Row;
-pub use self::scroll::Scroll;
-pub use self::slider::Slider;
-pub use self::spacer::Spacer;
-pub use self::text::Text;
-pub use self::toggle::Toggle;
-pub use self::window::Window;
+/// Prelude widgets
+pub mod prelude {
+    pub use super::button::Button;
+    pub use super::column::Column;
+    pub use super::drag_drop::{Drag, Drop};
+    pub use super::dropdown::Dropdown;
+    pub use super::dummy::Dummy;
+    pub use super::frame::Frame;
+    pub use super::image::Image;
+    pub use super::input::Input;
+    pub use super::layers::Layers;
+    pub use super::menu::Menu;
+    pub use super::panel::Panel;
+    pub use super::progress::Progress;
+    pub use super::row::Row;
+    pub use super::scroll::Scroll;
+    pub use super::slider::Slider;
+    pub use super::spacer::Spacer;
+    pub use super::text::Text;
+    pub use super::toggle::Toggle;
+    pub use super::window::Window;
+
+    pub use super::{StateVec, Widget};
+}
 
 /// A clickable button
 pub mod button;

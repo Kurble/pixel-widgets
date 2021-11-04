@@ -3,7 +3,7 @@ use crate::event::{Event, Key};
 use crate::layout::{Rectangle, Size};
 use crate::node::{GenericNode, IntoNode, Node};
 use crate::style::Stylesheet;
-use crate::widget::{Context, Dummy, Widget};
+use crate::widget::{dummy::Dummy, Context, Widget};
 
 /// View a small section of larger widget, with scrollbars.
 /// The scrollbars are only rendered if the content is larger than the view in that direction.

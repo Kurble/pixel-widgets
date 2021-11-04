@@ -64,11 +64,12 @@ pub struct Ui<M: 'static + Component> {
     redraw: bool,
     cursor: (f32, f32),
     style: Arc<Style>,
+    hidpi_scale: f32,
 }
 
 impl<C: 'static + Component> Ui<C> {
     /// Constructs a new `Ui`. Returns an error if the style fails to load.
-    pub fn new<S, E>(root: C, viewport: Rectangle, style: S) -> anyhow::Result<Self>
+    pub fn new<S, E>(root: C, viewport: Rectangle, hidpi_scale: f32, style: S) -> anyhow::Result<Self>
     where
         S: TryInto<Style, Error = E>,
         anyhow::Error: From<E>,
@@ -84,10 +85,16 @@ impl<C: 'static + Component> Ui<C> {
         Ok(Self {
             root_node,
             _state: state,
-            viewport,
+            viewport: Rectangle {
+                left: viewport.left / hidpi_scale,
+                top: viewport.top / hidpi_scale,
+                right: viewport.right / hidpi_scale,
+                bottom: viewport.bottom / hidpi_scale,
+            },
             redraw: true,
             cursor: (0.0, 0.0),
             style,
+            hidpi_scale,
         })
     }
 
@@ -96,7 +103,12 @@ impl<C: 'static + Component> Ui<C> {
     pub fn resize(&mut self, viewport: Rectangle) {
         self.root_node.set_dirty();
         self.redraw = true;
-        self.viewport = viewport;
+        self.viewport = Rectangle {
+            left: viewport.left / self.hidpi_scale,
+            top: viewport.top / self.hidpi_scale,
+            right: viewport.right / self.hidpi_scale,
+            bottom: viewport.bottom / self.hidpi_scale,
+        };
     }
 
     /// Returns true if the ui needs to be redrawn. If the ui doesn't need to be redrawn the
@@ -120,9 +132,10 @@ impl<C: 'static + Component> Ui<C> {
     }
 
     /// Handles an [`Event`](event/struct.Event.html).
-    pub fn event(&mut self, event: Event, waker: Waker) -> Vec<C::Output> {
+    pub fn event(&mut self, mut event: Event, waker: Waker) -> Vec<C::Output> {
         if let Event::Cursor(x, y) = event {
-            self.cursor = (x, y);
+            event = Event::Cursor(x / self.hidpi_scale, y / self.hidpi_scale);
+            self.cursor = (x / self.hidpi_scale, y / self.hidpi_scale);
         }
 
         let mut context = Context::new(self.needs_redraw(), self.cursor, waker.clone());
@@ -205,12 +218,13 @@ impl<C: 'static + Component> Ui<C> {
 
         let mut scissors = vec![viewport];
 
+        let scale = self.hidpi_scale;
         let validate_clip = move |clip: Rectangle| {
             let v = Rectangle {
-                left: clip.left.max(0.0).min(viewport.right),
-                top: clip.top.max(0.0).min(viewport.bottom),
-                right: clip.right.max(0.0).min(viewport.right),
-                bottom: clip.bottom.max(0.0).min(viewport.bottom),
+                left: clip.left.max(0.0).min(viewport.right) * scale,
+                top: clip.top.max(0.0).min(viewport.bottom) * scale,
+                right: clip.right.max(0.0).min(viewport.right) * scale,
+                bottom: clip.bottom.max(0.0).min(viewport.bottom) * scale,
             };
             if v.right as u32 - v.left as u32 > 0 && v.bottom as u32 - v.top as u32 > 0 {
                 Some(v)

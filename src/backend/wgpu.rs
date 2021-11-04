@@ -34,6 +34,7 @@ impl<C: Component> Ui<C> {
     pub fn new<S, E>(
         root_component: C,
         viewport: Rectangle,
+        hidpi_scale: f32,
         style: S,
         format: wgpu::TextureFormat,
         device: &Device,
@@ -43,7 +44,7 @@ impl<C: Component> Ui<C> {
         anyhow::Error: From<E>,
     {
         Ok(Self::new_inner(
-            crate::Ui::new(root_component, viewport, style)?,
+            crate::Ui::new(root_component, viewport, hidpi_scale, style)?,
             format,
             device,
         ))

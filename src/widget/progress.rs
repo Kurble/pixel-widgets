@@ -2,7 +2,7 @@ use crate::draw::Primitive;
 use crate::layout::{Direction, Rectangle, Size};
 use crate::node::{GenericNode, IntoNode, Node};
 use crate::style::Stylesheet;
-use crate::widget::{Dummy, Widget};
+use crate::widget::{dummy::Dummy, Widget};
 
 /// A progress bar that fill up according to some progress
 /// The bar part of the progress bar can be styled by selecting the child widget `bar` of the `progress` widget.

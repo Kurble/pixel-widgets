@@ -3,7 +3,7 @@ use crate::event::{Event, Key};
 use crate::layout::{Rectangle, Size};
 use crate::node::{GenericNode, IntoNode, Node};
 use crate::style::Stylesheet;
-use crate::widget::{Context, Dummy, Widget};
+use crate::widget::{dummy::Dummy, Context, Widget};
 
 /// Select a number using a sliding handle
 /// The handle can be styled using the `handle` child widget of this widget.
