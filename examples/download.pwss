@@ -23,7 +23,7 @@ button:hover {
 }
 
 progress {
-    width: fill(1);
+    width: 310;
     height: 40;
     padding: 5;
     margin: 5;
@@ -32,5 +32,6 @@ progress {
 }
 
 progress > bar {
-    background: #868;
+    background: "examples/bar.png";
+    clip-bar: true;
 }
