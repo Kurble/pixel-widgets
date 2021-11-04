@@ -93,6 +93,7 @@ async fn main() {
             .with_inner_size(winit::dpi::LogicalSize::new(320, 240)),
     )
     .await
+    .unwrap()
     .run()
     .await;
 }

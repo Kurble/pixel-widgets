@@ -67,25 +67,28 @@ pub struct Ui<M: 'static + Component> {
 }
 
 impl<C: 'static + Component> Ui<C> {
-    /// Constructs a new `Ui` using the default style.
-    /// This is not recommended as the default style is very empty and only renders white text.
-    pub fn new(root: C, viewport: Rectangle, style: impl Into<Style>) -> Self {
+    /// Constructs a new `Ui`. Returns an error if the style fails to load.
+    pub fn new<S, E>(root: C, viewport: Rectangle, style: S) -> anyhow::Result<Self>
+    where
+        S: TryInto<Style, Error = E>,
+        anyhow::Error: From<E>,
+    {
         let mut state = ManagedState::default();
         let mut root_node = ComponentNode::new(root);
         root_node.acquire_state(&mut unsafe { (&mut state as *mut ManagedState).as_mut() }.unwrap().tracker());
 
-        let style = Arc::new(style.into());
+        let style = Arc::new(style.try_into()?);
         root_node.set_dirty();
         root_node.style(&mut Query::from_style(style.clone()), (0, 1));
 
-        Self {
+        Ok(Self {
             root_node,
             _state: state,
             viewport,
             redraw: true,
             cursor: (0.0, 0.0),
             style,
-        }
+        })
     }
 
     /// Resizes the viewport.

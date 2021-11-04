@@ -222,9 +222,11 @@ async fn main() {
         .with_inner_size(winit::dpi::LogicalSize::new(800, 360));
     let style = StyleBuilder::from_file("examples/alchemy/alchemy.pwss")
         .unwrap()
-        .build();
+        .build()
+        .unwrap();
     Sandbox::new(Alchemy::new(style.graphics()), style, window)
         .await
+        .unwrap()
         .run()
         .await;
 }

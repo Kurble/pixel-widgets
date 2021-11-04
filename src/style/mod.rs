@@ -219,34 +219,6 @@ pub enum StyleState<S: AsRef<str>> {
 }
 
 impl Style {
-    /// Construct a new default style
-    pub fn new(cache_size: usize, cache_offset: usize) -> Self {
-        let cache = Arc::new(Mutex::new(Cache::new(cache_size, cache_offset)));
-        Style {
-            cache: cache.clone(),
-            resolved: Mutex::new(HashMap::new()),
-            rule_tree: tree::RuleTree::default(),
-            default: Stylesheet {
-                background: Background::None,
-                font: cache
-                    .lock()
-                    .map(|mut lk| lk.load_font(include_bytes!("default_font.ttf").to_vec()))
-                    .unwrap(),
-                color: Color::white(),
-                padding: Rectangle::zero(),
-                margin: Rectangle::zero(),
-                text_size: 16.0,
-                text_wrap: TextWrap::NoWrap,
-                width: Size::Shrink,
-                height: Size::Shrink,
-                direction: Direction::LeftToRight,
-                align_horizontal: Align::Begin,
-                align_vertical: Align::Begin,
-                flags: Vec::new(),
-            },
-        }
-    }
-
     /// Returns a new `StyleBuilder`.
     pub fn builder() -> StyleBuilder {
         StyleBuilder::default()

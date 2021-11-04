@@ -1,6 +1,7 @@
 use std::mem;
 use std::sync::{Arc, Weak};
 
+use anyhow::*;
 use image::{Rgba, RgbaImage};
 use rusttype::{point, vector};
 use smallvec::SmallVec;
@@ -234,17 +235,17 @@ impl Cache {
         }
     }
 
-    pub(crate) fn load_font<D: Into<Vec<u8>>>(&mut self, data: D) -> crate::text::Font {
-        let inner = Font::try_from_vec(data.into()).expect("error loading font");
+    pub(crate) fn load_font<D: Into<Vec<u8>>>(&mut self, data: D) -> Result<crate::text::Font> {
+        let inner = Font::try_from_vec(data.into()).ok_or_else(|| anyhow!("Invalid .ttf data"))?;
 
         let id = self.font_id_counter;
         self.font_id_counter += 1;
 
-        crate::text::Font {
+        Ok(crate::text::Font {
             inner,
             id,
             tex_slot: self.textures_offset,
-        }
+        })
     }
 
     fn insert_image(&mut self, image: image::RgbaImage) -> (usize, Arc<usize>, Rectangle) {

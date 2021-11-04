@@ -90,10 +90,19 @@ impl Component for Counter {
 
 #[tokio::main]
 async fn main() {
-    let window = winit::window::WindowBuilder::new()
-        .with_title("Counter")
-        .with_inner_size(winit::dpi::LogicalSize::new(240, 240));
-    Sandbox::new(Counter { initial_value: 15 }, window).await.run().await;
+    use winit::window::WindowBuilder;
+
+    Sandbox::new(
+        Counter { initial_value: 15 }, 
+        StyleBuilder::default(), 
+        WindowBuilder::new()
+            .with_title("Counter")
+            .with_inner_size(winit::dpi::LogicalSize::new(240, 240))
+    )
+    .await
+    .expect("failed to load style")
+    .run()
+    .await;
 }
 ```
 # Examples

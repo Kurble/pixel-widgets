@@ -32,14 +32,22 @@ struct TextureEntry {
 impl<C: Component> Ui<C> {
     /// Constructs a new `Ui` using the default style.
     /// This is not recommended as the default style is very empty and only renders white text.
-    pub fn new(
+    pub fn new<S, E>(
         root_component: C,
         viewport: Rectangle,
-        style: impl Into<Style>,
+        style: S,
         format: wgpu::TextureFormat,
         device: &Device,
-    ) -> Self {
-        Self::new_inner(crate::Ui::new(root_component, viewport, style), format, device)
+    ) -> anyhow::Result<Self>
+    where
+        S: TryInto<Style, Error = E>,
+        anyhow::Error: From<E>,
+    {
+        Ok(Self::new_inner(
+            crate::Ui::new(root_component, viewport, style)?,
+            format,
+            device,
+        ))
     }
 
     fn new_inner(inner: crate::Ui<C>, format: wgpu::TextureFormat, device: &Device) -> Self {
