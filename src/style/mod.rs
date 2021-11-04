@@ -8,7 +8,8 @@ use crate::draw::{Background, Color, ImageData, Patch};
 use crate::layout::{Align, Direction, Rectangle, Size};
 use crate::text::{Font, TextWrap};
 
-mod builder;
+/// Style building tools
+pub mod builder;
 mod parse;
 mod tokenize;
 pub(crate) mod tree;
@@ -22,7 +23,7 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 use tokenize::*;
 
-pub use builder::*;
+use builder::*;
 
 /// Errors that can be encountered while loading a stylesheet
 #[derive(Debug)]
@@ -37,7 +38,7 @@ pub enum Error {
     Io(Box<dyn std::error::Error + Send + Sync>),
 }
 
-/// A style loaded from a `.pwss` file.
+/// Container for all styling data.
 pub struct Style {
     cache: Arc<Mutex<Cache>>,
     resolved: Mutex<HashMap<BitSet, Arc<Stylesheet>>>,
@@ -46,7 +47,7 @@ pub struct Style {
 }
 
 #[doc(hidden)]
-pub trait ReadFn {
+pub trait ReadFn: 'static + Clone {
     type Future: Future<Output = anyhow::Result<Vec<u8>>>;
 
     fn read(&self, path: &Path) -> Self::Future;
@@ -54,7 +55,7 @@ pub trait ReadFn {
 
 impl<T, F, E> ReadFn for T
 where
-    T: Fn(&Path) -> F,
+    T: 'static + Fn(&Path) -> F + Clone,
     F: Future<Output = Result<Vec<u8>, E>>,
     E: Into<anyhow::Error>,
 {
@@ -67,7 +68,7 @@ where
 }
 
 /// A fully resolved stylesheet, passed by reference to [`Widget::draw`](../widget/trait.Widget.html).
-/// Contains the final versions of all possible rules.
+/// Contains the resolved values of all possible style properties.
 #[derive(Clone, Debug)]
 pub struct Stylesheet {
     /// Widget width
@@ -98,13 +99,19 @@ pub struct Stylesheet {
     pub flags: Vec<String>,
 }
 
-/// A property and a value
+/// A style property and it's value
 #[derive(Debug)]
-pub enum Declaration {
-    /// background
-    Background(Background),
+pub enum Declaration<I = ImageId, P = PatchId, F = FontId> {
+    /// no background
+    BackgroundNone,
+    /// background color
+    BackgroundColor(Color),
+    /// background image
+    BackgroundImage(I, Color),
+    /// background patch
+    BackgroundPatch(P, Color),
     /// font
-    Font(Font),
+    Font(F),
     /// color
     Color(Color),
     /// padding
@@ -147,9 +154,11 @@ pub enum Declaration {
     RemoveFlag(String),
 }
 
-/// A stylesheet selector, which widgets have to match against.
+/// A selector that selects widgets that match some property.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Selector {
+    /// Should be ignored when building
+    Root,
     /// Match a widget
     Widget(SelectorWidget),
     /// Match a widget that is a direct child of the parent
@@ -211,37 +220,9 @@ pub enum StyleState<S: AsRef<str>> {
 }
 
 impl Style {
-    /// Construct a new default style
-    pub fn new(cache_size: usize, cache_offset: usize) -> Self {
-        let cache = Arc::new(Mutex::new(Cache::new(cache_size, cache_offset)));
-        Style {
-            cache: cache.clone(),
-            resolved: Mutex::new(HashMap::new()),
-            rule_tree: tree::RuleTree::default(),
-            default: Stylesheet {
-                background: Background::None,
-                font: cache
-                    .lock()
-                    .map(|mut lk| lk.load_font(include_bytes!("default_font.ttf").to_vec()))
-                    .unwrap(),
-                color: Color::white(),
-                padding: Rectangle::zero(),
-                margin: Rectangle::zero(),
-                text_size: 16.0,
-                text_wrap: TextWrap::NoWrap,
-                width: Size::Shrink,
-                height: Size::Shrink,
-                direction: Direction::LeftToRight,
-                align_horizontal: Align::Begin,
-                align_vertical: Align::Begin,
-                flags: Vec::new(),
-            },
-        }
-    }
-
     /// Returns a new `StyleBuilder`.
     pub fn builder() -> StyleBuilder {
-        StyleBuilder::new()
+        StyleBuilder::default()
     }
 
     pub(crate) fn get(&self, style: &BitSet) -> Arc<Stylesheet> {
@@ -270,28 +251,6 @@ impl Style {
     pub fn graphics(&self) -> Graphics {
         Graphics { cache: self.cache() }
     }
-
-    /// Asynchronously load a stylesheet from a .pwss file. See the [module documentation](index.html) on how to write
-    /// .pwss files.
-    pub async fn from_read_fn<P, R>(path: P, read: R) -> anyhow::Result<Arc<Self>>
-    where
-        P: AsRef<Path>,
-        R: ReadFn,
-    {
-        let text = String::from_utf8(read.read(path.as_ref()).await?).unwrap();
-        Ok(parse(tokenize(text)?, read).await?)
-    }
-
-    /// Synchronously load a stylesheet from a .pwss file. See the [module documentation](index.html) on how to write
-    /// .pwss files.
-    pub fn from_file<P>(path: P) -> anyhow::Result<Arc<Self>>
-    where
-        P: AsRef<Path>,
-    {
-        futures::executor::block_on(Self::from_read_fn(path, |path: &Path| {
-            std::future::ready(std::fs::read(path))
-        }))
-    }
 }
 
 impl std::fmt::Debug for Style {
@@ -307,11 +266,14 @@ impl Stylesheet {
     }
 }
 
-impl Declaration {
+impl Declaration<ImageData, Patch, Font> {
     /// Apply values to a `Stylesheet`.
     pub fn apply(&self, stylesheet: &mut Stylesheet) {
         match self {
-            Declaration::Background(x) => stylesheet.background = x.clone(),
+            Declaration::BackgroundNone => stylesheet.background = Background::None,
+            Declaration::BackgroundColor(x) => stylesheet.background = Background::Color(*x),
+            Declaration::BackgroundImage(x, y) => stylesheet.background = Background::Image(x.clone(), *y),
+            Declaration::BackgroundPatch(x, y) => stylesheet.background = Background::Patch(x.clone(), *y),
             Declaration::Font(x) => stylesheet.font = x.clone(),
             Declaration::Color(x) => stylesheet.color = *x,
             Declaration::Padding(x) => stylesheet.padding = *x,

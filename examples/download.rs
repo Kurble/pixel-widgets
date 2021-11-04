@@ -85,14 +85,15 @@ impl Component for Download {
 
 #[tokio::main]
 async fn main() {
-    let window = WindowBuilder::new()
-        .with_title("Downloader")
-        .with_inner_size(winit::dpi::LogicalSize::new(320, 240));
-
-    let mut sandbox = Sandbox::new(Download, window).await;
-    sandbox
-        .ui
-        .set_style(Style::from_file("examples/download.pwss").unwrap());
-
-    sandbox.run().await;
+    Sandbox::new(
+        Download,
+        StyleBuilder::from_file("examples/download.pwss").unwrap(),
+        WindowBuilder::new()
+            .with_title("Downloader")
+            .with_inner_size(winit::dpi::LogicalSize::new(320, 240)),
+    )
+    .await
+    .unwrap()
+    .run()
+    .await;
 }

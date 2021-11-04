@@ -1,7 +1,7 @@
 use crate::draw::Primitive;
 use crate::layout::{Rectangle, Size};
 use crate::node::{GenericNode, IntoNode, Node};
-use crate::stylesheet::Stylesheet;
+use crate::style::Stylesheet;
 use crate::widget::Widget;
 
 /// Dummy widget that has a custom widget name

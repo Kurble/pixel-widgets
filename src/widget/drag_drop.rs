@@ -9,7 +9,7 @@ use crate::draw::Primitive;
 use crate::event::{Event, Key};
 use crate::layout::{Rectangle, Size};
 use crate::node::{GenericNode, IntoNode, Node};
-use crate::stylesheet::{StyleState, Stylesheet};
+use crate::style::{StyleState, Stylesheet};
 use crate::widget::{Context, Frame, StateVec, Widget};
 
 /// Message type for communicating between `Drag` and `Drop` widgets

@@ -8,9 +8,10 @@ pixel-widgets is a component based user interface library focused on integratabi
 # Features
 - Very compact and easy API
 - API agnostic rendering
-- [wgpu](https://github.com/gfx-rs/wgpu-rs) based renderer included
-- Styling using [stylesheets](stylesheet/index.html)
-- Built in [widgets](widget/index.html)
+- [`Component`](component/trait.Component.html) based workflow
+- CSS like [styling](style/index.html)
+- Many built in [widgets](widget/index.html)
+- [wgpu](https://github.com/gfx-rs/wgpu) based renderer included
 
 # Overview
 User interfaces in pixel-widgets are composed of [`Component`](trait.Component.html)s. These components manage their own state, and generate ui elements when that state is mutated. Each component implements some methods:
@@ -90,11 +91,20 @@ impl Component for Counter {
 
 #[tokio::main]
 async fn main() {
-    let window = winit::window::WindowBuilder::new()
-        .with_title("Counter")
-        .with_inner_size(winit::dpi::LogicalSize::new(240, 240));
-    Sandbox::new(Counter { initial_value: 15 }, window).await.run().await;
+    use winit::window::WindowBuilder;
+
+    Sandbox::new(
+        Counter { initial_value: 15 }, 
+        StyleBuilder::default(), 
+        WindowBuilder::new()
+            .with_title("Counter")
+            .with_inner_size(winit::dpi::LogicalSize::new(240, 240))
+    )
+    .await
+    .expect("failed to load style")
+    .run()
+    .await;
 }
 ```
 # Examples
-If you want more [examples](https://github.com/Kurble/pixel-widgets/tree/master/examples), check out the examples directory in the git repository.
+If you want more examples, check out the [examples directory](https://github.com/Kurble/pixel-widgets/tree/master/examples) in the git repository.

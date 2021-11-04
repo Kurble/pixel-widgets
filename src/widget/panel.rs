@@ -2,7 +2,7 @@ use crate::draw::Primitive;
 use crate::event::Event;
 use crate::layout::{Rectangle, Size};
 use crate::node::{GenericNode, IntoNode, Node};
-use crate::stylesheet::Stylesheet;
+use crate::style::Stylesheet;
 use crate::widget::{Context, Widget};
 
 /// The anchor from which to apply the offset of a `Panel`

@@ -8,22 +8,24 @@ use std::task::Poll;
 
 use futures::{FutureExt, Stream, StreamExt};
 
+use crate::bitset::BitSet;
 use crate::component::{Component, Context};
 use crate::draw::Primitive;
 use crate::event::Event;
 use crate::layout::{Rectangle, Size};
 use crate::node::{GenericNode, Node};
-use crate::stylesheet::tree::Query;
+use crate::style::tree::Query;
 use crate::tracker::{ManagedState, ManagedStateTracker};
 use crate::widget::Context as WidgetContext;
 
-pub struct ComponentNode<'a, M: 'a + Component> {
-    props: Box<M>,
+pub struct ComponentNode<'a, C: 'a + Component> {
+    props: Box<C>,
     state: RefCell<Option<&'a mut ManagedState>>,
-    view: RefCell<Option<Node<'a, M::Message>>>,
-    component_state: Cell<*mut (M::State, Runtime<M::Message>)>,
+    view: RefCell<Option<Node<'a, C::Message>>>,
+    component_state: Cell<*mut (C::State, Runtime<C::Message>)>,
     style_query: Option<Query>,
-    style_position: Option<(usize, usize)>,
+    style_position: (usize, usize),
+    style_matches: BitSet,
     key: u64,
 }
 
@@ -40,17 +42,18 @@ pub struct State<'a, T> {
     dirty: &'a mut bool,
 }
 
-impl<'a, M: 'a + Component> ComponentNode<'a, M> {
-    pub fn new(props: M) -> Self {
+impl<'a, C: 'a + Component> ComponentNode<'a, C> {
+    pub fn new(props: C) -> Self {
         let mut hasher = DefaultHasher::new();
-        std::any::type_name::<M>().hash(&mut hasher);
+        std::any::type_name::<C>().hash(&mut hasher);
         Self {
             props: Box::new(props),
             state: RefCell::new(None),
             view: RefCell::new(None),
             component_state: Cell::new(null_mut()),
             style_query: None,
-            style_position: None,
+            style_position: (0, 1),
+            style_matches: BitSet::new(),
             key: hasher.finish(),
         }
     }
@@ -63,16 +66,16 @@ impl<'a, M: 'a + Component> ComponentNode<'a, M> {
         self.view.replace(None);
     }
 
-    pub fn props(&self) -> &M {
+    pub fn props(&self) -> &C {
         self.props.as_ref()
     }
 
-    pub fn props_mut(&mut self) -> &mut M {
+    pub fn props_mut(&mut self) -> &mut C {
         self.set_dirty();
         self.props.as_mut()
     }
 
-    pub fn update(&mut self, message: M::Message, context: &mut WidgetContext<M::Output>) {
+    pub fn update(&mut self, message: C::Message, context: &mut WidgetContext<C::Output>) {
         let mut dirty = false;
 
         let (state, runtime) = unsafe { self.component_state.get().as_mut().unwrap() };
@@ -91,7 +94,7 @@ impl<'a, M: 'a + Component> ComponentNode<'a, M> {
         }
     }
 
-    pub fn view(&self) -> RefMut<Node<'a, M::Message>> {
+    pub fn view(&self) -> RefMut<Node<'a, C::Message>> {
         if self.dirty() {
             let mut tracker = unsafe {
                 self.state
@@ -107,10 +110,10 @@ impl<'a, M: 'a + Component> ComponentNode<'a, M> {
             let state = tracker.begin(0, || (self.props.mount(), Runtime::default()));
             self.component_state.set(state as *mut _);
 
-            let mut root = unsafe { (self.props.as_ref() as *const M).as_ref().unwrap() }.view(&state.0);
+            let mut root = unsafe { (self.props.as_ref() as *const C).as_ref().unwrap() }.view(&state.0);
             let mut query = self.style_query.clone().unwrap();
             root.acquire_state(&mut tracker);
-            root.style(&mut query, self.style_position.unwrap());
+            root.style(&mut query, self.style_position);
 
             self.view.replace(Some(root));
         }
@@ -123,7 +126,7 @@ impl<'a, M: 'a + Component> ComponentNode<'a, M> {
     }
 }
 
-impl<'a, M: 'a + Component> GenericNode<'a, M::Output> for ComponentNode<'a, M> {
+impl<'a, C: 'a + Component> GenericNode<'a, C::Output> for ComponentNode<'a, C> {
     fn get_key(&self) -> u64 {
         self.key
     }
@@ -157,17 +160,69 @@ impl<'a, M: 'a + Component> GenericNode<'a, M::Output> for ComponentNode<'a, M> 
     }
 
     fn style(&mut self, query: &mut Query, position: (usize, usize)) {
+        self.style_matches = query.match_widget::<String>(
+            std::any::type_name::<C>(),
+            "",
+            &[],
+            self.style_position.0,
+            self.style_position.1,
+        );
+        self.style_query = Some(Query {
+            style: query.style.clone(),
+            ancestors: {
+                let mut a = query.ancestors.clone();
+                a.push(self.style_matches.clone());
+                a
+            },
+            siblings: Vec::new(),
+        });
+        self.style_position = position;
+
         self.set_dirty();
-        self.style_query = Some(query.clone());
-        self.style_position = Some(position);
+
+        query.siblings.push(self.style_matches.clone());
     }
 
     fn add_matches(&mut self, query: &mut Query) {
-        self.view().add_matches(query)
+        let additions = query.match_widget::<String>(
+            std::any::type_name::<C>(),
+            "",
+            &[],
+            self.style_position.0,
+            self.style_position.1,
+        );
+
+        let new_style = self.style_matches.union(&additions);
+        if new_style != self.style_matches {
+            self.style_matches = new_style;
+        }
+
+        query.ancestors.push(additions);
+        let own_siblings = std::mem::take(&mut query.siblings);
+        self.view().add_matches(query);
+        query.siblings = own_siblings;
+        query.siblings.push(query.ancestors.pop().unwrap());
     }
 
     fn remove_matches(&mut self, query: &mut Query) {
-        self.view().remove_matches(query)
+        let removals = query.match_widget::<String>(
+            std::any::type_name::<C>(),
+            "",
+            &[],
+            self.style_position.0,
+            self.style_position.1,
+        );
+
+        let new_style = self.style_matches.difference(&removals);
+        if new_style != self.style_matches {
+            self.style_matches = new_style;
+        }
+
+        query.ancestors.push(removals);
+        let own_siblings = std::mem::take(&mut query.siblings);
+        self.view().remove_matches(query);
+        query.siblings = own_siblings;
+        query.siblings.push(query.ancestors.pop().unwrap());
     }
 
     fn event(
@@ -175,7 +230,7 @@ impl<'a, M: 'a + Component> GenericNode<'a, M::Output> for ComponentNode<'a, M> 
         layout: Rectangle,
         clip: Rectangle,
         event: Event,
-        context: &mut WidgetContext<<M as Component>::Output>,
+        context: &mut WidgetContext<<C as Component>::Output>,
     ) {
         let mut sub_context = context.sub_context();
         self.view().event(layout, clip, event, &mut sub_context);
@@ -196,7 +251,7 @@ impl<'a, M: 'a + Component> GenericNode<'a, M::Output> for ComponentNode<'a, M> 
         }
     }
 
-    fn poll(&mut self, context: &mut WidgetContext<<M as Component>::Output>) {
+    fn poll(&mut self, context: &mut WidgetContext<<C as Component>::Output>) {
         let mut sub_context = context.sub_context();
         self.view().poll(&mut sub_context);
 
@@ -220,9 +275,9 @@ impl<'a, M: 'a + Component> GenericNode<'a, M::Output> for ComponentNode<'a, M> 
     }
 }
 
-unsafe impl<'a, M: 'a + Component> Send for ComponentNode<'a, M> {}
+unsafe impl<'a, C: 'a + Component> Send for ComponentNode<'a, C> {}
 
-impl<'a, M: 'a + Component> Drop for ComponentNode<'a, M> {
+impl<'a, C: 'a + Component> Drop for ComponentNode<'a, C> {
     fn drop(&mut self) {
         self.view.replace(None);
     }

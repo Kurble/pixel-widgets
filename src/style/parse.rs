@@ -1,13 +1,11 @@
+use super::tree::*;
 use super::*;
 use anyhow::*;
 
 struct LoadContext<'a, I: Iterator<Item = Token>, R: ReadFn> {
     loader: R,
     tokens: TokenProvider<I>,
-    cache: &'a mut Cache,
-    images: &'a mut HashMap<String, ImageData>,
-    patches: &'a mut HashMap<String, Patch>,
-    fonts: &'a mut HashMap<String, Font>,
+    builder: &'a mut StyleBuilder,
 }
 
 struct TokenProvider<I: Iterator<Item = Token>> {
@@ -40,30 +38,29 @@ impl<I: Iterator<Item = Token>> TokenProvider<I> {
     }
 }
 
-pub async fn parse(tokens: Vec<Token>, loader: impl ReadFn) -> anyhow::Result<Arc<Style>> {
+pub async fn parse(tokens: Vec<Token>, loader: impl ReadFn) -> anyhow::Result<StyleBuilder> {
     let mut builder = Style::builder();
 
-    let mut images = HashMap::new();
-    let mut patches = HashMap::new();
-    let mut fonts = HashMap::new();
-    let mut context = LoadContext {
-        loader,
-        tokens: TokenProvider {
-            tokens: tokens.into_iter().peekable(),
-        },
-        cache: &mut builder.cache,
-        images: &mut images,
-        patches: &mut patches,
-        fonts: &mut fonts,
-    };
+    let mut rule_tree = RuleTreeBuilder::new();
 
-    //let mut rule_tree = RuleTreeBuilder::new(Selector::Widget(SelectorWidget::Any));
-    while context.tokens.peek().is_some() {
-        let (selectors, rules) = parse_rule(&mut context).await?;
-        builder.rule_tree.insert(selectors, rules);
+    {
+        let mut context = LoadContext {
+            loader,
+            tokens: TokenProvider {
+                tokens: tokens.into_iter().peekable(),
+            },
+            builder: &mut builder,
+        };
+
+        while context.tokens.peek().is_some() {
+            let (selectors, rules) = parse_rule(&mut context).await?;
+            rule_tree.insert(selectors, rules);
+        }
     }
 
-    Ok(builder.build())
+    builder.rule_tree.merge(rule_tree);
+
+    Ok(builder)
 }
 
 pub fn parse_selectors(tokens: Vec<Token>) -> anyhow::Result<Vec<Selector>> {
@@ -79,7 +76,7 @@ pub fn parse_selectors(tokens: Vec<Token>) -> anyhow::Result<Vec<Selector>> {
 
 async fn parse_rule<I: Iterator<Item = Token>, L: ReadFn>(
     c: &mut LoadContext<'_, I, L>,
-) -> anyhow::Result<(Vec<Selector>, Vec<Declaration>)> {
+) -> anyhow::Result<(Vec<Selector>, Vec<Declaration<ImageId, PatchId, FontId>>)> {
     let mut selectors = Vec::new();
     let mut declarations = Vec::new();
     loop {
@@ -107,7 +104,7 @@ async fn parse_declaration<I: Iterator<Item = Token>, L: ReadFn>(
         Some(Token(TokenValue::Iden(key), _)) => {
             c.tokens.take(TokenValue::Colon)?;
             match key.as_str() {
-                "background" => Ok(Declaration::Background(parse_background(c).await?)),
+                "background" => Ok(parse_background(c).await?),
                 "font" => Ok(Declaration::Font(parse_font(c).await?)),
                 "color" => Ok(Declaration::Color(parse_color(&mut c.tokens)?)),
                 "padding" => Ok(Declaration::Padding(parse_rectangle(&mut c.tokens)?)),
@@ -144,24 +141,25 @@ async fn parse_declaration<I: Iterator<Item = Token>, L: ReadFn>(
     Ok(result)
 }
 
-async fn parse_background<I: Iterator<Item = Token>, L: ReadFn>(
+async fn parse_background<I: Iterator<Item = Token>, L: ReadFn + 'static>(
     c: &mut LoadContext<'_, I, L>,
-) -> anyhow::Result<Background> {
+) -> anyhow::Result<Declaration> {
     match c.tokens.peek().cloned().ok_or_else(|| anyhow!("EOF"))? {
         Token(TokenValue::Iden(ty), pos) => {
             c.tokens.next();
             match ty.to_lowercase().as_str() {
-                "none" => Ok(Background::None),
+                "none" => Ok(Declaration::BackgroundNone),
                 "image" => {
                     c.tokens.take(TokenValue::ParenOpen)?;
+                    let read = c.loader.clone();
                     let image = match c.tokens.next() {
                         Some(Token(TokenValue::Path(url), _)) => {
-                            if c.images.get(&url).is_none() {
-                                let image =
-                                    image::load_from_memory(c.loader.read(Path::new(url.as_str())).await?.as_ref())?;
-                                c.images.insert(url.clone(), c.cache.load_image(image.to_rgba8()));
-                            }
-                            Ok(c.images[&url].clone())
+                            Ok(c.builder.load_image_async(url.clone(), async move {
+                                Ok(
+                                    image::load_from_memory(read.read(Path::new(url.as_str())).await?.as_ref())?
+                                        .to_rgba8(),
+                                )
+                            }))
                         }
                         Some(Token(_, pos)) => Err(anyhow!("Expected <url> at {}", pos)),
                         None => Err(anyhow!("EOF")),
@@ -169,18 +167,19 @@ async fn parse_background<I: Iterator<Item = Token>, L: ReadFn>(
                     c.tokens.take(TokenValue::Comma)?;
                     let color = parse_color(&mut c.tokens)?;
                     c.tokens.take(TokenValue::ParenClose)?;
-                    Ok(Background::Image(image, color))
+                    Ok(Declaration::BackgroundImage(image, color))
                 }
                 "patch" => {
                     c.tokens.take(TokenValue::ParenOpen)?;
+                    let read = c.loader.clone();
                     let image = match c.tokens.next() {
                         Some(Token(TokenValue::Path(url), _)) => {
-                            if c.patches.get(&url).is_none() {
-                                let image =
-                                    image::load_from_memory(c.loader.read(Path::new(url.as_str())).await?.as_ref())?;
-                                c.patches.insert(url.clone(), c.cache.load_patch(image.to_rgba8()));
-                            }
-                            Ok(c.patches[&url].clone())
+                            Ok(c.builder.load_patch_async(url.clone(), async move {
+                                Ok(
+                                    image::load_from_memory(read.read(Path::new(url.as_str())).await?.as_ref())?
+                                        .to_rgba8(),
+                                )
+                            }))
                         }
                         Some(Token(_, pos)) => Err(anyhow!("Expected url at {}", pos)),
                         None => Err(anyhow!("EOF")),
@@ -188,26 +187,25 @@ async fn parse_background<I: Iterator<Item = Token>, L: ReadFn>(
                     c.tokens.take(TokenValue::Comma)?;
                     let color = parse_color(&mut c.tokens)?;
                     c.tokens.take(TokenValue::ParenClose)?;
-                    Ok(Background::Patch(image, color))
+                    Ok(Declaration::BackgroundPatch(image, color))
                 }
                 _ => Err(anyhow!("Expected `image`, `patch` or `none` at {}", pos)),
             }
         }
-        Token(TokenValue::Color(_), _) => Ok(Background::Color(parse_color(&mut c.tokens)?)),
+        Token(TokenValue::Color(_), _) => Ok(Declaration::BackgroundColor(parse_color(&mut c.tokens)?)),
         Token(TokenValue::Path(url), _) => {
             c.tokens.next();
+            let read = c.loader.clone();
             if url.ends_with(".9.png") {
-                if c.patches.get(&url).is_none() {
-                    let image = image::load_from_memory(c.loader.read(Path::new(url.as_str())).await?.as_ref())?;
-                    c.patches.insert(url.clone(), c.cache.load_patch(image.to_rgba8()));
-                }
-                Ok(Background::Patch(c.patches[&url].clone(), Color::white()))
+                let patch = c.builder.load_patch_async(url.clone(), async move {
+                    Ok(image::load_from_memory(read.read(Path::new(url.as_str())).await?.as_ref())?.to_rgba8())
+                });
+                Ok(Declaration::BackgroundPatch(patch, Color::white()))
             } else {
-                if c.images.get(&url).is_none() {
-                    let image = image::load_from_memory(c.loader.read(Path::new(url.as_str())).await?.as_ref())?;
-                    c.images.insert(url.clone(), c.cache.load_image(image.to_rgba8()));
-                }
-                Ok(Background::Image(c.images[&url].clone(), Color::white()))
+                let image = c.builder.load_image_async(url.clone(), async move {
+                    Ok(image::load_from_memory(read.read(Path::new(url.as_str())).await?.as_ref())?.to_rgba8())
+                });
+                Ok(Declaration::BackgroundImage(image, Color::white()))
             }
         }
         Token(_, pos) => Err(anyhow!(
@@ -217,15 +215,12 @@ async fn parse_background<I: Iterator<Item = Token>, L: ReadFn>(
     }
 }
 
-async fn parse_font<I: Iterator<Item = Token>, L: ReadFn>(c: &mut LoadContext<'_, I, L>) -> anyhow::Result<Font> {
+async fn parse_font<I: Iterator<Item = Token>, L: ReadFn>(c: &mut LoadContext<'_, I, L>) -> anyhow::Result<FontId> {
     match c.tokens.next() {
         Some(Token(TokenValue::Path(url), _)) => {
-            if c.fonts.get(&url).is_none() {
-                let font = c.loader.read(Path::new(url.as_str())).await?;
-                let font = c.cache.load_font(font);
-                c.fonts.insert(url.clone(), font);
-            }
-            Ok(c.fonts[&url].clone())
+            let read = c.loader.clone();
+            Ok(c.builder
+                .load_font_async(url.clone(), async move { read.read(Path::new(url.as_str())).await }))
         }
         Some(Token(_, pos)) => Err(anyhow!("Expected <url> at {}", pos)),
         None => Err(anyhow!("EOF")),

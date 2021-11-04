@@ -1,6 +1,7 @@
 use std::mem;
 use std::sync::{Arc, Weak};
 
+use anyhow::*;
 use image::{Rgba, RgbaImage};
 use rusttype::{point, vector};
 use smallvec::SmallVec;
@@ -20,7 +21,6 @@ pub struct Cache {
     size: usize,
     glyphs: GlyphCache,
     textures: Vec<TextureSlot>,
-    textures_offset: usize,
     updates: Vec<Update>,
     font_id_counter: usize,
     image_id_counter: usize,
@@ -34,7 +34,7 @@ enum TextureSlot {
 impl Cache {
     /// Create a new cache. Size is the width and height of textures in pixels.
     /// Offset is the offset to apply to texture ids
-    pub fn new(size: usize, offset: usize) -> Cache {
+    pub fn new(size: usize) -> Cache {
         let glyphs = GlyphCache::builder().dimensions(size as u32, size as u32).build();
 
         let atlas = Atlas::new(size);
@@ -48,18 +48,17 @@ impl Cache {
                 // atlas for textures
                 TextureSlot::Atlas(atlas),
             ],
-            textures_offset: offset,
             updates: vec![
                 // glyph cache
                 Update::Texture {
-                    id: offset,
+                    id: 0,
                     size: [size as u32, size as u32],
                     data: Vec::new(),
                     atlas: true,
                 },
                 // atlas for textures
                 Update::Texture {
-                    id: offset + 1,
+                    id: 1,
                     size: [size as u32, size as u32],
                     data: Vec::new(),
                     atlas: true,
@@ -92,8 +91,6 @@ impl Cache {
             self.glyphs.queue_glyph(text.font.id as usize, g.clone());
         }
 
-        let textures_offset = self.textures_offset;
-
         let updates = &mut self.updates;
         self.glyphs
             .cache_queued(|rect, data| {
@@ -106,7 +103,7 @@ impl Cache {
                 }
 
                 let update = Update::TextureSubresource {
-                    id: textures_offset,
+                    id: 0,
                     offset: [rect.min.x, rect.min.y],
                     size: [rect.width(), rect.height()],
                     data: new_data,
@@ -234,17 +231,13 @@ impl Cache {
         }
     }
 
-    pub(crate) fn load_font<D: Into<Vec<u8>>>(&mut self, data: D) -> crate::text::Font {
-        let inner = Font::try_from_vec(data.into()).expect("error loading font");
+    pub(crate) fn load_font<D: Into<Vec<u8>>>(&mut self, data: D) -> Result<crate::text::Font> {
+        let inner = Font::try_from_vec(data.into()).ok_or_else(|| anyhow!("Invalid .ttf data"))?;
 
         let id = self.font_id_counter;
         self.font_id_counter += 1;
 
-        crate::text::Font {
-            inner,
-            id,
-            tex_slot: self.textures_offset,
-        }
+        Ok(crate::text::Font { inner, id, tex_slot: 0 })
     }
 
     fn insert_image(&mut self, image: image::RgbaImage) -> (usize, Arc<usize>, Rectangle) {
@@ -278,7 +271,7 @@ impl Cache {
             area.bottom = area.top + image.height() as usize;
 
             let update = Update::TextureSubresource {
-                id: tex_id + self.textures_offset,
+                id: tex_id,
                 offset: [area.left as u32, area.top as u32],
                 size: [image.width(), image.height()],
                 data: image.to_vec(),
@@ -286,7 +279,7 @@ impl Cache {
             self.updates.push(update);
 
             (
-                self.textures_offset + tex_id,
+                tex_id,
                 image_id,
                 Rectangle {
                     left: area.left as f32 / atlas_size,
@@ -296,7 +289,7 @@ impl Cache {
                 },
             )
         } else {
-            let tex_id = self.textures_offset + self.textures.len();
+            let tex_id = self.textures.len();
 
             let update = Update::Texture {
                 id: tex_id,

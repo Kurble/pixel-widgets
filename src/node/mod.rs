@@ -5,7 +5,7 @@ use std::ops::{Deref, DerefMut};
 use crate::draw::Primitive;
 use crate::event::Event;
 use crate::layout::{Rectangle, Size};
-use crate::stylesheet::tree::Query;
+use crate::style::tree::Query;
 use crate::tracker::ManagedStateTracker;
 use crate::widget::{Context, Widget};
 use crate::Component;
@@ -45,20 +45,21 @@ pub trait GenericNode<'a, Message>: Send {
     fn poll(&mut self, context: &mut Context<Message>);
 }
 
-/// Convert to a generic widget. All widgets should implement this trait. It is also implemented by `Node` itself,
-/// which simply returns self.
+/// Convert widget to a [`Node`](struct.Node.html).
+/// All widgets should implement this trait.
+/// It is also implemented by [`Node`](struct.Node.html) itself, which simply returns self.
 pub trait IntoNode<'a, Message: 'a>: 'a + Sized {
     /// Perform the conversion.
     fn into_node(self) -> Node<'a, Message>;
 
-    /// Convenience function that converts to a node and then adds a style class to the `Node`.
+    /// Convenience function that converts to a node and then adds a style class to the resulting [`Node`](struct.Node.html).
     fn class(self, class: &'a str) -> Node<'a, Message> {
         let mut node = self.into_node();
         node.set_class(class);
         node
     }
 
-    /// Convenience function that converts to a node and then sets a custom id to the `Node`.
+    /// Convenience function that converts to a node and then sets a custom id to the resulting [`Node`](struct.Node.html).
     fn key<K: Hash>(self, key: K) -> Node<'a, Message> {
         let mut hasher = DefaultHasher::new();
         key.hash(&mut hasher);
@@ -69,12 +70,12 @@ pub trait IntoNode<'a, Message: 'a>: 'a + Sized {
 }
 
 impl<'a, Message: 'a> Node<'a, Message> {
-    /// Create a new `Node` from a `Widget`.
+    /// Create a new [`Node`](struct.Node.html) from a [`Widget`](../widget/trait.Widget.html).
     pub fn from_widget<W: 'a + Widget<'a, Message>>(widget: W) -> Self {
         Self(Box::new(widget_node::WidgetNode::new(widget)) as Box<_>)
     }
 
-    /// Create a new `Node` from a `Component`.
+    /// Create a new [`Node`](struct.Node.html) from a [`Component`](../component/trait.Component.html).
     pub fn from_component<C: 'a + Component<Output = Message>>(component: C) -> Self {
         Self(Box::new(component_node::ComponentNode::new(component)) as Box<_>)
     }

@@ -10,8 +10,8 @@ use crate::event::Event;
 use crate::layout::{Rectangle, Size};
 use crate::node::GenericNode;
 use crate::prelude::{StateVec, Style, Widget};
-use crate::stylesheet::tree::Query;
-use crate::stylesheet::Stylesheet;
+use crate::style::tree::Query;
+use crate::style::Stylesheet;
 use crate::tracker::ManagedStateTracker;
 use crate::widget::Context;
 
@@ -31,7 +31,6 @@ pub struct WidgetNode<'a, Message, W: Widget<'a, Message>> {
 }
 
 impl<'a, Message, W: Widget<'a, Message>> WidgetNode<'a, Message, W> {
-    /// Construct a new `Node` from an [`Widget`](trait.Widget.html).
     pub fn new(widget: W) -> Self {
         let key = widget.key();
         Self {

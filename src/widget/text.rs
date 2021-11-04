@@ -4,7 +4,7 @@ use crate::draw::Primitive;
 use crate::event::Event;
 use crate::layout::{Rectangle, Size};
 use crate::node::{IntoNode, Node};
-use crate::stylesheet::Stylesheet;
+use crate::style::Stylesheet;
 use crate::text;
 use crate::widget::*;
 

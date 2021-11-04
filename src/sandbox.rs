@@ -41,10 +41,16 @@ impl<T> Sandbox<T>
 where
     T: 'static + Component,
 {
-    /// Construct a new `Sandbox`
-    pub async fn new(root_component: T, builder: WindowBuilder) -> Self {
+    /// Construct a new `Sandbox` with a root component, style and window builder.
+    /// The `Sandbox` will finish building the window and setup the graphics.
+    /// To start the main event loop, call [`run()`](#method.run) on the result.
+    pub async fn new<S, E>(root_component: T, style: S, window: WindowBuilder) -> anyhow::Result<Self>
+    where
+        S: TryInto<Style, Error = E>,
+        anyhow::Error: From<E>,
+    {
         let event_loop = EventLoop::with_user_event();
-        let window = builder.build(&event_loop).unwrap();
+        let window = window.build(&event_loop).unwrap();
         let size = window.inner_size();
 
         let swapchain_format = wgpu::TextureFormat::Bgra8Unorm;
@@ -87,11 +93,12 @@ where
         let ui = crate::backend::wgpu::Ui::new(
             root_component,
             Rectangle::from_wh(size.width as f32, size.height as f32),
+            style,
             swapchain_format,
             &device,
-        );
+        )?;
 
-        Sandbox {
+        Ok(Sandbox {
             ui,
             event_loop: Some(event_loop),
             surface,
@@ -100,7 +107,7 @@ where
             queue,
             surface_config,
             window,
-        }
+        })
     }
 
     /// Update the root component with a message.

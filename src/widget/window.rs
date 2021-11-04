@@ -2,7 +2,7 @@ use crate::draw::*;
 use crate::event::{Event, Key};
 use crate::layout::{Rectangle, Size};
 use crate::node::{GenericNode, IntoNode, Node};
-use crate::stylesheet::Stylesheet;
+use crate::style::Stylesheet;
 use crate::widget::{Context, Widget};
 
 /// A window with a title and a content widget that can be moved by dragging the title.

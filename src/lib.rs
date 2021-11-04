@@ -13,8 +13,8 @@ use crate::draw::DrawList;
 use crate::event::Event;
 use crate::layout::Rectangle;
 use crate::node::component_node::ComponentNode;
-use crate::stylesheet::tree::Query;
-use crate::stylesheet::Style;
+use crate::style::tree::Query;
+use crate::style::Style;
 use crate::tracker::ManagedState;
 
 mod atlas;
@@ -43,7 +43,7 @@ pub mod prelude;
 #[cfg(feature = "wgpu")]
 pub mod sandbox;
 /// Styling system
-pub mod stylesheet;
+pub mod style;
 /// Primitives for rendering text
 pub mod text;
 /// Utility for tracking state conveniently.
@@ -56,7 +56,7 @@ pub mod widget;
 /// `Ui` manages a root [`Component`](component/trait.Component.html) and processes it to a
 /// [`DrawList`](draw/struct.DrawList.html) that can be rendered using your own renderer implementation.
 /// Alternatively, you can use one of the following included wrappers:
-/// - [`WgpuUi`](backend/wgpu/struct.WgpuUi.html) Renders using [wgpu-rs](https://github.com/gfx-rs/wgpu-rs).
+/// - [`wgpu::Ui`](backend/wgpu/struct.Ui.html) Renders using [wgpu](https://github.com/gfx-rs/wgpu).
 pub struct Ui<M: 'static + Component> {
     root_node: ComponentNode<'static, M>,
     _state: ManagedState,
@@ -66,35 +66,29 @@ pub struct Ui<M: 'static + Component> {
     style: Arc<Style>,
 }
 
-impl<M: 'static + Component> Ui<M> {
-    /// Constructs a new `Ui` using the default style.
-    /// This is not recommended as the default style is very empty and only renders white text.
-    pub fn new(model: M, viewport: Rectangle) -> Self {
+impl<C: 'static + Component> Ui<C> {
+    /// Constructs a new `Ui`. Returns an error if the style fails to load.
+    pub fn new<S, E>(root: C, viewport: Rectangle, style: S) -> anyhow::Result<Self>
+    where
+        S: TryInto<Style, Error = E>,
+        anyhow::Error: From<E>,
+    {
         let mut state = ManagedState::default();
-        let mut root_node = ComponentNode::new(model);
+        let mut root_node = ComponentNode::new(root);
         root_node.acquire_state(&mut unsafe { (&mut state as *mut ManagedState).as_mut() }.unwrap().tracker());
 
-        let style = Style::builder().build();
+        let style = Arc::new(style.try_into()?);
         root_node.set_dirty();
         root_node.style(&mut Query::from_style(style.clone()), (0, 1));
 
-        Self {
+        Ok(Self {
             root_node,
             _state: state,
             viewport,
             redraw: true,
             cursor: (0.0, 0.0),
             style,
-        }
-    }
-
-    /// Sets the style of the `Ui`.
-    pub fn set_style(&mut self, style: Arc<Style>) {
-        if !Arc::ptr_eq(&self.style, &style) {
-            self.root_node.set_dirty();
-            self.style = style.clone();
-            self.root_node.style(&mut Query::from_style(style), (0, 1));
-        }
+        })
     }
 
     /// Resizes the viewport.
@@ -113,7 +107,7 @@ impl<M: 'static + Component> Ui<M> {
 
     /// Updates the model with a message.
     /// This forces the view to be rerendered.
-    pub fn update_poll(&mut self, message: M::Message, waker: Waker) -> Vec<M::Output> {
+    pub fn update_poll(&mut self, message: C::Message, waker: Waker) -> Vec<C::Output> {
         let mut context = Context::new(self.needs_redraw(), self.cursor, waker);
 
         self.root_node.update(message, &mut context);
@@ -126,7 +120,7 @@ impl<M: 'static + Component> Ui<M> {
     }
 
     /// Handles an [`Event`](event/struct.Event.html).
-    pub fn event(&mut self, event: Event, waker: Waker) -> Vec<M::Output> {
+    pub fn event(&mut self, event: Event, waker: Waker) -> Vec<C::Output> {
         if let Event::Cursor(x, y) = event {
             self.cursor = (x, y);
         }
@@ -159,7 +153,7 @@ impl<M: 'static + Component> Ui<M> {
     }
 
     /// Should be called when the waker wakes :)
-    pub fn poll(&mut self, waker: Waker) -> Vec<M::Output> {
+    pub fn poll(&mut self, waker: Waker) -> Vec<C::Output> {
         let mut context = Context::new(self.needs_redraw(), self.cursor, waker);
         loop {
             self.root_node.poll(&mut context);
@@ -519,15 +513,15 @@ impl<M: 'static + Component> Ui<M> {
     }
 }
 
-impl<M: Component> Deref for Ui<M> {
-    type Target = M;
+impl<C: Component> Deref for Ui<C> {
+    type Target = C;
 
     fn deref(&self) -> &Self::Target {
         self.root_node.props()
     }
 }
 
-impl<M: Component> DerefMut for Ui<M> {
+impl<C: Component> DerefMut for Ui<C> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.root_node.props_mut()
     }

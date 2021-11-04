@@ -1,7 +1,7 @@
 use crate::draw::Primitive;
 use crate::layout::{Rectangle, Size};
 use crate::node::{IntoNode, Node};
-use crate::stylesheet::Stylesheet;
+use crate::style::Stylesheet;
 use crate::widget::*;
 
 /// A widget that wraps around a content widget

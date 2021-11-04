@@ -1,9 +1,13 @@
 use crate::bitset::BitSet;
-use crate::stylesheet::{Declaration, Selector, SelectorWidget, Style, StyleState};
+use crate::draw::Patch;
+use crate::style::{Declaration, FontId, ImageId, PatchId, Selector, Style, StyleState};
+use crate::text::Font;
+use crate::widget::image::ImageData;
+use std::collections::HashMap;
 use std::iter::FromIterator;
 use std::sync::Arc;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub(crate) struct RuleTree {
     rules: Vec<Rule>,
 }
@@ -11,14 +15,15 @@ pub(crate) struct RuleTree {
 #[derive(Debug)]
 pub(crate) struct Rule {
     selector: Selector,
-    declarations: Vec<Declaration>,
+    declarations: Vec<Declaration<ImageData, Patch, Font>>,
     children: Vec<usize>,
 }
 
+#[derive(Debug)]
 pub(crate) struct RuleTreeBuilder {
-    selector: Selector,
-    declarations: Vec<Declaration>,
-    children: Vec<RuleTreeBuilder>,
+    pub selector: Selector,
+    pub declarations: Vec<Declaration<ImageId, PatchId, FontId>>,
+    pub children: Vec<RuleTreeBuilder>,
 }
 
 #[derive(Clone)]
@@ -29,7 +34,10 @@ pub struct Query {
 }
 
 impl RuleTree {
-    pub fn iter_declarations<'a>(&'a self, style: &'a BitSet) -> impl Iterator<Item = &'a Declaration> {
+    pub fn iter_declarations<'a>(
+        &'a self,
+        style: &'a BitSet,
+    ) -> impl Iterator<Item = &'a Declaration<ImageData, Patch, Font>> {
         style.iter().flat_map(move |rule| self.rules[rule].declarations.iter())
     }
 
@@ -101,31 +109,24 @@ impl RuleTree {
     }
 }
 
-impl Default for RuleTree {
-    fn default() -> Self {
-        Self {
-            rules: vec![Rule {
-                selector: Selector::Widget(SelectorWidget::Any),
-                declarations: vec![],
-                children: vec![],
-            }],
-        }
-    }
-}
-
 impl RuleTreeBuilder {
-    pub fn new(selector: Selector) -> Self {
+    pub fn new() -> Self {
         RuleTreeBuilder {
-            selector,
+            selector: Selector::Root,
             declarations: Vec::new(),
             children: Vec::new(),
         }
     }
 
     /// Recursively insert some rules at the selectors path
-    pub fn insert(&mut self, selectors: impl AsRef<[Selector]>, rules: Vec<Declaration>) {
+    pub fn insert(&mut self, selectors: impl AsRef<[Selector]>, rules: Vec<Declaration<ImageId, PatchId, FontId>>) {
+        self.select(selectors).declarations.extend(rules);
+    }
+
+    /// Get or create a `RuleTreeBuilder` at the selector path
+    pub fn select(&mut self, selectors: impl AsRef<[Selector]>) -> &mut Self {
         match selectors.as_ref().get(0) {
-            None => self.declarations.extend(rules),
+            None => self,
             Some(selector) => {
                 let mut index = self.children.len();
 
@@ -144,32 +145,86 @@ impl RuleTreeBuilder {
                     });
                 }
 
-                self.children[index].insert(&selectors.as_ref()[1..], rules);
+                self.children[index].select(&selectors.as_ref()[1..])
             }
         }
     }
 
-    fn flatten(self, into: &mut RuleTree) -> usize {
+    /// Merge a `RuleTreeBuilder` into this one.
+    /// It must have the same root selector.
+    pub fn merge(&mut self, mut rule_tree: Self) {
+        assert_eq!(self.selector, rule_tree.selector);
+
+        // merge the declarations
+        self.declarations.append(&mut rule_tree.declarations);
+
+        // merge the children
+        for sub_tree in rule_tree.children {
+            if let Some(child) = self.children.iter_mut().find(|c| c.selector == sub_tree.selector) {
+                child.merge(sub_tree);
+            } else {
+                self.children.push(sub_tree);
+            }
+        }
+    }
+
+    pub(crate) fn flatten(
+        self,
+        into: &mut RuleTree,
+        images: &HashMap<String, ImageData>,
+        patches: &HashMap<String, Patch>,
+        fonts: &HashMap<String, Font>,
+    ) -> usize {
         let index = into.rules.len();
+
         into.rules.push(Rule {
             selector: self.selector,
-            declarations: self.declarations,
+            declarations: self
+                .declarations
+                .into_iter()
+                .map(|declaration| match declaration {
+                    Declaration::BackgroundNone => Declaration::BackgroundNone,
+                    Declaration::BackgroundColor(x) => Declaration::BackgroundColor(x),
+                    Declaration::BackgroundImage(ImageId(x), y) => Declaration::BackgroundImage(images[&x].clone(), y),
+                    Declaration::BackgroundPatch(PatchId(x), y) => Declaration::BackgroundPatch(patches[&x].clone(), y),
+                    Declaration::Font(FontId(x)) => Declaration::Font(fonts[&x].clone()),
+                    Declaration::Color(x) => Declaration::Color(x),
+                    Declaration::Padding(x) => Declaration::Padding(x),
+                    Declaration::PaddingLeft(x) => Declaration::PaddingLeft(x),
+                    Declaration::PaddingRight(x) => Declaration::PaddingRight(x),
+                    Declaration::PaddingTop(x) => Declaration::PaddingTop(x),
+                    Declaration::PaddingBottom(x) => Declaration::PaddingBottom(x),
+                    Declaration::Margin(x) => Declaration::Margin(x),
+                    Declaration::MarginLeft(x) => Declaration::MarginLeft(x),
+                    Declaration::MarginRight(x) => Declaration::MarginRight(x),
+                    Declaration::MarginTop(x) => Declaration::MarginTop(x),
+                    Declaration::MarginBottom(x) => Declaration::MarginBottom(x),
+                    Declaration::TextSize(x) => Declaration::TextSize(x),
+                    Declaration::TextWrap(x) => Declaration::TextWrap(x),
+                    Declaration::Width(x) => Declaration::Width(x),
+                    Declaration::Height(x) => Declaration::Height(x),
+                    Declaration::LayoutDirection(x) => Declaration::LayoutDirection(x),
+                    Declaration::AlignHorizontal(x) => Declaration::AlignHorizontal(x),
+                    Declaration::AlignVertical(x) => Declaration::AlignVertical(x),
+                    Declaration::AddFlag(x) => Declaration::AddFlag(x),
+                    Declaration::RemoveFlag(x) => Declaration::RemoveFlag(x),
+                })
+                .collect(),
             children: Vec::new(),
         });
 
         for child in self.children {
-            let child = child.flatten(into);
+            let child = child.flatten(into, images, patches, fonts);
             into.rules[index].children.push(child);
         }
+
         index
     }
 }
 
-impl From<RuleTreeBuilder> for RuleTree {
-    fn from(x: RuleTreeBuilder) -> Self {
-        let mut result = RuleTree { rules: Vec::new() };
-        x.flatten(&mut result);
-        result
+impl Default for RuleTreeBuilder {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

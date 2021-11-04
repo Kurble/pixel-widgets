@@ -1,10 +1,10 @@
 use crate::draw::*;
 use crate::layout::{Rectangle, Size};
 use crate::node::{IntoNode, Node};
-use crate::stylesheet::Stylesheet;
+use crate::style::Stylesheet;
 use crate::widget::*;
 
-/// Empty widget
+/// Empty widget. Default size is (fill(1), fill(1)).
 #[derive(Default)]
 pub struct Spacer;
 
