@@ -7,7 +7,10 @@ pub use crate::{
     layout::{Align, Direction, Rectangle, Size},
     node::component_node::State,
     node::*,
-    style::{RuleBuilder, Style, StyleBuilder},
+    style::{
+        builder::{RuleBuilder, StyleBuilder},
+        Style,
+    },
     view,
     widget::*,
     Ui,

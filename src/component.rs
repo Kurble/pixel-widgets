@@ -7,7 +7,7 @@ use futures::Stream;
 
 use crate::node::component_node::{Runtime, State};
 use crate::node::Node;
-use crate::style::StyleBuilder;
+use crate::style::builder::StyleBuilder;
 use crate::widget::Context as WidgetContext;
 
 /// A re-usable component for defining a fragment of a user interface.

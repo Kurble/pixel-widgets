@@ -8,9 +8,10 @@ pixel-widgets is a component based user interface library focused on integratabi
 # Features
 - Very compact and easy API
 - API agnostic rendering
-- [wgpu](https://github.com/gfx-rs/wgpu-rs) based renderer included
-- Styling using [stylesheets](stylesheet/index.html)
-- Built in [widgets](widget/index.html)
+- [`Component`](component/trait.Component.html) based workflow
+- CSS like [styling](style/index.html)
+- Many built in [widgets](widget/index.html)
+- [wgpu](https://github.com/gfx-rs/wgpu) based renderer included
 
 # Overview
 User interfaces in pixel-widgets are composed of [`Component`](trait.Component.html)s. These components manage their own state, and generate ui elements when that state is mutated. Each component implements some methods:
@@ -106,4 +107,4 @@ async fn main() {
 }
 ```
 # Examples
-If you want more [examples](https://github.com/Kurble/pixel-widgets/tree/master/examples), check out the examples directory in the git repository.
+If you want more examples, check out the [examples directory](https://github.com/Kurble/pixel-widgets/tree/master/examples) in the git repository.

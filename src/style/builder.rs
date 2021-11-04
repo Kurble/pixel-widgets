@@ -213,7 +213,8 @@ impl StyleBuilder {
         self
     }
 
-    /// Builds the `Style`.
+    /// Builds the `Style`. All loading of images, 9 patches and fonts happens in this method.
+    /// If any of them fail, an error is returned.
     pub async fn build_async(mut self) -> Result<Style> {
         self = Self::base(Color::white(), Color::rgb(0.3, 0.3, 0.3), Color::blue()).merge(self);
 
@@ -280,7 +281,8 @@ impl StyleBuilder {
         })
     }
 
-    /// Builds the `Style`.
+    /// Builds the `Style`. All loading of images, 9 patches and fonts happens in this method.
+    /// If any of them fail, an error is returned.
     pub fn build(self) -> Result<Style> {
         futures::executor::block_on(self.build_async())
     }
@@ -295,7 +297,7 @@ impl TryInto<Style> for StyleBuilder {
 }
 
 impl RuleBuilder {
-    /// Constructs a new `RuleBuilder` for a selector
+    /// Constructs a new `RuleBuilder` for a selector. The selector follows the same syntax as the [.pwss file format](../index.html).
     pub fn new<S: AsRef<str>>(selector: S) -> Self {
         Self {
             selector: parse_selectors(tokenize(selector.as_ref().to_string()).unwrap()).unwrap(),

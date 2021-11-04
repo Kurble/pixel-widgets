@@ -30,8 +30,7 @@ struct TextureEntry {
 }
 
 impl<C: Component> Ui<C> {
-    /// Constructs a new `Ui` using the default style.
-    /// This is not recommended as the default style is very empty and only renders white text.
+    /// Constructs a new `Ui`. Returns an error if the style fails to load.
     pub fn new<S, E>(
         root_component: C,
         viewport: Rectangle,

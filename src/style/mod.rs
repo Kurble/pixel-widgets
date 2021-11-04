@@ -8,7 +8,8 @@ use crate::draw::{Background, Color, ImageData, Patch};
 use crate::layout::{Align, Direction, Rectangle, Size};
 use crate::text::{Font, TextWrap};
 
-mod builder;
+/// Style building tools
+pub mod builder;
 mod parse;
 mod tokenize;
 pub(crate) mod tree;
@@ -22,7 +23,7 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 use tokenize::*;
 
-pub use builder::*;
+use builder::*;
 
 /// Errors that can be encountered while loading a stylesheet
 #[derive(Debug)]
@@ -37,7 +38,7 @@ pub enum Error {
     Io(Box<dyn std::error::Error + Send + Sync>),
 }
 
-/// A style loaded from a `.pwss` file.
+/// Container for all styling data.
 pub struct Style {
     cache: Arc<Mutex<Cache>>,
     resolved: Mutex<HashMap<BitSet, Arc<Stylesheet>>>,
@@ -67,7 +68,7 @@ where
 }
 
 /// A fully resolved stylesheet, passed by reference to [`Widget::draw`](../widget/trait.Widget.html).
-/// Contains the final versions of all possible rules.
+/// Contains the resolved values of all possible style properties.
 #[derive(Clone, Debug)]
 pub struct Stylesheet {
     /// Widget width
@@ -98,7 +99,7 @@ pub struct Stylesheet {
     pub flags: Vec<String>,
 }
 
-/// A property and a value
+/// A style property and it's value
 #[derive(Debug)]
 pub enum Declaration<I = ImageId, P = PatchId, F = FontId> {
     /// no background
@@ -153,7 +154,7 @@ pub enum Declaration<I = ImageId, P = PatchId, F = FontId> {
     RemoveFlag(String),
 }
 
-/// A stylesheet selector, which widgets have to match against.
+/// A selector that selects widgets that match some property.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Selector {
     /// Should be ignored when building
