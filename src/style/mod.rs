@@ -270,9 +270,9 @@ impl Declaration<ImageData, Patch, Font> {
     pub fn apply(&self, stylesheet: &mut Stylesheet) {
         match self {
             Declaration::BackgroundNone => stylesheet.background = Background::None,
-            Declaration::BackgroundColor(x) => stylesheet.background = Background::Color(x.clone()),
-            Declaration::BackgroundImage(x, y) => stylesheet.background = Background::Image(x.clone(), y.clone()),
-            Declaration::BackgroundPatch(x, y) => stylesheet.background = Background::Patch(x.clone(), y.clone()),
+            Declaration::BackgroundColor(x) => stylesheet.background = Background::Color(*x),
+            Declaration::BackgroundImage(x, y) => stylesheet.background = Background::Image(x.clone(), *y),
+            Declaration::BackgroundPatch(x, y) => stylesheet.background = Background::Patch(x.clone(), *y),
             Declaration::Font(x) => stylesheet.font = x.clone(),
             Declaration::Color(x) => stylesheet.color = *x,
             Declaration::Padding(x) => stylesheet.padding = *x,

@@ -195,14 +195,13 @@ async fn parse_background<I: Iterator<Item = Token>, L: ReadFn + 'static>(
         Token(TokenValue::Color(_), _) => Ok(Declaration::BackgroundColor(parse_color(&mut c.tokens)?)),
         Token(TokenValue::Path(url), _) => {
             c.tokens.next();
+            let read = c.loader.clone();
             if url.ends_with(".9.png") {
-                let read = c.loader.clone();
                 let patch = c.builder.load_patch_async(url.clone(), async move {
                     Ok(image::load_from_memory(read.read(Path::new(url.as_str())).await?.as_ref())?.to_rgba8())
                 });
                 Ok(Declaration::BackgroundPatch(patch, Color::white()))
             } else {
-                let read = c.loader.clone();
                 let image = c.builder.load_image_async(url.clone(), async move {
                     Ok(image::load_from_memory(read.read(Path::new(url.as_str())).await?.as_ref())?.to_rgba8())
                 });
@@ -220,10 +219,8 @@ async fn parse_font<I: Iterator<Item = Token>, L: ReadFn>(c: &mut LoadContext<'_
     match c.tokens.next() {
         Some(Token(TokenValue::Path(url), _)) => {
             let read = c.loader.clone();
-            Ok(c.builder.load_font_async(
-                url.clone(),
-                async move { Ok(read.read(Path::new(url.as_str())).await?) },
-            ))
+            Ok(c.builder
+                .load_font_async(url.clone(), async move { read.read(Path::new(url.as_str())).await }))
         }
         Some(Token(_, pos)) => Err(anyhow!("Expected <url> at {}", pos)),
         None => Err(anyhow!("EOF")),
