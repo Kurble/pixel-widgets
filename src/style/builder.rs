@@ -104,7 +104,7 @@ impl StyleBuilder {
         self
     }
 
-    /// Include the scoped style of a `Component`.
+    /// Include the scoped style of a `Component` in this `StyleBuilder`.
     pub fn component<C: Component>(mut self) -> Self {
         let mut builder = C::style();
         self.images.extend(builder.images);

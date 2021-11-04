@@ -49,7 +49,7 @@ pub trait Component: Default {
 
     /// Returns a `StyleBuilder` with styling information scoped to this component.
     /// This method will be called when you call
-    /// [`StyleBuilder::component()`](style/builder/struct.StyleBuilder.html#method.component)
+    /// [`StyleBuilder::component()`](../style/builder/struct.StyleBuilder.html#method.component)
     /// when building your style.
     fn style() -> StyleBuilder {
         StyleBuilder::default()
