@@ -195,6 +195,7 @@ pub enum SelectorWidget {
 }
 
 /// Widget states
+// !!Note: do not forget to add new variants to the eq impl!!
 #[derive(Debug, Clone)]
 pub enum StyleState<S: AsRef<str>> {
     /// When the mouse is over the widget
@@ -205,6 +206,8 @@ pub enum StyleState<S: AsRef<str>> {
     Checked,
     /// When a widget is disabled
     Disabled,
+    /// When a widget has input focus
+    Focused,
     /// When a widget in an expanded state
     Open,
     /// When a widget is in a collapsed state
@@ -367,8 +370,12 @@ impl<A: AsRef<str>, B: AsRef<str>> PartialEq<StyleState<B>> for StyleState<A> {
             (StyleState::Pressed, StyleState::Pressed) => true,
             (StyleState::Checked, StyleState::Checked) => true,
             (StyleState::Disabled, StyleState::Disabled) => true,
+            (StyleState::Focused, StyleState::Focused) => true,
             (StyleState::Open, StyleState::Open) => true,
             (StyleState::Closed, StyleState::Closed) => true,
+            (StyleState::Drag, StyleState::Drag) => true,
+            (StyleState::Drop, StyleState::Drop) => true,
+            (StyleState::DropDenied, StyleState::DropDenied) => true,
             (StyleState::Custom(a), StyleState::Custom(b)) => a.as_ref().eq(b.as_ref()),
 
             _ => false,

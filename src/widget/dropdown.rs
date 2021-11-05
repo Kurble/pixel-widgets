@@ -248,30 +248,31 @@ impl<'a, T: Send + 'a, F: Send + Fn(usize) -> T> Widget<'a, T> for Dropdown<'a, 
                 }
             }
             InnerState::Open { hover_item, .. } | InnerState::Pressed { hover_item, .. } => {
+                let padding = style.background.padding();
                 let expanded = Rectangle {
                     left: layout.left,
                     top: layout.top,
                     right: layout.right,
-                    bottom: layout.bottom + self.items.len() as f32 * layout.height(),
+                    bottom: layout.bottom + self.items.len() as f32 * layout.height() + padding.top + padding.bottom,
                 };
                 result.extend(style.background.render(expanded));
                 for (index, item) in self.items.iter_mut().enumerate() {
                     if index == hover_item {
                         result.push(Primitive::DrawRect(
                             Rectangle {
-                                left: layout.left,
-                                top: layout.top + (1 + index) as f32 * layout.height(),
-                                right: layout.right,
-                                bottom: layout.bottom + (1 + index) as f32 * layout.height(),
+                                left: layout.left + padding.left,
+                                top: layout.top + (1 + index) as f32 * layout.height() + padding.top,
+                                right: layout.right - padding.right,
+                                bottom: layout.bottom + (1 + index) as f32 * layout.height() + padding.top,
                             },
                             style.color,
                         ));
                     }
 
                     let layout = Rectangle {
-                        left: content.left,
-                        top: content.top + (1 + index) as f32 * layout.height(),
-                        right: content.right,
+                        left: content.left + padding.left,
+                        top: content.top + (1 + index) as f32 * layout.height() + padding.top,
+                        right: content.right - padding.right,
                         bottom: content.bottom + (1 + index) as f32 * layout.height(),
                     };
                     result.extend(item.draw(layout, clip));

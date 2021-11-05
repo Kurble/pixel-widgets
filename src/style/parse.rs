@@ -299,6 +299,7 @@ fn parse_selector<I: Iterator<Item = Token>>(c: &mut TokenProvider<I>) -> anyhow
                 "pressed" => Ok(Selector::State(StyleState::Pressed)),
                 "checked" => Ok(Selector::State(StyleState::Checked)),
                 "disabled" => Ok(Selector::State(StyleState::Disabled)),
+                "focused" => Ok(Selector::State(StyleState::Focused)),
                 "open" => Ok(Selector::State(StyleState::Open)),
                 "closed" => Ok(Selector::State(StyleState::Closed)),
                 "drag" => Ok(Selector::State(StyleState::Drag)),

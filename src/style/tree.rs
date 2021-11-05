@@ -3,7 +3,7 @@ use crate::draw::Patch;
 use crate::style::{Declaration, FontId, ImageId, PatchId, Selector, Style, StyleState};
 use crate::text::Font;
 use crate::widget::image::ImageData;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::iter::FromIterator;
 use std::sync::Arc;
 
@@ -174,51 +174,60 @@ impl RuleTreeBuilder {
         images: &HashMap<String, ImageData>,
         patches: &HashMap<String, Patch>,
         fonts: &HashMap<String, Font>,
-    ) -> usize {
-        let index = into.rules.len();
+    ) {
+        let mut queue = VecDeque::new();
+        queue.push_back((self, None));
 
-        into.rules.push(Rule {
-            selector: self.selector,
-            declarations: self
-                .declarations
-                .into_iter()
-                .map(|declaration| match declaration {
-                    Declaration::BackgroundNone => Declaration::BackgroundNone,
-                    Declaration::BackgroundColor(x) => Declaration::BackgroundColor(x),
-                    Declaration::BackgroundImage(ImageId(x), y) => Declaration::BackgroundImage(images[&x].clone(), y),
-                    Declaration::BackgroundPatch(PatchId(x), y) => Declaration::BackgroundPatch(patches[&x].clone(), y),
-                    Declaration::Font(FontId(x)) => Declaration::Font(fonts[&x].clone()),
-                    Declaration::Color(x) => Declaration::Color(x),
-                    Declaration::Padding(x) => Declaration::Padding(x),
-                    Declaration::PaddingLeft(x) => Declaration::PaddingLeft(x),
-                    Declaration::PaddingRight(x) => Declaration::PaddingRight(x),
-                    Declaration::PaddingTop(x) => Declaration::PaddingTop(x),
-                    Declaration::PaddingBottom(x) => Declaration::PaddingBottom(x),
-                    Declaration::Margin(x) => Declaration::Margin(x),
-                    Declaration::MarginLeft(x) => Declaration::MarginLeft(x),
-                    Declaration::MarginRight(x) => Declaration::MarginRight(x),
-                    Declaration::MarginTop(x) => Declaration::MarginTop(x),
-                    Declaration::MarginBottom(x) => Declaration::MarginBottom(x),
-                    Declaration::TextSize(x) => Declaration::TextSize(x),
-                    Declaration::TextWrap(x) => Declaration::TextWrap(x),
-                    Declaration::Width(x) => Declaration::Width(x),
-                    Declaration::Height(x) => Declaration::Height(x),
-                    Declaration::LayoutDirection(x) => Declaration::LayoutDirection(x),
-                    Declaration::AlignHorizontal(x) => Declaration::AlignHorizontal(x),
-                    Declaration::AlignVertical(x) => Declaration::AlignVertical(x),
-                    Declaration::AddFlag(x) => Declaration::AddFlag(x),
-                    Declaration::RemoveFlag(x) => Declaration::RemoveFlag(x),
-                })
-                .collect(),
-            children: Vec::new(),
-        });
+        while let Some((rule, parent)) = queue.pop_front() {
+            for child in rule.children {
+                queue.push_back((child, Some(into.rules.len())));
+            }
 
-        for child in self.children {
-            let child = child.flatten(into, images, patches, fonts);
-            into.rules[index].children.push(child);
+            if let Some(parent) = parent {
+                let child = into.rules.len();
+                into.rules[parent].children.push(child);
+            }
+
+            into.rules.push(Rule {
+                selector: rule.selector,
+                declarations: rule
+                    .declarations
+                    .into_iter()
+                    .map(|declaration| match declaration {
+                        Declaration::BackgroundNone => Declaration::BackgroundNone,
+                        Declaration::BackgroundColor(x) => Declaration::BackgroundColor(x),
+                        Declaration::BackgroundImage(ImageId(x), y) => {
+                            Declaration::BackgroundImage(images[&x].clone(), y)
+                        }
+                        Declaration::BackgroundPatch(PatchId(x), y) => {
+                            Declaration::BackgroundPatch(patches[&x].clone(), y)
+                        }
+                        Declaration::Font(FontId(x)) => Declaration::Font(fonts[&x].clone()),
+                        Declaration::Color(x) => Declaration::Color(x),
+                        Declaration::Padding(x) => Declaration::Padding(x),
+                        Declaration::PaddingLeft(x) => Declaration::PaddingLeft(x),
+                        Declaration::PaddingRight(x) => Declaration::PaddingRight(x),
+                        Declaration::PaddingTop(x) => Declaration::PaddingTop(x),
+                        Declaration::PaddingBottom(x) => Declaration::PaddingBottom(x),
+                        Declaration::Margin(x) => Declaration::Margin(x),
+                        Declaration::MarginLeft(x) => Declaration::MarginLeft(x),
+                        Declaration::MarginRight(x) => Declaration::MarginRight(x),
+                        Declaration::MarginTop(x) => Declaration::MarginTop(x),
+                        Declaration::MarginBottom(x) => Declaration::MarginBottom(x),
+                        Declaration::TextSize(x) => Declaration::TextSize(x),
+                        Declaration::TextWrap(x) => Declaration::TextWrap(x),
+                        Declaration::Width(x) => Declaration::Width(x),
+                        Declaration::Height(x) => Declaration::Height(x),
+                        Declaration::LayoutDirection(x) => Declaration::LayoutDirection(x),
+                        Declaration::AlignHorizontal(x) => Declaration::AlignHorizontal(x),
+                        Declaration::AlignVertical(x) => Declaration::AlignVertical(x),
+                        Declaration::AddFlag(x) => Declaration::AddFlag(x),
+                        Declaration::RemoveFlag(x) => Declaration::RemoveFlag(x),
+                    })
+                    .collect(),
+                children: Vec::new(),
+            });
         }
-
-        index
     }
 }
 

@@ -4,14 +4,17 @@ use std::time::Instant;
 #[cfg(feature = "clipboard")]
 use clipboard::{ClipboardContext, ClipboardProvider};
 use rusttype::Scale;
+use smallvec::smallvec;
 
 use crate::draw::*;
 use crate::event::{Event, Key, Modifiers};
 use crate::layout::{Rectangle, Size};
 use crate::node::{GenericNode, IntoNode, Node};
-use crate::style::Stylesheet;
+use crate::style::{StyleState, Stylesheet};
 use crate::text::{Text, TextWrap};
 use crate::widget::{Context, Widget};
+
+use super::StateVec;
 
 #[cfg(target_os = "macos")]
 const BACKWARDS_DELETE: char = '\x7f';
@@ -166,6 +169,14 @@ where
 
     fn widget(&self) -> &'static str {
         "input"
+    }
+
+    fn state(&self, state: &State) -> StateVec {
+        match state.inner {
+            InnerState::Dragging(_, _, _) => smallvec![StyleState::Focused],
+            InnerState::Focused(_, _, _) => smallvec![StyleState::Focused],
+            InnerState::Idle => StateVec::new(),
+        }
     }
 
     fn len(&self) -> usize {

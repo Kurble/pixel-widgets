@@ -33,11 +33,9 @@ impl Component for DummyWindow {
     }
 
     fn style() -> StyleBuilder {
-        use image::io::Reader as ImageReader;
-
         let mut builder = StyleBuilder::default();
-        let window_background = builder.load_patch("window.png", || {
-            Ok(ImageReader::open("examples/window.png")?.decode()?.into_rgba8())
+        let window_background = builder.load_patch("window.9.png", || {
+            Ok(ImageReader::open("examples/window.9.png")?.decode()?.into_rgba8())
         });
         builder.rule(RuleBuilder::new("window").background_patch(window_background, Color::white()))
     }

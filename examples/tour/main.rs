@@ -1,3 +1,4 @@
+use image::io::Reader as ImageReader;
 use pixel_widgets::event::Key;
 use pixel_widgets::prelude::*;
 use pixel_widgets::widget::menu::MenuItem;
@@ -95,10 +96,63 @@ impl Component for Tour {
 
 #[tokio::main]
 async fn main() {
+    let mut style = Style::builder();
+
+    let button = style.load_patch("button.9.png", || {
+        Ok(ImageReader::open("examples/button.9.png")?.decode()?.into_rgba8())
+    });
+    let button_hover = style.load_patch("button.hover.9.png", || {
+        Ok(ImageReader::open("examples/button.hover.9.png")?.decode()?.into_rgba8())
+    });
+    let button_pressed = style.load_patch("button.pressed.9.png", || {
+        Ok(ImageReader::open("examples/button.pressed.9.png")?
+            .decode()?
+            .into_rgba8())
+    });
+
+    let dropdown = style.load_patch("dropdown.9.png", || {
+        Ok(ImageReader::open("examples/dropdown.9.png")?.decode()?.into_rgba8())
+    });
+    let dropdown_hover = style.load_patch("dropdown.hover.9.png", || {
+        Ok(ImageReader::open("examples/dropdown.hover.9.png")?
+            .decode()?
+            .into_rgba8())
+    });
+    let dropdown_open = style.load_patch("dropdown.open.9.png", || {
+        Ok(ImageReader::open("examples/dropdown.open.9.png")?
+            .decode()?
+            .into_rgba8())
+    });
+
+    let input = style.load_patch("input.9.png", || {
+        Ok(ImageReader::open("examples/input.9.png")?.decode()?.into_rgba8())
+    });
+    let input_focused = style.load_patch("input.focused.9.png", || {
+        Ok(ImageReader::open("examples/input.focused.9.png")?
+            .decode()?
+            .into_rgba8())
+    });
+
     Sandbox::new(
         Tour,
-        Style::builder()
+        style
             .rule(RuleBuilder::new("row").fill_width().padding_all(2.0))
+            .rule(RuleBuilder::new("layers > *").background_color(Color::rgb(0.6, 0.6, 0.6)))
+            .rule(RuleBuilder::new("button").background_patch(button, Color::white()))
+            .rule(RuleBuilder::new("button text").color(Color::black()))
+            .rule(RuleBuilder::new("button:hover").background_patch(button_hover, Color::white()))
+            .rule(RuleBuilder::new("button:pressed").background_patch(button_pressed, Color::white()))
+            .rule(RuleBuilder::new("button:pressed text").color(Color::white()))
+            .rule(
+                RuleBuilder::new("dropdown")
+                    .background_patch(dropdown, Color::white())
+                    .color(Color::rgb(0.6, 0.6, 1.0)),
+            )
+            .rule(RuleBuilder::new("dropdown:hover").background_patch(dropdown_hover, Color::white()))
+            .rule(RuleBuilder::new("dropdown:open").background_patch(dropdown_open, Color::white()))
+            .rule(RuleBuilder::new("dropdown text").color(Color::black()))
+            .rule(RuleBuilder::new("input").background_patch(input, Color::white()))
+            .rule(RuleBuilder::new("input:focused").background_patch(input_focused, Color::white()))
             .component::<DummyWindow>()
             .component::<LoginWindow>(),
         WindowBuilder::new()
