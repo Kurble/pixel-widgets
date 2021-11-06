@@ -253,9 +253,6 @@ impl StyleBuilder {
             );
         }
 
-        let mut rule_tree = tree::RuleTree::default();
-        self.rule_tree.flatten(&mut rule_tree, &images, &patches, &fonts);
-
         Ok(Style {
             cache: Arc::new(Mutex::new(cache)),
             resolved: Default::default(),
@@ -274,7 +271,7 @@ impl StyleBuilder {
                 align_vertical: Align::Begin,
                 flags: Vec::new(),
             },
-            rule_tree,
+            rule_tree: self.rule_tree.build(&images, &patches, &fonts),
         })
     }
 

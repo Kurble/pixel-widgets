@@ -168,27 +168,28 @@ impl RuleTreeBuilder {
         }
     }
 
-    pub(crate) fn flatten(
+    pub(crate) fn build(
         self,
-        into: &mut RuleTree,
         images: &HashMap<String, ImageData>,
         patches: &HashMap<String, Patch>,
         fonts: &HashMap<String, Font>,
-    ) {
+    ) -> RuleTree {
+        let mut rules = Vec::<Rule>::new();
+
         let mut queue = VecDeque::new();
         queue.push_back((self, None));
 
         while let Some((rule, parent)) = queue.pop_front() {
             for child in rule.children {
-                queue.push_back((child, Some(into.rules.len())));
+                queue.push_back((child, Some(rules.len())));
             }
 
             if let Some(parent) = parent {
-                let child = into.rules.len();
-                into.rules[parent].children.push(child);
+                let child = rules.len();
+                rules[parent].children.push(child);
             }
 
-            into.rules.push(Rule {
+            rules.push(Rule {
                 selector: rule.selector,
                 declarations: rule
                     .declarations
@@ -228,6 +229,8 @@ impl RuleTreeBuilder {
                 children: Vec::new(),
             });
         }
+
+        RuleTree { rules }
     }
 }
 
