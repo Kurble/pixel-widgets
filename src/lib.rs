@@ -51,12 +51,23 @@ pub mod tracker;
 /// User interface widgets
 pub mod widget;
 
-/// Entry point for pixel-widgets.
+/// Entry point for the user interface.
 ///
 /// `Ui` manages a root [`Component`](component/trait.Component.html) and processes it to a
 /// [`DrawList`](draw/struct.DrawList.html) that can be rendered using your own renderer implementation.
 /// Alternatively, you can use one of the following included wrappers:
 /// - [`wgpu::Ui`](backend/wgpu/struct.Ui.html) Renders using [wgpu](https://github.com/gfx-rs/wgpu).
+///
+/// # Async support
+/// Components can submit futures to the [`Context`](component/struct.Context.html) using
+/// [`wait()`](component/struct.Context.html#method.wait) and
+/// [`stream()`](component/struct.Context.html#method.stream). These futures will update
+/// those components when they complete or yield messages.
+/// To support this, you must make sure that the poll method on `Ui` is called appropriately
+/// since the `Ui` can't be submitted to a typical executor.
+///
+/// The [`Sandbox`](sandbox/struct.Sandbox.html) can serve as an example since it
+/// provides such a runtime for you through the winit event loop.
 pub struct Ui<M: 'static + Component> {
     root_node: ComponentNode<'static, M>,
     _state: ManagedState,
@@ -98,28 +109,13 @@ impl<C: 'static + Component> Ui<C> {
         })
     }
 
-    /// Resizes the viewport.
-    /// This forces the view to be rerendered.
-    pub fn resize(&mut self, viewport: Rectangle) {
-        self.root_node.set_dirty();
-        self.redraw = true;
-        self.viewport = Rectangle {
-            left: viewport.left / self.hidpi_scale,
-            top: viewport.top / self.hidpi_scale,
-            right: viewport.right / self.hidpi_scale,
-            bottom: viewport.bottom / self.hidpi_scale,
-        };
-    }
-
-    /// Returns true if the ui needs to be redrawn. If the ui doesn't need to be redrawn the
-    /// [`Command`s](draw/struct.Command.html) from the last [`draw`](#method.draw) may be used again.
-    pub fn needs_redraw(&self) -> bool {
-        self.redraw || self.root_node.dirty()
-    }
-
-    /// Updates the model with a message.
-    /// This forces the view to be rerendered.
-    pub fn update_poll(&mut self, message: C::Message, waker: Waker) -> Vec<C::Output> {
+    /// Updates the root component with a message.
+    ///
+    /// If the ui has any pending futures internally, they are polled using the waker.
+    /// Returns output messages from the root component if the update or the poll yielded any.
+    ///
+    /// It's up to the user to make sure that the `waker` will schedule a call to [`poll()`](#method.poll) on this `Ui`.
+    pub fn update_and_poll(&mut self, message: C::Message, waker: Waker) -> Vec<C::Output> {
         let mut context = Context::new(self.needs_redraw(), self.cursor, waker);
 
         self.root_node.update(message, &mut context);
@@ -131,8 +127,13 @@ impl<C: 'static + Component> Ui<C> {
         context.into_vec()
     }
 
-    /// Handles an [`Event`](event/struct.Event.html).
-    pub fn event(&mut self, mut event: Event, waker: Waker) -> Vec<C::Output> {
+    /// Handles a ui [`Event`](event/struct.Event.html).
+    ///
+    /// If the ui has any pending futures internally, they are polled using the waker.
+    /// Returns output messages from the root component if the event or the poll yielded any.
+    ///
+    /// It's up to the user to make sure that the `waker` will schedule a call to [`poll()`](#method.poll) on this `Ui`.
+    pub fn handle_event_and_poll(&mut self, mut event: Event, waker: Waker) -> Vec<C::Output> {
         if let Event::Cursor(x, y) = event {
             event = Event::Cursor(x / self.hidpi_scale, y / self.hidpi_scale);
             self.cursor = (x / self.hidpi_scale, y / self.hidpi_scale);
@@ -165,7 +166,10 @@ impl<C: 'static + Component> Ui<C> {
         outer_context.into_vec()
     }
 
-    /// Should be called when the waker wakes :)
+    /// If the ui has any pending futures internally, this method will poll them using the waker.
+    /// Returns output messages from the root component if the poll yielded any.
+    ///
+    /// It's up to the user to make sure that the `waker` will schedule another call to `poll()`.
     pub fn poll(&mut self, waker: Waker) -> Vec<C::Output> {
         let mut context = Context::new(self.needs_redraw(), self.cursor, waker);
         loop {
@@ -179,6 +183,25 @@ impl<C: 'static + Component> Ui<C> {
             }
         }
         context.into_vec()
+    }
+
+    /// Resizes the viewport.
+    /// This forces the view to be rerendered.
+    pub fn resize(&mut self, viewport: Rectangle) {
+        self.root_node.set_dirty();
+        self.redraw = true;
+        self.viewport = Rectangle {
+            left: viewport.left / self.hidpi_scale,
+            top: viewport.top / self.hidpi_scale,
+            right: viewport.right / self.hidpi_scale,
+            bottom: viewport.bottom / self.hidpi_scale,
+        };
+    }
+
+    /// Returns true if the ui needs to be redrawn. If the ui doesn't need to be redrawn the
+    /// [`Command`s](draw/struct.Command.html) from the last [`draw`](#method.draw) may be used again.
+    pub fn needs_redraw(&self) -> bool {
+        self.redraw || self.root_node.dirty()
     }
 
     /// Generate a [`DrawList`](draw/struct.DrawList.html) for the view.

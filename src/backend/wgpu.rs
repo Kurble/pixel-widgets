@@ -160,7 +160,9 @@ impl<C: Component> Ui<C> {
         }
     }
 
-    /// Generate a [`DrawList`](draw/struct.DrawList.html) for the view.
+    /// Draw the ui to a `RenderPass`.
+    /// The `device` must be the same as the one passed to [`new()`](#method.new).
+    /// The `render_pass` render target must be compatible with the `texture_format` passed to [`new`](#method.new).
     pub fn draw<'a>(&'a mut self, device: &Device, queue: &Queue, render_pass: &mut RenderPass<'a>) {
         if self.inner.needs_redraw() {
             let DrawList {

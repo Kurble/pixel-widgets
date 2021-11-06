@@ -125,7 +125,7 @@ where
             })
             .unwrap();
 
-        self.ui.update_poll(message, waker)
+        self.ui.update_and_poll(message, waker)
     }
 
     /// Run the application
@@ -188,7 +188,7 @@ where
                 } => *control_flow = ControlFlow::Exit,
                 other => {
                     if let Some(event) = crate::backend::winit::convert_event(other) {
-                        self.ui.event(event, waker.clone());
+                        self.ui.handle_event_and_poll(event, waker.clone());
                     }
                 }
             }
