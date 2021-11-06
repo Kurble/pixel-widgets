@@ -1,5 +1,14 @@
 # Changelog
 
+### v0.9.0
+- Moved to a completely new `Component` trait that succeeds the `Model` and `UpdateModel` trait, that allows for component based ui development.
+- Added a declarative syntax macro for defining views.
+- Refactored most widgets to be compatible with declarative syntax.
+- Fixed some issues with style specifity not being handled correctly.
+- Added a code based style builder that exists along side the file based one.
+- Styles are now defined globally for the whole `Ui`.
+- Upgraded wgpu backend to version 0.11
+
 ### v0.8.0
 - Moved `Model::update` to a separate trait `UpdateModel`. 
   This allows the `UpdateModel::update` to receive a custom state that can be modified during the update.

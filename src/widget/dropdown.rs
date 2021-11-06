@@ -56,12 +56,12 @@ impl<'a, T: 'a, F> Dropdown<'a, T, F> {
     }
 }
 
-impl<'a, T: 'a> Default for Dropdown<'a, T, ()> {
+impl<'a, T: 'a> Default for Dropdown<'a, T, fn(usize) -> T> {
     fn default() -> Self {
         Self {
             items: Vec::new(),
             default_selection: None,
-            on_select: (),
+            on_select: |_| panic!("on_select of `Dropdown` must be set"),
         }
     }
 }
