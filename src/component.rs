@@ -118,12 +118,12 @@ impl<'a, Message, Output> Context<'a, Message, Output> {
     }
 
     /// Submits a messsage to self in the future.
-    pub fn wait<F: 'static + Future<Output = Message> + Send + Sync + Unpin>(&mut self, fut: F) {
+    pub fn wait<F: 'static + Future<Output = Message> + Send + Sync>(&mut self, fut: F) {
         self.runtime.wait(fut);
     }
 
     /// Submits a stream of messages to self in the future.
-    pub fn stream<S: 'static + Stream<Item = Message> + Send + Sync + Unpin>(&mut self, stream: S) {
+    pub fn stream<S: 'static + Stream<Item = Message> + Send + Sync>(&mut self, stream: S) {
         self.runtime.stream(stream);
     }
 }

@@ -3,6 +3,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::future::Future;
 use std::hash::{Hash, Hasher};
 use std::ops::{Deref, DerefMut};
+use std::pin::Pin;
 use std::ptr::null_mut;
 use std::task::Poll;
 
@@ -30,8 +31,8 @@ pub struct ComponentNode<'a, C: 'a + Component> {
 }
 
 pub struct Runtime<Message> {
-    futures: Vec<Box<dyn Future<Output = Message> + Send + Sync + Unpin>>,
-    streams: Vec<Box<dyn Stream<Item = Message> + Send + Sync + Unpin>>,
+    futures: Vec<Pin<Box<dyn Future<Output = Message> + Send + Sync>>>,
+    streams: Vec<Pin<Box<dyn Stream<Item = Message> + Send + Sync>>>,
     modified: bool,
 }
 
@@ -311,13 +312,13 @@ impl<Message> Default for Runtime<Message> {
 }
 
 impl<Message> Runtime<Message> {
-    pub fn wait<F: 'static + Future<Output = Message> + Send + Sync + Unpin>(&mut self, fut: F) {
-        self.futures.push(Box::new(fut));
+    pub fn wait<F: 'static + Future<Output = Message> + Send + Sync>(&mut self, fut: F) {
+        self.futures.push(Box::pin(fut));
         self.modified = true;
     }
 
-    pub fn stream<S: 'static + Stream<Item = Message> + Send + Sync + Unpin>(&mut self, stream: S) {
-        self.streams.push(Box::new(stream));
+    pub fn stream<S: 'static + Stream<Item = Message> + Send + Sync>(&mut self, stream: S) {
+        self.streams.push(Box::pin(stream));
         self.modified = true;
     }
 
