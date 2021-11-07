@@ -2,6 +2,7 @@
 
 ### v0.9.2
 - Added match functionality to the `view!` macro.
+- Fixed a bug where the state of the root component was not initialized if update_and_poll() is called before the first view() call.
 
 ### v0.9.1
 - `Component` should not have to be `Default`, it's builder should be. The `Default` requirement of `Component` has been removed.

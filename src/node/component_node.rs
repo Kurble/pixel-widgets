@@ -78,7 +78,24 @@ impl<'a, C: 'a + Component> ComponentNode<'a, C> {
     pub fn update(&mut self, message: C::Message, context: &mut WidgetContext<C::Output>) {
         let mut dirty = false;
 
-        let (state, runtime) = unsafe { self.component_state.get().as_mut().unwrap() };
+        let mut component_state = self.component_state.get();
+        if component_state.is_null() {
+            let mut tracker = unsafe {
+                self.state
+                    .borrow_mut()
+                    .as_mut()
+                    .map(|s| (*s) as *mut ManagedState)
+                    .unwrap_or(null_mut())
+                    .as_mut()
+                    .unwrap()
+                    .tracker()
+            };
+
+            component_state = tracker.begin(0, || (self.props.mount(), Runtime::default())) as *mut _;
+            self.component_state.set(component_state);
+        }
+
+        let (state, runtime) = unsafe { component_state.as_mut().unwrap() };
 
         self.props.update(
             message,
