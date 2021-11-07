@@ -15,7 +15,7 @@ use crate::widget::Context as WidgetContext;
 ///
 /// The examples in this repository all implement some kind of `Component`,
 /// check them out if you just want to read some code.
-pub trait Component: Default {
+pub trait Component {
     /// Mutable state associated with this `Component`.
     type State: 'static + Any + Send + Sync;
 

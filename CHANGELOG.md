@@ -1,5 +1,8 @@
 # Changelog
 
+### v0.9.1
+- `Component` should not have to be `Default`, it's builder should be. The `Default` requirement of `Component` has been removed.
+
 ### v0.9.0
 - Moved to a completely new `Component` trait that succeeds the `Model` and `UpdateModel` trait, that allows for component based ui development.
 - Added a declarative syntax macro for defining views.
