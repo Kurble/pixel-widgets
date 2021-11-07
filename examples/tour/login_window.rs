@@ -3,9 +3,9 @@ use super::*;
 #[derive(Default)]
 pub struct LoginWindow;
 
-pub struct LoginWindowState {
-    pub name: String,
-    pub password: String,
+pub enum LoginWindowState {
+    Prompt { name: String, password: String },
+    Busy,
 }
 
 impl Component for LoginWindow {
@@ -14,7 +14,7 @@ impl Component for LoginWindow {
     type Output = Message;
 
     fn mount(&self) -> LoginWindowState {
-        LoginWindowState {
+        LoginWindowState::Prompt {
             name: "example".to_string(),
             password: "password".to_string(),
         }
@@ -28,20 +28,25 @@ impl Component for LoginWindow {
                     Spacer
                     Spacer { class: "close" }
                 }
-                Column => {
+
+                :match state;
+                :case LoginWindowState::Prompt { name, password } => Column => {
                     Input {
                         placeholder: "username",
-                        val: state.name.as_str(),
+                        val: name.as_str(),
                         on_change: Message::NameChanged,
                         trigger_key: Key::Enter
                     }
                     Input {
                         placeholder: "password",
-                        val: state.password.as_str(),
+                        val: password.as_str(),
                         on_change: Message::PasswordChanged,
                         password: true
                     }
                     Button { text: "Login", on_clicked: Message::LoginPressed }
+                }
+                :case LoginWindowState::Busy => Column => {
+                    Text { val: "logging in!" }
                 }
             }
         }
@@ -53,9 +58,17 @@ impl Component for LoginWindow {
 
     fn update(&self, message: Message, mut state: State<LoginWindowState>, _: Context<Message, Message>) {
         match message {
-            Message::NameChanged(name) => state.name = name,
-            Message::PasswordChanged(password) => state.password = password,
-            Message::LoginPressed => println!("login pressed!"),
+            Message::NameChanged(new_name) => {
+                if let LoginWindowState::Prompt { name, .. } = &mut *state {
+                    *name = new_name;
+                }
+            }
+            Message::PasswordChanged(new_password) => {
+                if let LoginWindowState::Prompt { password, .. } = &mut *state {
+                    *password = new_password;
+                }
+            }
+            Message::LoginPressed => *state = LoginWindowState::Busy,
             _ => (),
         }
     }

@@ -1,5 +1,8 @@
 # Changelog
 
+### v0.9.2
+- Added match functionality to the `view!` macro.
+
 ### v0.9.1
 - `Component` should not have to be `Default`, it's builder should be. The `Default` requirement of `Component` has been removed.
 

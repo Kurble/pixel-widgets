@@ -105,6 +105,26 @@ fn view<'a>() -> Node<'a, Msg> {
 ```
 Like if/else statements, for loops also produce one widget per iteration. The solution is much the same: you should wrap groups of widget in a layout if you need it.
 
+## Match
+It's also possible to match an expression. The syntax is a bit more awkward due to the macro limits.
+```rust
+use pixel_widgets::prelude::*;
+
+fn view<'a>() -> Node<'a, ()> {
+    let x = 2;
+    view! {
+        Column => {
+            :match x;
+            :case 1 => Text { val: "Option 1" },
+            :case 2 => Text { val: "Option 2" },
+            :case 3 => Text { val: "Option 3" },
+            :case 4 => Text { val: "Option 4" },
+            :case _ => Text { val: "Unknown option" },
+        }
+    }
+}
+```
+
 ## Integrating your components
 Not just widgets can be used in declarative syntax. In fact, any type that implements `Default` and has a `into_node()` method can be used. this means you can compose complex user interfaces from components. By default, the `Component` trait already defines an `into_node()` method for you. The only thing left to do is to sure your component implements `Default` and has some builder methods if you need to set any properties on your component.
 
