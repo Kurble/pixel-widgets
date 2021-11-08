@@ -21,7 +21,7 @@ impl Component for Counter {
     type Output = ();
 
     // Creates the state of our component when it's first constructed.
-    fn mount(&self) -> Self::State {
+    fn mount(&self, _: &mut Runtime<Message>) -> Self::State {
         self.initial_value
     }
 
@@ -39,7 +39,7 @@ impl Component for Counter {
     }
 
     // Updates the component state based on a message.
-    fn update(&self, message: Message, mut state: State<i32>, _context: Context<Message, ()>) {
+    fn update(&self, message: Message, mut state: DetectMut<i32>, _: &mut Runtime<Message>, _: &mut Context<()>) {
         match message {
             Message::UpPressed => *state += 1,
             Message::DownPressed => *state -= 1,

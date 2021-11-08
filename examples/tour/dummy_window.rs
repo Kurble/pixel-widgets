@@ -8,7 +8,7 @@ impl Component for DummyWindow {
     type Message = Message;
     type Output = Message;
 
-    fn mount(&self) {}
+    fn mount(&self, _: &mut Runtime<Message>) {}
 
     fn view<'a>(&'a self, _: &'a Self::State) -> Node<'a, Self::Message> {
         let options = [
@@ -40,7 +40,7 @@ impl Component for DummyWindow {
         builder.rule(RuleBuilder::new("window").background_patch(window_background, Color::white()))
     }
 
-    fn update(&self, message: Message, _: State<()>, _: Context<Message, Message>) {
+    fn update(&self, message: Message, _: DetectMut<()>, _: &mut Runtime<Message>, _: &mut Context<Message>) {
         if let Message::PlanetSelected(planet) = message {
             println!("{} selected from the planets", planet);
         }

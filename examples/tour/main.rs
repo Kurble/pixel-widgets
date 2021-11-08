@@ -7,7 +7,7 @@ use winit::window::WindowBuilder;
 #[derive(Default)]
 struct Tour;
 
-struct TourState {
+struct State {
     pub show_dummy: bool,
     pub show_login: bool,
     context_position: Option<(f32, f32)>,
@@ -32,18 +32,18 @@ pub enum Message {
 
 impl Component for Tour {
     type Message = Message;
-    type State = TourState;
+    type State = State;
     type Output = ();
 
-    fn mount(&self) -> Self::State {
-        TourState {
+    fn mount(&self, _: &mut Runtime<Message>) -> Self::State {
+        State {
             show_dummy: false,
             show_login: false,
             context_position: None,
         }
     }
 
-    fn view<'a>(&'a self, state: &'a TourState) -> Node<'a, Message> {
+    fn view<'a>(&'a self, state: &'a State) -> Node<'a, Message> {
         let options = [
             "Mercury", "Venus", "Earth", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto",
         ];
@@ -83,7 +83,7 @@ impl Component for Tour {
         }
     }
 
-    fn update(&self, message: Self::Message, mut state: State<TourState>, _: Context<Message, ()>) {
+    fn update(&self, message: Message, mut state: DetectMut<State>, _: &mut Runtime<Message>, _: &mut Context<()>) {
         match message {
             Message::ShowDummy(show) => state.show_dummy = show,
             Message::ShowLogin(show) => state.show_login = show,

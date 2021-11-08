@@ -95,7 +95,7 @@ impl Component for Alchemy {
     type State = AlchemyState;
     type Output = ();
 
-    fn mount(&self) -> Self::State {
+    fn mount(&self, _: &mut Runtime<Message>) -> Self::State {
         AlchemyState {
             context: Default::default(),
             items: self.items.clone(),
@@ -162,7 +162,13 @@ impl Component for Alchemy {
         }
     }
 
-    fn update(&self, message: Self::Message, mut state: State<AlchemyState>, _: Context<Message, ()>) {
+    fn update(
+        &self,
+        message: Self::Message,
+        mut state: DetectMut<AlchemyState>,
+        _: &mut Runtime<Message>,
+        _: &mut Context<()>,
+    ) {
         let state = &mut *state;
         match message {
             Message::Place(item, pos) => {

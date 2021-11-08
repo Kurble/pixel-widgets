@@ -10,14 +10,14 @@ use std::task::Poll;
 use futures::{FutureExt, Stream, StreamExt};
 
 use crate::bitset::BitSet;
-use crate::component::{Component, Context};
+use crate::component::Component;
 use crate::draw::Primitive;
 use crate::event::Event;
 use crate::layout::{Rectangle, Size};
 use crate::node::{GenericNode, Node};
 use crate::style::tree::Query;
 use crate::tracker::{ManagedState, ManagedStateTracker};
-use crate::widget::Context as WidgetContext;
+use crate::widget::Context;
 
 pub struct ComponentNode<'a, C: 'a + Component> {
     props: Box<C>,
@@ -30,6 +30,7 @@ pub struct ComponentNode<'a, C: 'a + Component> {
     key: u64,
 }
 
+/// Runtime for submitting future messages to [`Component::update`](../component/trait.Component.html#method.update).
 pub struct Runtime<Message> {
     futures: Vec<Pin<Box<dyn Future<Output = Message> + Send + Sync>>>,
     streams: Vec<Pin<Box<dyn Stream<Item = Message> + Send + Sync>>>,
@@ -37,8 +38,8 @@ pub struct Runtime<Message> {
 }
 
 /// Mutable state accessor.
-/// By wrapping the mutable reference, the runtime knows if the state was mutated at all.
-pub struct State<'a, T> {
+/// By wrapping the mutable reference, the runtime knows if the state was mutated and the view should be refreshed.
+pub struct DetectMut<'a, T> {
     inner: &'a mut T,
     dirty: &'a mut bool,
 }
@@ -76,7 +77,7 @@ impl<'a, C: 'a + Component> ComponentNode<'a, C> {
         self.props.as_mut()
     }
 
-    pub fn update(&mut self, message: C::Message, context: &mut WidgetContext<C::Output>) {
+    pub fn update(&mut self, message: C::Message, context: &mut Context<C::Output>) {
         let mut dirty = false;
 
         let mut component_state = self.component_state.get();
@@ -92,7 +93,11 @@ impl<'a, C: 'a + Component> ComponentNode<'a, C> {
                     .tracker()
             };
 
-            component_state = tracker.begin(0, || (self.props.mount(), Runtime::default())) as *mut _;
+            component_state = tracker.begin(0, || {
+                let mut runtime = Runtime::default();
+                let state = self.props.mount(&mut runtime);
+                (state, runtime)
+            }) as *mut _;
             self.component_state.set(component_state);
         }
 
@@ -100,11 +105,12 @@ impl<'a, C: 'a + Component> ComponentNode<'a, C> {
 
         self.props.update(
             message,
-            State {
+            DetectMut {
                 inner: state,
                 dirty: &mut dirty,
             },
-            Context::new(context, runtime),
+            runtime,
+            context,
         );
 
         if dirty {
@@ -125,7 +131,11 @@ impl<'a, C: 'a + Component> ComponentNode<'a, C> {
                     .tracker()
             };
 
-            let state = tracker.begin(0, || (self.props.mount(), Runtime::default()));
+            let state = tracker.begin(0, || {
+                let mut runtime = Runtime::default();
+                let state = self.props.mount(&mut runtime);
+                (state, runtime)
+            });
             self.component_state.set(state as *mut _);
 
             let mut root = unsafe { (self.props.as_ref() as *const C).as_ref().unwrap() }.view(&state.0);
@@ -248,7 +258,7 @@ impl<'a, C: 'a + Component> GenericNode<'a, C::Output> for ComponentNode<'a, C> 
         layout: Rectangle,
         clip: Rectangle,
         event: Event,
-        context: &mut WidgetContext<<C as Component>::Output>,
+        context: &mut Context<<C as Component>::Output>,
     ) {
         let mut sub_context = context.sub_context();
         self.view().event(layout, clip, event, &mut sub_context);
@@ -269,7 +279,7 @@ impl<'a, C: 'a + Component> GenericNode<'a, C::Output> for ComponentNode<'a, C> 
         }
     }
 
-    fn poll(&mut self, context: &mut WidgetContext<<C as Component>::Output>) {
+    fn poll(&mut self, context: &mut Context<<C as Component>::Output>) {
         let mut sub_context = context.sub_context();
         self.view().poll(&mut sub_context);
 
@@ -282,12 +292,10 @@ impl<'a, C: 'a + Component> GenericNode<'a, C::Output> for ComponentNode<'a, C> 
         }
 
         let (_, runtime) = unsafe { self.component_state.get().as_mut().unwrap() };
-        loop {
+        runtime.modified = true; // force first poll
+        while runtime.modified {
             for message in runtime.poll(&mut context.task_context()) {
                 self.update(message, context);
-            }
-            if !runtime.modified {
-                break;
             }
         }
     }
@@ -312,11 +320,13 @@ impl<Message> Default for Runtime<Message> {
 }
 
 impl<Message> Runtime<Message> {
+    /// Submits a messsage to the component in the future.
     pub fn wait<F: 'static + Future<Output = Message> + Send + Sync>(&mut self, fut: F) {
         self.futures.push(Box::pin(fut));
         self.modified = true;
     }
 
+    /// Submits a stream of messages to the component in the future.
     pub fn stream<S: 'static + Stream<Item = Message> + Send + Sync>(&mut self, stream: S) {
         self.streams.push(Box::pin(stream));
         self.modified = true;
@@ -359,7 +369,14 @@ impl<Message> Runtime<Message> {
     }
 }
 
-impl<'a, T> Deref for State<'a, T> {
+impl<'a, T> DetectMut<'a, T> {
+    /// Force the ui to be rebuilt.
+    pub fn force_update(&mut self) {
+        *self.dirty = true;
+    }
+}
+
+impl<'a, T> Deref for DetectMut<'a, T> {
     type Target = T;
 
     fn deref(&self) -> &T {
@@ -367,7 +384,7 @@ impl<'a, T> Deref for State<'a, T> {
     }
 }
 
-impl<'a, T> DerefMut for State<'a, T> {
+impl<'a, T> DerefMut for DetectMut<'a, T> {
     fn deref_mut(&mut self) -> &mut T {
         *self.dirty = true;
         self.inner

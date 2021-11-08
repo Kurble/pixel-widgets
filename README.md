@@ -1,4 +1,5 @@
 # Pixel-widgets
+
 [![Documentation](https://docs.rs/pixel-widgets/badge.svg)](https://docs.rs/pixel-widgets)
 [![Crates.io](https://img.shields.io/crates/v/pixel-widgets.svg)](https://crates.io/crates/pixel-widgets)
 ![License](https://img.shields.io/crates/l/pixel-widgets.svg)
@@ -6,6 +7,7 @@
 pixel-widgets is a component based user interface library focused on integratability in graphical applications.
 
 # Features
+
 - Very compact and easy API
 - API agnostic rendering
 - [`Component`](component/trait.Component.html) based workflow
@@ -14,13 +16,17 @@ pixel-widgets is a component based user interface library focused on integratabi
 - [wgpu](https://github.com/gfx-rs/wgpu) based renderer included
 
 # Overview
+
 User interfaces in pixel-widgets are composed of [`Component`](trait.Component.html)s. These components manage their own state, and generate ui elements when that state is mutated. Each component implements some methods:
+
 - [`view`](trait.Component.html#tymethod.view) - this method renders the ui elements for the current component state. When the state is updated, the view will be rendered again.
-method:
+  method:
 - [`update`](trait.Component.html#tymethod.update) - ui elements generate messages that will be passed to the update method. In here, a component will update it's internal state based on these messages.
 
 # Quick start
+
 This example shows how to define a component and run it in the included sandbox. More work is required if you want to use pixel-widgets in your own game engine.
+
 ```rust
 use pixel_widgets::prelude::*;
 
@@ -31,6 +37,7 @@ struct Counter {
 ```
 
 Then, we have to define a message type. The message type should be able to tell us what happend in the ui.
+
 ```rust
 // The message type that will be used in our `Counter` component.
 #[derive(Clone)]
@@ -41,6 +48,7 @@ enum Message {
 ```
 
 And finally, we must implement [`Component`](component/trait.Component.html)
+
 ```rust no_run
 use pixel_widgets::prelude::*;
 
@@ -63,7 +71,7 @@ impl Component for Counter {
     type Output = ();
 
     // Creates the state of our component when it's first constructed.
-    fn mount(&self) -> Self::State {
+    fn mount(&self, _: &mut Runtime<Message>) -> Self::State {
         self.initial_value
     }
 
@@ -81,7 +89,7 @@ impl Component for Counter {
     }
 
     // Updates the component state based on a message.
-    fn update(&self, message: Message, mut state: State<i32>, _context: Context<Message, ()>) {
+    fn update(&self, message: Message, mut state: DetectMut<i32>, _: &mut Runtime<Message>, _: &mut Context<()>) {
         match message {
             Message::UpPressed => *state += 1,
             Message::DownPressed => *state -= 1,
@@ -94,8 +102,8 @@ async fn main() {
     use winit::window::WindowBuilder;
 
     Sandbox::new(
-        Counter { initial_value: 15 }, 
-        StyleBuilder::default(), 
+        Counter { initial_value: 15 },
+        StyleBuilder::default(),
         WindowBuilder::new()
             .with_title("Counter")
             .with_inner_size(winit::dpi::LogicalSize::new(240, 240))
@@ -106,5 +114,7 @@ async fn main() {
     .await;
 }
 ```
+
 # Examples
+
 If you want more examples, check out the [examples directory](https://github.com/Kurble/pixel-widgets/tree/master/examples) in the git repository.

@@ -1,14 +1,11 @@
 use std::any::Any;
 use std::collections::hash_map::DefaultHasher;
-use std::future::Future;
 use std::hash::{Hash, Hasher};
 
-use futures::Stream;
-
-use crate::node::component_node::{Runtime, State};
+use crate::node::component_node::{DetectMut, Runtime};
 use crate::node::Node;
 use crate::style::builder::StyleBuilder;
-use crate::widget::Context as WidgetContext;
+use crate::widget::Context;
 
 /// A re-usable component for defining a fragment of a user interface.
 /// Components are the main building block for user interfaces in pixel-widgets.
@@ -27,7 +24,7 @@ pub trait Component {
 
     /// Create a new `State` for the `Component`.
     /// This will be called only once when the `Component` is first created.
-    fn mount(&self) -> Self::State;
+    fn mount(&self, runtime: &mut Runtime<Self::Message>) -> Self::State;
 
     /// Generate the view for the `Component`.
     /// This will be called just in time before ui rendering.
@@ -42,8 +39,9 @@ pub trait Component {
     fn update(
         &self,
         _message: Self::Message,
-        _state: State<Self::State>,
-        _context: Context<Self::Message, Self::Output>,
+        _state: DetectMut<Self::State>,
+        _runtime: &mut Runtime<Self::Message>,
+        _context: &mut Context<Self::Output>,
     ) {
     }
 
@@ -85,45 +83,5 @@ pub trait Component {
         let mut node = self.into_node();
         node.set_key(hasher.finish());
         node
-    }
-}
-
-/// Allows for message passing between components
-pub struct Context<'a, Message, Output> {
-    widget_context: &'a mut WidgetContext<Output>,
-    runtime: &'a mut Runtime<Message>,
-}
-
-impl<'a, Message, Output> Context<'a, Message, Output> {
-    pub(crate) fn new(widget_context: &'a mut WidgetContext<Output>, runtime: &'a mut Runtime<Message>) -> Self {
-        Self {
-            widget_context,
-            runtime,
-        }
-    }
-
-    /// Push a message to the parent.
-    pub fn push(&mut self, message: Output) {
-        self.widget_context.push(message);
-    }
-
-    /// Push multiple messages to the parent using an iterator.
-    pub fn extend<I: IntoIterator<Item = Output>>(&mut self, iter: I) {
-        self.widget_context.extend(iter);
-    }
-
-    /// Returns the cursor position
-    pub fn cursor(&self) -> (f32, f32) {
-        self.widget_context.cursor()
-    }
-
-    /// Submits a messsage to self in the future.
-    pub fn wait<F: 'static + Future<Output = Message> + Send + Sync>(&mut self, fut: F) {
-        self.runtime.wait(fut);
-    }
-
-    /// Submits a stream of messages to self in the future.
-    pub fn stream<S: 'static + Stream<Item = Message> + Send + Sync>(&mut self, stream: S) {
-        self.runtime.stream(stream);
     }
 }

@@ -26,7 +26,7 @@ impl Component for Download {
     type State = DownloadState;
     type Output = ();
 
-    fn mount(&self) -> DownloadState {
+    fn mount(&self, _: &mut Runtime<Message>) -> DownloadState {
         DownloadState {
             url: "http://speedtest.ftp.otenet.gr/files/test10Mb.db".into(),
             progress: 0,
@@ -49,7 +49,13 @@ impl Component for Download {
         }
     }
 
-    fn update(&self, message: Message, mut state: State<Self::State>, mut context: Context<Message, ()>) {
+    fn update(
+        &self,
+        message: Message,
+        mut state: DetectMut<Self::State>,
+        runtime: &mut Runtime<Message>,
+        _: &mut Context<()>,
+    ) {
         match message {
             Message::UrlChanged(url) => {
                 state.url = url;
@@ -57,7 +63,7 @@ impl Component for Download {
             Message::DownloadPressed => {
                 let (mut tx, rx) = futures::channel::mpsc::unbounded();
                 let url = state.url.clone();
-                context.stream(rx);
+                runtime.stream(rx);
                 tokio::spawn(async move {
                     tx.send(Message::ProgressUpdated(0, 1)).await.unwrap();
 

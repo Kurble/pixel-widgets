@@ -13,7 +13,7 @@ impl Component for LoginWindow {
     type Message = Message;
     type Output = Message;
 
-    fn mount(&self) -> LoginWindowState {
+    fn mount(&self, _: &mut Runtime<Message>) -> LoginWindowState {
         LoginWindowState::Prompt {
             name: "example".to_string(),
             password: "password".to_string(),
@@ -56,7 +56,13 @@ impl Component for LoginWindow {
         StyleBuilder::default().rule(RuleBuilder::new("window").background_color(Color::rgb(0.3, 0.3, 0.5)))
     }
 
-    fn update(&self, message: Message, mut state: State<LoginWindowState>, _: Context<Message, Message>) {
+    fn update(
+        &self,
+        message: Message,
+        mut state: DetectMut<LoginWindowState>,
+        _: &mut Runtime<Message>,
+        _: &mut Context<Message>,
+    ) {
         match message {
             Message::NameChanged(new_name) => {
                 if let LoginWindowState::Prompt { name, .. } = &mut *state {
