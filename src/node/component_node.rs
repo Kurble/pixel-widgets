@@ -188,13 +188,8 @@ impl<'a, C: 'a + Component> GenericNode<'a, C::Output> for ComponentNode<'a, C> 
     }
 
     fn style(&mut self, query: &mut Query, position: (usize, usize)) {
-        self.style_matches = query.match_widget::<String>(
-            std::any::type_name::<C>(),
-            "",
-            &[],
-            self.style_position.0,
-            self.style_position.1,
-        );
+        self.style_matches =
+            query.match_widget::<String>(C::style_scope(), "", &[], self.style_position.0, self.style_position.1);
         self.style_query = Some(Query {
             style: query.style.clone(),
             ancestors: {

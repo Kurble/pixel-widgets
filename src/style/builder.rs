@@ -110,7 +110,7 @@ impl StyleBuilder {
         self.images.extend(builder.images);
         self.patches.extend(builder.patches);
         self.fonts.extend(builder.fonts);
-        let name = std::any::type_name::<C>().to_string();
+        let name = C::style_scope().to_string();
         builder.rule_tree.selector = Selector::Widget(SelectorWidget::Some(name.clone()));
         self.rule_tree
             .select(&[Selector::Widget(SelectorWidget::Some(name))])

@@ -2,7 +2,7 @@
 #[cfg(feature = "wgpu")]
 pub use crate::sandbox::Sandbox;
 pub use crate::{
-    component::Component,
+    component::{Component, ComponentExt},
     draw::Color,
     layout::{Align, Direction, Rectangle, Size},
     node::component_node::{DetectMut, Runtime},
