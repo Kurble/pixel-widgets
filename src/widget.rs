@@ -258,10 +258,6 @@ impl<Message> Context<Message> {
     pub(crate) fn task_context(&self) -> std::task::Context<'_> {
         std::task::Context::from_waker(&self.waker)
     }
-
-    pub(crate) fn into_vec(self) -> Vec<Message> {
-        self.messages
-    }
 }
 
 impl<Message> IntoIterator for Context<Message> {

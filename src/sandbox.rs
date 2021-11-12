@@ -113,7 +113,7 @@ where
 
     /// Update the root component with a message.
     /// Returns any output messages from the root component.
-    pub fn update(&mut self, message: T::Message) -> Vec<T::Output> {
+    pub fn update(&mut self, message: T::Message) {
         let waker = self
             .event_loop
             .as_ref()
@@ -125,7 +125,7 @@ where
             })
             .unwrap();
 
-        self.ui.update_and_poll(message, waker)
+        self.ui.update_and_poll(message, waker);
     }
 
     /// Run the application

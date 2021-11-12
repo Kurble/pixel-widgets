@@ -1,6 +1,7 @@
 #![doc = include_str!("../README.md")]
 #![deny(missing_docs)]
 
+use std::collections::VecDeque;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 use std::task::Waker;
@@ -68,14 +69,15 @@ pub mod widget;
 ///
 /// The [`Sandbox`](sandbox/struct.Sandbox.html) can serve as an example since it
 /// provides such a runtime for you through the winit event loop.
-pub struct Ui<M: 'static + Component> {
-    root_node: ComponentNode<'static, M>,
+pub struct Ui<C: 'static + Component> {
+    root_node: ComponentNode<'static, C>,
     _state: ManagedState,
     viewport: Rectangle,
     redraw: bool,
     cursor: (f32, f32),
     style: Arc<Style>,
     hidpi_scale: f32,
+    output: VecDeque<C::Output>,
 }
 
 impl<C: 'static + Component> Ui<C> {
@@ -106,16 +108,16 @@ impl<C: 'static + Component> Ui<C> {
             cursor: (0.0, 0.0),
             style,
             hidpi_scale,
+            output: Default::default(),
         })
     }
 
     /// Updates the root component with a message.
     ///
     /// If the ui has any pending futures internally, they are polled using the waker.
-    /// Returns output messages from the root component if the update or the poll yielded any.
     ///
     /// It's up to the user to make sure that the `waker` will schedule a call to [`poll()`](#method.poll) on this `Ui`.
-    pub fn update_and_poll(&mut self, message: C::Message, waker: Waker) -> Vec<C::Output> {
+    pub fn update_and_poll(&mut self, message: C::Message, waker: Waker) {
         let mut context = Context::new(self.needs_redraw(), self.cursor, waker);
 
         self.root_node.update(message, &mut context);
@@ -124,16 +126,15 @@ impl<C: 'static + Component> Ui<C> {
         }
 
         self.redraw = context.redraw_requested();
-        context.into_vec()
+        self.output.extend(context);
     }
 
     /// Handles a ui [`Event`](event/struct.Event.html).
-    ///
     /// If the ui has any pending futures internally, they are polled using the waker.
-    /// Returns output messages from the root component if the event or the poll yielded any.
-    ///
     /// It's up to the user to make sure that the `waker` will schedule a call to [`poll()`](#method.poll) on this `Ui`.
-    pub fn handle_event_and_poll(&mut self, mut event: Event, waker: Waker) -> Vec<C::Output> {
+    ///
+    /// Returns `true` if the event was handled in a way that it's captured by the ui.
+    pub fn handle_event_and_poll(&mut self, mut event: Event, waker: Waker) -> bool {
         if let Event::Cursor(x, y) = event {
             event = Event::Cursor(x / self.hidpi_scale, y / self.hidpi_scale);
             self.cursor = (x / self.hidpi_scale, y / self.hidpi_scale);
@@ -141,7 +142,7 @@ impl<C: 'static + Component> Ui<C> {
 
         let mut context = Context::new(self.needs_redraw(), self.cursor, waker.clone());
 
-        {
+        let result = {
             let mut view = self.root_node.view();
             let (w, h) = view.size();
             let layout = Rectangle::from_wh(
@@ -149,7 +150,8 @@ impl<C: 'static + Component> Ui<C> {
                 h.resolve(self.viewport.height(), h.parts()),
             );
             view.event(layout, self.viewport, event, &mut context);
-        }
+            view.focused()
+        };
 
         self.redraw = context.redraw_requested();
 
@@ -163,14 +165,15 @@ impl<C: 'static + Component> Ui<C> {
         }
 
         self.redraw = outer_context.redraw_requested();
-        outer_context.into_vec()
+        self.output.extend(outer_context);
+
+        result
     }
 
     /// If the ui has any pending futures internally, this method will poll them using the waker.
-    /// Returns output messages from the root component if the poll yielded any.
     ///
     /// It's up to the user to make sure that the `waker` will schedule another call to `poll()`.
-    pub fn poll(&mut self, waker: Waker) -> Vec<C::Output> {
+    pub fn poll(&mut self, waker: Waker) {
         let mut context = Context::new(self.needs_redraw(), self.cursor, waker);
         loop {
             self.root_node.poll(&mut context);
@@ -182,7 +185,7 @@ impl<C: 'static + Component> Ui<C> {
                 break;
             }
         }
-        context.into_vec()
+        self.output.extend(context);
     }
 
     /// Resizes the viewport.
@@ -196,6 +199,11 @@ impl<C: 'static + Component> Ui<C> {
             right: viewport.right / self.hidpi_scale,
             bottom: viewport.bottom / self.hidpi_scale,
         };
+    }
+
+    /// Returns an iterator over the output messages produced by the root component.
+    pub fn output<'a>(&'a mut self) -> impl 'a + Iterator<Item = C::Output> {
+        self
     }
 
     /// Returns true if the ui needs to be redrawn. If the ui doesn't need to be redrawn the
@@ -547,6 +555,14 @@ impl<C: 'static + Component> Ui<C> {
             vertices,
             commands,
         }
+    }
+}
+
+impl<C: Component> Iterator for Ui<C> {
+    type Item = C::Output;
+
+    fn next(&mut self) -> Option<C::Output> {
+        self.output.pop_front()
     }
 }
 
