@@ -70,10 +70,12 @@ impl<'a, C: 'a + Component> ComponentNode<'a, C> {
         self.view.replace(None);
     }
 
+    #[allow(unused)]
     pub fn props(&self) -> &C {
         self.props.as_ref()
     }
 
+    #[allow(unused)]
     pub fn props_mut(&mut self) -> &mut C {
         self.set_dirty();
         self.props.as_mut()
@@ -315,13 +317,17 @@ impl<Message> Runtime<Message> {
     /// Submits a messsage to the component in the future.
     pub fn wait<F: 'static + Future<Output = Message> + Send + Sync>(&mut self, fut: F) {
         self.futures.push(Box::pin(fut));
-        self.waker.take().map(std::task::Waker::wake);
+        if let Some(task) = self.waker.take() {
+            task.wake();
+        }
     }
 
     /// Submits a stream of messages to the component in the future.
     pub fn stream<S: 'static + Stream<Item = Message> + Send + Sync>(&mut self, stream: S) {
         self.streams.push(Box::pin(stream));
-        self.waker.take().map(std::task::Waker::wake);
+        if let Some(task) = self.waker.take() {
+            task.wake();
+        }
     }
 
     pub(crate) fn poll(&mut self, cx: &mut std::task::Context) -> Vec<Message> {

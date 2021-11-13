@@ -1,3 +1,4 @@
+use std::future::Future;
 use winit::{
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
@@ -5,15 +6,12 @@ use winit::{
 };
 
 use crate::prelude::*;
-use std::sync::{Arc, Mutex};
-use std::task::Wake;
-use winit::event_loop::EventLoopProxy;
 
 /// Sandbox for quick prototyping of pixel widgets applications
 pub struct Sandbox<M: 'static + Component> {
     /// The `Ui` being used in the sandbox
     pub ui: crate::backend::wgpu::Ui<M>,
-    event_loop: Option<EventLoop<PollUi>>,
+    event_loop: Option<EventLoop<()>>,
     surface: wgpu::Surface,
     #[allow(unused)]
     adapter: wgpu::Adapter,
@@ -21,31 +19,6 @@ pub struct Sandbox<M: 'static + Component> {
     queue: wgpu::Queue,
     surface_config: wgpu::SurfaceConfiguration,
     window: Window,
-}
-
-#[derive(Clone)]
-struct PollUi;
-
-struct Waker<T: 'static> {
-    message: Mutex<Option<T>>,
-    proxy: Arc<Mutex<EventLoopProxy<T>>>,
-}
-
-impl<T: 'static> Waker<T> {
-    pub fn new(message: T, proxy: Arc<Mutex<EventLoopProxy<T>>>) -> Self {
-        Self {
-            message: Mutex::new(Some(message)),
-            proxy,
-        }
-    }
-}
-
-impl<T: 'static> Wake for Waker<T> {
-    fn wake(self: Arc<Self>) {
-        if let Some(message) = self.message.lock().unwrap().take() {
-            self.proxy.lock().unwrap().send_event(message).ok();
-        }
-    }
 }
 
 impl<T> Sandbox<T>
@@ -60,7 +33,7 @@ where
         S: TryInto<Style, Error = E>,
         anyhow::Error: From<E>,
     {
-        let event_loop = EventLoop::with_user_event();
+        let event_loop = EventLoop::new();
         let window = window.build(&event_loop).unwrap();
         let size = window.inner_size();
 
@@ -128,24 +101,19 @@ where
         self.ui.update(message);
     }
 
+    /// Create a task that will drive all ui futures.
+    /// This method will panic if it's called a second time.
+    pub fn task(&mut self) -> impl Future<Output = ()> {
+        let proxy = self.event_loop.as_ref().unwrap().create_proxy();
+        self.ui.task(move || proxy.send_event(()).unwrap())
+    }
+
     /// Run the application
     pub async fn run(mut self) {
         let event_loop = self.event_loop.take().unwrap();
-        let proxy = Arc::new(Mutex::new(event_loop.create_proxy()));
-
-        // initial poll to kickstart async stuff
-        self.ui
-            .poll(&mut std::task::Context::from_waker(&std::task::Waker::from(Arc::new(
-                Waker::new(PollUi, proxy.clone()),
-            ))));
-
         event_loop.run(move |event, _, control_flow| {
             *control_flow = ControlFlow::Wait;
             match event {
-                Event::UserEvent(PollUi) => {
-                    let waker = std::task::Waker::from(Arc::new(Waker::new(PollUi, proxy.clone())));
-                    self.ui.poll(&mut std::task::Context::from_waker(&waker));
-                }
                 Event::WindowEvent {
                     event: WindowEvent::Resized(size),
                     ..
@@ -154,8 +122,10 @@ where
                     self.surface_config.width = size.width;
                     self.surface_config.height = size.height;
                     self.surface.configure(&self.device, &self.surface_config);
-                    self.ui
-                        .resize(Rectangle::from_wh(size.width as f32, size.height as f32));
+                    self.ui.resize(
+                        Rectangle::from_wh(size.width as f32, size.height as f32),
+                        self.window.scale_factor() as f32,
+                    );
                 }
                 Event::RedrawRequested(_) => {
                     let frame = self

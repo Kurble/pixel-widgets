@@ -2,9 +2,10 @@
 #![deny(missing_docs)]
 
 use std::collections::VecDeque;
-use std::ops::{Deref, DerefMut};
-use std::sync::Arc;
+use std::future::Future;
+use std::sync::{Arc, Mutex, MutexGuard};
 
+use futures::future::poll_fn;
 use node::GenericNode;
 use widget::Context;
 
@@ -69,12 +70,18 @@ pub mod widget;
 /// The [`Sandbox`](sandbox/struct.Sandbox.html) can serve as an example since it
 /// provides such a runtime for you through the winit event loop.
 pub struct Ui<C: 'static + Component> {
+    data: Arc<Mutex<Data<C>>>,
+    style: Arc<Style>,
+    task_created: bool,
+}
+
+struct Data<C: 'static + Component> {
+    #[allow(unused)]
+    state: ManagedState,
     root_node: ComponentNode<'static, C>,
-    _state: ManagedState,
     viewport: Rectangle,
     redraw: bool,
     cursor: (f32, f32),
-    style: Arc<Style>,
     hidpi_scale: f32,
     output: VecDeque<C::Output>,
 }
@@ -95,28 +102,57 @@ impl<C: 'static + Component> Ui<C> {
         root_node.style(&mut Query::from_style(style.clone()), (0, 1));
 
         Ok(Self {
-            root_node,
-            _state: state,
-            viewport: Rectangle {
-                left: viewport.left / hidpi_scale,
-                top: viewport.top / hidpi_scale,
-                right: viewport.right / hidpi_scale,
-                bottom: viewport.bottom / hidpi_scale,
-            },
-            redraw: true,
-            cursor: (0.0, 0.0),
+            data: Arc::new(Mutex::new(Data {
+                root_node,
+                state,
+                viewport: Rectangle {
+                    left: viewport.left / hidpi_scale,
+                    top: viewport.top / hidpi_scale,
+                    right: viewport.right / hidpi_scale,
+                    bottom: viewport.bottom / hidpi_scale,
+                },
+                redraw: true,
+                cursor: (0.0, 0.0),
+                hidpi_scale,
+                output: Default::default(),
+            })),
             style,
-            hidpi_scale,
-            output: Default::default(),
+            task_created: false,
+        })
+    }
+
+    /// Create a task that will drive all ui futures.
+    /// Takes an `on_redraw` closure that will be called to wake up the main thread for redrawing the ui when required.
+    /// This method will panic if it's called a second time.
+    pub fn task(&mut self, mut on_redraw: impl FnMut()) -> impl Future<Output = ()> {
+        assert!(!self.task_created);
+        self.task_created = true;
+
+        let data = self.data.clone();
+        poll_fn(move |cx| {
+            if let Ok(mut data) = data.lock() {
+                let mut context = Context::new(false, data.cursor);
+                data.root_node.poll(&mut context, cx);
+                if context.redraw_requested() {
+                    (on_redraw)();
+                    data.redraw = true;
+                }
+                data.output.extend(context);
+
+                std::task::Poll::Pending
+            } else {
+                std::task::Poll::Ready(())
+            }
         })
     }
 
     /// Updates the root component with a message.
     pub fn update(&mut self, message: C::Message) {
-        let mut context = Context::new(self.needs_redraw(), self.cursor);
-        self.root_node.update(message, &mut context);
-        self.redraw |= context.redraw_requested();
-        self.output.extend(context);
+        let mut data = self.data.lock().unwrap();
+        let mut context = Context::new(data.redraw, data.cursor);
+        data.root_node.update(message, &mut context);
+        data.redraw |= context.redraw_requested();
+        data.output.extend(context);
     }
 
     /// Handles a ui [`Event`](event/struct.Event.html).
@@ -125,79 +161,76 @@ impl<C: 'static + Component> Ui<C> {
     ///
     /// Returns `true` if the event was handled in a way that it's captured by the ui.
     pub fn handle_event(&mut self, mut event: Event) -> bool {
+        let mut data = self.data.lock().unwrap();
+
         if let Event::Cursor(x, y) = event {
-            event = Event::Cursor(x / self.hidpi_scale, y / self.hidpi_scale);
-            self.cursor = (x / self.hidpi_scale, y / self.hidpi_scale);
+            event = Event::Cursor(x / data.hidpi_scale, y / data.hidpi_scale);
+            data.cursor = (x / data.hidpi_scale, y / data.hidpi_scale);
         }
 
-        let mut context = Context::new(self.needs_redraw(), self.cursor);
+        let mut context = Context::new(data.redraw, data.cursor);
 
         let result = {
-            let mut view = self.root_node.view();
+            let mut view = data.root_node.view();
             let (w, h) = view.size();
             let layout = Rectangle::from_wh(
-                w.resolve(self.viewport.width(), w.parts()),
-                h.resolve(self.viewport.height(), h.parts()),
+                w.resolve(data.viewport.width(), w.parts()),
+                h.resolve(data.viewport.height(), h.parts()),
             );
-            view.event(layout, self.viewport, event, &mut context);
+            view.event(layout, data.viewport, event, &mut context);
             view.focused()
         };
 
-        self.redraw |= context.redraw_requested();
+        data.redraw |= context.redraw_requested();
 
-        let mut outer_context = Context::new(self.needs_redraw(), self.cursor);
+        let mut outer_context = Context::new(data.redraw, data.cursor);
 
         for message in context {
-            self.root_node.update(message, &mut outer_context);
+            data.root_node.update(message, &mut outer_context);
         }
 
-        self.redraw |= outer_context.redraw_requested();
-        self.output.extend(outer_context);
+        data.redraw |= outer_context.redraw_requested();
+        data.output.extend(outer_context);
 
         result
     }
 
-    /// If the ui has any pending futures internally, this method will poll them using the waker.
-    ///
-    /// It's up to the user to make sure that the `waker` will schedule another call to `poll()`.
-    pub fn poll(&mut self, task_context: &mut std::task::Context) {
-        let mut context = Context::new(self.needs_redraw(), self.cursor);
-        self.root_node.poll(&mut context, task_context);
-        self.redraw |= context.redraw_requested();
-        self.output.extend(context);
-    }
-
     /// Resizes the viewport.
     /// This forces the view to be rerendered.
-    pub fn resize(&mut self, viewport: Rectangle) {
-        self.root_node.set_dirty();
-        self.redraw = true;
-        self.viewport = Rectangle {
-            left: viewport.left / self.hidpi_scale,
-            top: viewport.top / self.hidpi_scale,
-            right: viewport.right / self.hidpi_scale,
-            bottom: viewport.bottom / self.hidpi_scale,
+    pub fn resize(&mut self, viewport: Rectangle, hidpi_scale: f32) {
+        let mut data = self.data.lock().unwrap();
+        data.root_node.set_dirty();
+        data.redraw = true;
+        data.hidpi_scale = hidpi_scale;
+        data.viewport = Rectangle {
+            left: viewport.left / data.hidpi_scale,
+            top: viewport.top / data.hidpi_scale,
+            right: viewport.right / data.hidpi_scale,
+            bottom: viewport.bottom / data.hidpi_scale,
         };
     }
 
     /// Returns an iterator over the output messages produced by the root component.
-    pub fn output<'a>(&'a mut self) -> impl 'a + Iterator<Item = C::Output> {
-        self
+    pub fn output(&mut self) -> impl '_ + Iterator<Item = C::Output> {
+        Output(self.data.lock().unwrap())
     }
 
     /// Returns true if the ui needs to be redrawn. If the ui doesn't need to be redrawn the
     /// [`Command`s](draw/struct.Command.html) from the last [`draw`](#method.draw) may be used again.
     pub fn needs_redraw(&self) -> bool {
-        self.redraw || self.root_node.dirty()
+        let data = self.data.lock().unwrap();
+        data.redraw || data.root_node.dirty()
     }
 
     /// Generate a [`DrawList`](draw/struct.DrawList.html) for the view.
     pub fn draw(&mut self) -> DrawList {
         use self::draw::*;
 
-        let viewport = self.viewport;
+        let mut data = self.data.lock().unwrap();
+
+        let viewport = data.viewport;
         let primitives = {
-            let mut view = self.root_node.view();
+            let mut view = data.root_node.view();
             let (w, h) = view.size();
             let layout = Rectangle::from_wh(
                 w.resolve(viewport.width(), w.parts()),
@@ -205,7 +238,7 @@ impl<C: 'static + Component> Ui<C> {
             );
             view.draw(layout, viewport)
         };
-        self.redraw = false;
+        data.redraw = false;
 
         struct Layer {
             vtx: Vec<Vertex>,
@@ -228,7 +261,7 @@ impl<C: 'static + Component> Ui<C> {
 
         let mut scissors = vec![viewport];
 
-        let scale = self.hidpi_scale;
+        let scale = data.hidpi_scale;
         let validate_clip = move |clip: Rectangle| {
             let v = Rectangle {
                 left: clip.left.max(0.0).min(viewport.right) * scale,
@@ -537,24 +570,12 @@ impl<C: 'static + Component> Ui<C> {
     }
 }
 
-impl<C: Component> Iterator for Ui<C> {
+struct Output<'a, C: 'static + Component>(MutexGuard<'a, Data<C>>);
+
+impl<'a, C: 'static + Component> Iterator for Output<'a, C> {
     type Item = C::Output;
 
     fn next(&mut self) -> Option<C::Output> {
-        self.output.pop_front()
-    }
-}
-
-impl<C: Component> Deref for Ui<C> {
-    type Target = C;
-
-    fn deref(&self) -> &Self::Target {
-        self.root_node.props()
-    }
-}
-
-impl<C: Component> DerefMut for Ui<C> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.root_node.props_mut()
+        self.0.output.pop_front()
     }
 }

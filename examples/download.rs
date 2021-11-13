@@ -91,7 +91,7 @@ impl Component for Download {
 
 #[tokio::main]
 async fn main() {
-    Sandbox::new(
+    let mut sandbox = Sandbox::new(
         Download,
         StyleBuilder::from_file("examples/download.pwss").unwrap(),
         WindowBuilder::new()
@@ -99,7 +99,9 @@ async fn main() {
             .with_inner_size(winit::dpi::LogicalSize::new(320, 240)),
     )
     .await
-    .unwrap()
-    .run()
-    .await;
+    .unwrap();
+
+    tokio::spawn(sandbox.task());
+
+    sandbox.run().await;
 }

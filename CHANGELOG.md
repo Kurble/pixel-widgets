@@ -3,9 +3,10 @@
 ### v0.10.0
 
 - Added match functionality to the `view!` macro.
-- Fixed a bug where the state of the root component was not initialized if update_and_poll() is called before the first view() call.
+- Fixed a bug where the state of the root component was not initialized if update() is called before the first view() call.
 - Removed `Unpin` requirement from component `Context::wait` and `Context::stream`.
 - Removed `Vec<Output>` return values from `Ui`, replaced it with a single `output()` call that returns an iterator.
+- Fixed async bugs. As a side effect you will now have to call task() and spawn the resulting future once before starting your ui, and never poll anything again.
 
 ### v0.9.1
 
