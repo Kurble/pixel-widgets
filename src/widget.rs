@@ -10,7 +10,6 @@
 use std::any::Any;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
-use std::task::Waker;
 
 use smallvec::SmallVec;
 
@@ -204,19 +203,15 @@ pub type StateVec = SmallVec<[StyleState<&'static str>; 3]>;
 pub struct Context<Message> {
     cursor: (f32, f32),
     redraw: bool,
-    poll: bool,
     messages: Vec<Message>,
-    waker: Waker,
 }
 
 impl<Message> Context<Message> {
-    pub(crate) fn new(redraw: bool, cursor: (f32, f32), waker: Waker) -> Self {
+    pub(crate) fn new(redraw: bool, cursor: (f32, f32)) -> Self {
         Context {
             cursor,
             redraw,
-            poll: false,
             messages: Vec::new(),
-            waker,
         }
     }
 
@@ -224,9 +219,7 @@ impl<Message> Context<Message> {
         Context {
             cursor: self.cursor,
             redraw: self.redraw,
-            poll: self.poll,
             messages: Vec::new(),
-            waker: self.waker.clone(),
         }
     }
 
@@ -253,10 +246,6 @@ impl<Message> Context<Message> {
     /// Returns the cursor position
     pub fn cursor(&self) -> (f32, f32) {
         self.cursor
-    }
-
-    pub(crate) fn task_context(&self) -> std::task::Context<'_> {
-        std::task::Context::from_waker(&self.waker)
     }
 }
 

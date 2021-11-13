@@ -246,7 +246,12 @@ impl<'a, Message, W: Widget<'a, Message>> GenericNode<'a, Message> for WidgetNod
             .replace(Some(self.widget.focused(&**self.widget_state.as_ref().unwrap())));
     }
 
-    fn poll(&mut self, context: &mut Context<Message>) {
-        self.widget.visit_children(&mut |child| child.poll(context));
+    fn acquire_waker(&mut self, waker: &std::task::Waker) {
+        self.widget.visit_children(&mut |child| child.acquire_waker(waker));
+    }
+
+    fn poll(&mut self, context: &mut Context<Message>, task_context: &mut std::task::Context) {
+        self.widget
+            .visit_children(&mut |child| child.poll(context, task_context));
     }
 }

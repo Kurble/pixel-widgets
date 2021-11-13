@@ -28,13 +28,14 @@ pub struct ComponentNode<'a, C: 'a + Component> {
     style_position: (usize, usize),
     style_matches: BitSet,
     key: u64,
+    waker: Option<std::task::Waker>,
 }
 
 /// Runtime for submitting future messages to [`Component::update`](../component/trait.Component.html#method.update).
 pub struct Runtime<Message> {
     futures: Vec<Pin<Box<dyn Future<Output = Message> + Send + Sync>>>,
     streams: Vec<Pin<Box<dyn Stream<Item = Message> + Send + Sync>>>,
-    modified: bool,
+    waker: Option<std::task::Waker>,
 }
 
 /// Mutable state accessor.
@@ -57,6 +58,7 @@ impl<'a, C: 'a + Component> ComponentNode<'a, C> {
             style_position: (0, 1),
             style_matches: BitSet::new(),
             key: hasher.finish(),
+            waker: None,
         }
     }
 
@@ -94,7 +96,11 @@ impl<'a, C: 'a + Component> ComponentNode<'a, C> {
             };
 
             component_state = tracker.begin(0, || {
-                let mut runtime = Runtime::default();
+                let mut runtime = Runtime {
+                    futures: Vec::new(),
+                    streams: Vec::new(),
+                    waker: self.waker.clone(),
+                };
                 let state = self.props.mount(&mut runtime);
                 (state, runtime)
             }) as *mut _;
@@ -115,6 +121,7 @@ impl<'a, C: 'a + Component> ComponentNode<'a, C> {
 
         if dirty {
             self.set_dirty();
+            context.redraw();
         }
     }
 
@@ -132,7 +139,11 @@ impl<'a, C: 'a + Component> ComponentNode<'a, C> {
             };
 
             let state = tracker.begin(0, || {
-                let mut runtime = Runtime::default();
+                let mut runtime = Runtime {
+                    futures: Vec::new(),
+                    streams: Vec::new(),
+                    waker: self.waker.clone(),
+                };
                 let state = self.props.mount(&mut runtime);
                 (state, runtime)
             });
@@ -143,14 +154,13 @@ impl<'a, C: 'a + Component> ComponentNode<'a, C> {
             root.acquire_state(&mut tracker);
             root.style(&mut query, self.style_position);
 
+            if let Some(waker) = self.waker.as_ref() {
+                root.acquire_waker(waker);
+            }
+
             self.view.replace(Some(root));
         }
         RefMut::map(self.view.borrow_mut(), |b| b.as_mut().unwrap())
-    }
-
-    pub(crate) fn needs_poll(&self) -> bool {
-        let (_, runtime) = unsafe { self.component_state.get().as_mut().unwrap() };
-        runtime.modified
     }
 }
 
@@ -265,18 +275,17 @@ impl<'a, C: 'a + Component> GenericNode<'a, C::Output> for ComponentNode<'a, C> 
         for message in sub_context {
             self.update(message, context);
         }
-
-        let (_, runtime) = unsafe { self.component_state.get().as_mut().unwrap() };
-        while runtime.modified {
-            for message in runtime.poll(&mut context.task_context()) {
-                self.update(message, context);
-            }
-        }
     }
 
-    fn poll(&mut self, context: &mut Context<<C as Component>::Output>) {
+    fn acquire_waker(&mut self, waker: &std::task::Waker) {
+        self.waker = Some(waker.clone());
+    }
+
+    fn poll(&mut self, context: &mut Context<<C as Component>::Output>, task_context: &mut std::task::Context) {
+        self.waker = Some(task_context.waker().clone());
+
         let mut sub_context = context.sub_context();
-        self.view().poll(&mut sub_context);
+        self.view().poll(&mut sub_context, task_context);
 
         if sub_context.redraw_requested() {
             context.redraw();
@@ -287,11 +296,9 @@ impl<'a, C: 'a + Component> GenericNode<'a, C::Output> for ComponentNode<'a, C> 
         }
 
         let (_, runtime) = unsafe { self.component_state.get().as_mut().unwrap() };
-        runtime.modified = true; // force first poll
-        while runtime.modified {
-            for message in runtime.poll(&mut context.task_context()) {
-                self.update(message, context);
-            }
+
+        for message in runtime.poll(task_context) {
+            self.update(message, context);
         }
     }
 }
@@ -304,31 +311,21 @@ impl<'a, C: 'a + Component> Drop for ComponentNode<'a, C> {
     }
 }
 
-impl<Message> Default for Runtime<Message> {
-    fn default() -> Self {
-        Self {
-            futures: Vec::new(),
-            streams: Vec::new(),
-            modified: false,
-        }
-    }
-}
-
 impl<Message> Runtime<Message> {
     /// Submits a messsage to the component in the future.
     pub fn wait<F: 'static + Future<Output = Message> + Send + Sync>(&mut self, fut: F) {
         self.futures.push(Box::pin(fut));
-        self.modified = true;
+        self.waker.take().map(std::task::Waker::wake);
     }
 
     /// Submits a stream of messages to the component in the future.
     pub fn stream<S: 'static + Stream<Item = Message> + Send + Sync>(&mut self, stream: S) {
         self.streams.push(Box::pin(stream));
-        self.modified = true;
+        self.waker.take().map(std::task::Waker::wake);
     }
 
     pub(crate) fn poll(&mut self, cx: &mut std::task::Context) -> Vec<Message> {
-        self.modified = false;
+        self.waker = Some(cx.waker().clone());
 
         let mut result = Vec::new();
 
@@ -348,15 +345,9 @@ impl<Message> Runtime<Message> {
         let mut i = 0;
         while i < self.streams.len() {
             match self.streams[i].poll_next_unpin(&mut *cx) {
-                Poll::Ready(Some(message)) => {
-                    result.push(message);
-                }
-                Poll::Ready(None) => {
-                    drop(self.streams.remove(i));
-                }
-                Poll::Pending => {
-                    i += 1;
-                }
+                Poll::Ready(Some(message)) => result.push(message),
+                Poll::Ready(None) => drop(self.streams.remove(i)),
+                Poll::Pending => i += 1,
             }
         }
 

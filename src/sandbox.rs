@@ -27,13 +27,24 @@ pub struct Sandbox<M: 'static + Component> {
 struct PollUi;
 
 struct Waker<T: 'static> {
-    message: T,
-    event_loop: Mutex<EventLoopProxy<T>>,
+    message: Mutex<Option<T>>,
+    proxy: Arc<Mutex<EventLoopProxy<T>>>,
 }
 
-impl<T: 'static + Clone> Wake for Waker<T> {
+impl<T: 'static> Waker<T> {
+    pub fn new(message: T, proxy: Arc<Mutex<EventLoopProxy<T>>>) -> Self {
+        Self {
+            message: Mutex::new(Some(message)),
+            proxy,
+        }
+    }
+}
+
+impl<T: 'static> Wake for Waker<T> {
     fn wake(self: Arc<Self>) {
-        self.event_loop.lock().unwrap().send_event(self.message.clone()).ok();
+        if let Some(message) = self.message.lock().unwrap().take() {
+            self.proxy.lock().unwrap().send_event(message).ok();
+        }
     }
 }
 
@@ -114,33 +125,26 @@ where
     /// Update the root component with a message.
     /// Returns any output messages from the root component.
     pub fn update(&mut self, message: T::Message) {
-        let waker = self
-            .event_loop
-            .as_ref()
-            .map(|event_loop| {
-                std::task::Waker::from(Arc::new(Waker {
-                    message: PollUi,
-                    event_loop: Mutex::new(event_loop.create_proxy()),
-                }))
-            })
-            .unwrap();
-
-        self.ui.update_and_poll(message, waker);
+        self.ui.update(message);
     }
 
     /// Run the application
     pub async fn run(mut self) {
         let event_loop = self.event_loop.take().unwrap();
-        let waker = std::task::Waker::from(Arc::new(Waker {
-            message: PollUi,
-            event_loop: Mutex::new(event_loop.create_proxy()),
-        }));
+        let proxy = Arc::new(Mutex::new(event_loop.create_proxy()));
+
+        // initial poll to kickstart async stuff
+        self.ui
+            .poll(&mut std::task::Context::from_waker(&std::task::Waker::from(Arc::new(
+                Waker::new(PollUi, proxy.clone()),
+            ))));
 
         event_loop.run(move |event, _, control_flow| {
             *control_flow = ControlFlow::Wait;
             match event {
-                Event::UserEvent(_) => {
-                    self.ui.poll(waker.clone());
+                Event::UserEvent(PollUi) => {
+                    let waker = std::task::Waker::from(Arc::new(Waker::new(PollUi, proxy.clone())));
+                    self.ui.poll(&mut std::task::Context::from_waker(&waker));
                 }
                 Event::WindowEvent {
                     event: WindowEvent::Resized(size),
@@ -188,7 +192,7 @@ where
                 } => *control_flow = ControlFlow::Exit,
                 other => {
                     if let Some(event) = crate::backend::winit::convert_event(other) {
-                        self.ui.handle_event_and_poll(event, waker.clone());
+                        self.ui.handle_event(event);
                     }
                 }
             }

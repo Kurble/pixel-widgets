@@ -4,7 +4,6 @@
 use std::collections::VecDeque;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
-use std::task::Waker;
 
 use node::GenericNode;
 use widget::Context;
@@ -113,19 +112,10 @@ impl<C: 'static + Component> Ui<C> {
     }
 
     /// Updates the root component with a message.
-    ///
-    /// If the ui has any pending futures internally, they are polled using the waker.
-    ///
-    /// It's up to the user to make sure that the `waker` will schedule a call to [`poll()`](#method.poll) on this `Ui`.
-    pub fn update_and_poll(&mut self, message: C::Message, waker: Waker) {
-        let mut context = Context::new(self.needs_redraw(), self.cursor, waker);
-
+    pub fn update(&mut self, message: C::Message) {
+        let mut context = Context::new(self.needs_redraw(), self.cursor);
         self.root_node.update(message, &mut context);
-        while self.root_node.needs_poll() {
-            self.root_node.poll(&mut context);
-        }
-
-        self.redraw = context.redraw_requested();
+        self.redraw |= context.redraw_requested();
         self.output.extend(context);
     }
 
@@ -134,13 +124,13 @@ impl<C: 'static + Component> Ui<C> {
     /// It's up to the user to make sure that the `waker` will schedule a call to [`poll()`](#method.poll) on this `Ui`.
     ///
     /// Returns `true` if the event was handled in a way that it's captured by the ui.
-    pub fn handle_event_and_poll(&mut self, mut event: Event, waker: Waker) -> bool {
+    pub fn handle_event(&mut self, mut event: Event) -> bool {
         if let Event::Cursor(x, y) = event {
             event = Event::Cursor(x / self.hidpi_scale, y / self.hidpi_scale);
             self.cursor = (x / self.hidpi_scale, y / self.hidpi_scale);
         }
 
-        let mut context = Context::new(self.needs_redraw(), self.cursor, waker.clone());
+        let mut context = Context::new(self.needs_redraw(), self.cursor);
 
         let result = {
             let mut view = self.root_node.view();
@@ -153,18 +143,15 @@ impl<C: 'static + Component> Ui<C> {
             view.focused()
         };
 
-        self.redraw = context.redraw_requested();
+        self.redraw |= context.redraw_requested();
 
-        let mut outer_context = Context::new(self.needs_redraw(), self.cursor, waker);
+        let mut outer_context = Context::new(self.needs_redraw(), self.cursor);
 
         for message in context {
             self.root_node.update(message, &mut outer_context);
         }
-        while self.root_node.needs_poll() {
-            self.root_node.poll(&mut outer_context);
-        }
 
-        self.redraw = outer_context.redraw_requested();
+        self.redraw |= outer_context.redraw_requested();
         self.output.extend(outer_context);
 
         result
@@ -173,18 +160,10 @@ impl<C: 'static + Component> Ui<C> {
     /// If the ui has any pending futures internally, this method will poll them using the waker.
     ///
     /// It's up to the user to make sure that the `waker` will schedule another call to `poll()`.
-    pub fn poll(&mut self, waker: Waker) {
-        let mut context = Context::new(self.needs_redraw(), self.cursor, waker);
-        loop {
-            self.root_node.poll(&mut context);
-            self.redraw = context.redraw_requested();
-
-            if self.root_node.needs_poll() {
-                continue;
-            } else {
-                break;
-            }
-        }
+    pub fn poll(&mut self, task_context: &mut std::task::Context) {
+        let mut context = Context::new(self.needs_redraw(), self.cursor);
+        self.root_node.poll(&mut context, task_context);
+        self.redraw |= context.redraw_requested();
         self.output.extend(context);
     }
 

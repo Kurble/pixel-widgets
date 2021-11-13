@@ -42,7 +42,9 @@ pub trait GenericNode<'a, Message>: Send {
 
     fn event(&mut self, layout: Rectangle, clip: Rectangle, event: Event, context: &mut Context<Message>);
 
-    fn poll(&mut self, context: &mut Context<Message>);
+    fn acquire_waker(&mut self, waker: &std::task::Waker);
+
+    fn poll(&mut self, context: &mut Context<Message>, task_context: &mut std::task::Context);
 }
 
 /// Convert widget to a [`Node`](struct.Node.html).
