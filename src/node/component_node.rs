@@ -70,12 +70,10 @@ impl<'a, C: 'a + Component> ComponentNode<'a, C> {
         self.view.replace(None);
     }
 
-    #[allow(unused)]
     pub fn props(&self) -> &C {
         self.props.as_ref()
     }
 
-    #[allow(unused)]
     pub fn props_mut(&mut self) -> &mut C {
         self.set_dirty();
         self.props.as_mut()

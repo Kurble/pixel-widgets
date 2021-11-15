@@ -3,10 +3,12 @@
 
 use std::collections::VecDeque;
 use std::future::Future;
+use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use futures::future::poll_fn;
 use node::GenericNode;
+use owning_ref::{MutexGuardRef, MutexGuardRefMut};
 use widget::Context;
 
 use crate::component::Component;
@@ -208,6 +210,18 @@ impl<C: 'static + Component> Ui<C> {
             right: viewport.right / data.hidpi_scale,
             bottom: viewport.bottom / data.hidpi_scale,
         };
+    }
+
+    /// Return an immutable reference to the root component
+    pub fn props(&self) -> impl '_ + Deref<Target = C> {
+        MutexGuardRef::new(self.data.lock().unwrap()).map(|d| d.root_node.props())
+    }
+
+    /// Return a mutable reference to the root component
+    pub fn props_mut(&mut self) -> impl '_ + DerefMut<Target = C> {
+        let mut lock = self.data.lock().unwrap();
+        lock.redraw = true;
+        MutexGuardRefMut::new(lock).map_mut(|d| d.root_node.props_mut())
     }
 
     /// Returns an iterator over the output messages produced by the root component.
