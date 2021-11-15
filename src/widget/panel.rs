@@ -60,13 +60,13 @@ impl<'a, T: 'a> Panel<'a, T> {
         let (content_width, content_height) = self.content().size();
         let (h, v) = match self.anchor {
             Anchor::TopLeft => (0, 0),
-            Anchor::TopCenter => (0, 1),
-            Anchor::TopRight => (0, 2),
-            Anchor::CenterLeft => (1, 0),
+            Anchor::TopCenter => (1, 0),
+            Anchor::TopRight => (2, 0),
+            Anchor::CenterLeft => (0, 1),
             Anchor::Center => (1, 1),
-            Anchor::CenterRight => (1, 2),
-            Anchor::BottomLeft => (2, 0),
-            Anchor::BottomCenter => (2, 1),
+            Anchor::CenterRight => (2, 1),
+            Anchor::BottomLeft => (0, 2),
+            Anchor::BottomCenter => (1, 2),
             Anchor::BottomRight => (2, 2),
         };
 
