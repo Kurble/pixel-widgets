@@ -88,11 +88,11 @@ impl<'a, Message, W: Widget<'a, Message>> GenericNode<'a, Message> for WidgetNod
         self.size.get().unwrap()
     }
 
-    fn hit(&self, layout: Rectangle, clip: Rectangle, x: f32, y: f32) -> bool {
+    fn hit(&self, layout: Rectangle, clip: Rectangle, x: f32, y: f32, recursive: bool) -> bool {
         let state = self.widget_state.as_ref().unwrap();
         let stylesheet = self.stylesheet.as_ref().unwrap().deref();
         let layout = layout.after_padding(stylesheet.margin);
-        self.widget.hit(&**state, layout, clip, stylesheet, x, y)
+        self.widget.hit(&**state, layout, clip, stylesheet, x, y, recursive)
     }
 
     fn focused(&self) -> bool {

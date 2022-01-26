@@ -294,7 +294,7 @@ impl<'a, T: 'a + Send, S: Send + AsRef<[MenuItem<'a, T>]> + AsMut<[MenuItem<'a, 
             .resolve_size((style.width, style.height), (width, height), style.padding)
     }
 
-    fn hit(&self, state: &MenuState, layout: Rectangle, clip: Rectangle, _style: &Stylesheet, x: f32, y: f32) -> bool {
+    fn hit(&self, state: &MenuState, layout: Rectangle, clip: Rectangle, _style: &Stylesheet, x: f32, y: f32, _recursive: bool) -> bool {
         self.focused(state) && layout.point_inside(x, y) && clip.point_inside(x, y)
     }
 

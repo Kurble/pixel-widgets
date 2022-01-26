@@ -114,6 +114,28 @@ impl<'a, T: 'a + Send> Widget<'a, T> for Layers<'a, T> {
         (style.width, style.height)
     }
 
+    fn hit(
+        &self,
+        _state: &Self::State,
+        layout: Rectangle,
+        clip: Rectangle,
+        _style: &Stylesheet,
+        x: f32,
+        y: f32,
+        recursive: bool,
+    ) -> bool {
+        if layout.point_inside(x, y) && clip.point_inside(x, y) {
+            if recursive {
+                self.background.iter().any(|l| l.hit(layout, clip, x, y, recursive)) 
+                    || self.layers.iter().any(|l| l.node.hit(layout, clip, x, y, recursive))
+            } else {
+                true
+            }
+        } else {
+            false
+        }
+    }
+
     fn focused(&self, _: &State) -> bool {
         self.layers.iter().any(|layer| layer.node.focused())
             || self.background.as_ref().map(|bg| bg.focused()).unwrap_or(false)
@@ -149,7 +171,7 @@ impl<'a, T: 'a + Send> Widget<'a, T> for Layers<'a, T> {
                 // make sure that hovering always works regardless of the active layer
                 for layer in ordered_layers.iter_mut() {
                     layer.node.event(layout, clip, Event::Cursor(x, y), context);
-                    if layer.node.hit(layout, clip, x, y) {
+                    if layer.node.hit(layout, clip, x, y, false) {
                         // I hate this hack, but this will stop layers hidden behind the current from being hovered
                         x = f32::INFINITY;
                         y = f32::INFINITY;
@@ -164,7 +186,7 @@ impl<'a, T: 'a + Send> Widget<'a, T> for Layers<'a, T> {
                 let x = state.cursor_x;
                 let y = state.cursor_y;
                 if let Some(hit_index) = ordered_layers.iter_mut().enumerate().find_map(move |(i, l)| {
-                    if l.node.hit(layout, clip, x, y) {
+                    if l.node.hit(layout, clip, x, y, false) {
                         Some(i)
                     } else {
                         None

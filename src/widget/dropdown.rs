@@ -119,7 +119,7 @@ impl<'a, T: Send + 'a, F: Send + Fn(usize) -> T> Widget<'a, T> for Dropdown<'a, 
             .resolve_size((style.width, style.height), (width, height), style.padding)
     }
 
-    fn hit(&self, state: &State, layout: Rectangle, clip: Rectangle, _: &Stylesheet, x: f32, y: f32) -> bool {
+    fn hit(&self, state: &State, layout: Rectangle, clip: Rectangle, _: &Stylesheet, x: f32, y: f32, _recursive: bool) -> bool {
         self.focused(state) || (layout.point_inside(x, y) && clip.point_inside(x, y))
     }
 

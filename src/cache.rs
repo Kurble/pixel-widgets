@@ -143,7 +143,7 @@ impl Cache {
         let (texture, cache_id, texcoords) = self.insert_image(image);
         ImageData {
             texture,
-            cache_id,
+            _cache_id: cache_id,
             texcoords,
             size,
         }
@@ -220,7 +220,7 @@ impl Cache {
         Patch {
             image: ImageData {
                 texture,
-                cache_id,
+                _cache_id: cache_id,
                 texcoords,
                 size,
             },

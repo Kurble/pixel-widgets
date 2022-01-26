@@ -18,13 +18,13 @@ pub struct StyleBuilder {
 }
 
 /// Handle to an image in a `StyleBuilder`.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ImageId(pub(crate) String);
 /// Handle to a patch in a `StyleBuilder`.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PatchId(pub(crate) String);
 /// Handle to a font in a `StyleBuilder`.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FontId(pub(crate) String);
 
 /// Builder that adds style declarations to a selected rule.

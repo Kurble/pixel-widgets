@@ -63,6 +63,33 @@ impl<'a, T: 'a> Widget<'a, T> for Frame<'a, T> {
             .resolve_size((style.width, style.height), self.content().size(), style.padding)
     }
 
+    fn hit(
+        &self,
+        _state: &Self::State,
+        layout: Rectangle,
+        clip: Rectangle,
+        style: &Stylesheet,
+        x: f32,
+        y: f32,
+        recursive: bool,
+    ) -> bool {
+        if layout.point_inside(x, y) && clip.point_inside(x, y) {
+            if recursive && !style.background.is_solid() {
+                self.content().hit(
+                    style.background.content_rect(layout, style.padding),
+                    clip,
+                    x,
+                    y,
+                    recursive,
+                )
+            } else {
+                true
+            }
+        } else {
+            false
+        }
+    }
+
     fn event(
         &mut self,
         _: &mut (),

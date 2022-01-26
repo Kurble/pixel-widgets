@@ -47,7 +47,7 @@ pub struct Color {
 pub struct ImageData {
     /// The texture atlas identifier that this image resides in.
     pub texture: usize,
-    pub(crate) cache_id: Arc<usize>,
+    pub(crate) _cache_id: Arc<usize>,
     /// The texcoords within the atlas that the image spans.
     pub texcoords: Rectangle,
     /// The physical size in pixels of the image.

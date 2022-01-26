@@ -31,6 +31,19 @@ impl<'a, T> Widget<'a, T> for Spacer {
         )
     }
 
+    fn hit(
+        &self,
+        _state: &Self::State,
+        layout: Rectangle,
+        clip: Rectangle,
+        style: &Stylesheet,
+        x: f32,
+        y: f32,
+        _recursive: bool,
+    ) -> bool {
+        layout.point_inside(x, y) && clip.point_inside(x, y) && style.background.is_solid()
+    }
+
     fn draw(&mut self, _: &mut (), layout: Rectangle, _clip: Rectangle, style: &Stylesheet) -> Vec<Primitive<'a>> {
         style.background.render(layout).into_iter().collect()
     }

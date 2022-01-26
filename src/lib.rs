@@ -212,6 +212,26 @@ impl<C: 'static + Component> Ui<C> {
         };
     }
 
+    /// Check whether any widget in the ui has input focus
+    pub fn focused(&self) -> bool {
+        let data = self.data.lock().unwrap();
+        let view = data.root_node.view();
+        view.focused()
+    }
+
+    /// Perform a hitdetect on the root component, 
+    ///  to see if a future pointer event would be handled
+    pub fn hit(&self, x: f32, y: f32) -> bool {
+        let data = self.data.lock().unwrap();
+        let view = data.root_node.view();
+        let (w, h) = view.size();
+        let layout = Rectangle::from_wh(
+            w.resolve(data.viewport.width(), w.parts()),
+            h.resolve(data.viewport.height(), h.parts()),
+        );
+        view.hit(layout, data.viewport, x, y, true)
+    }
+
     /// Return an immutable reference to the root component
     pub fn props(&self) -> impl '_ + Deref<Target = C> {
         MutexGuardRef::new(self.data.lock().unwrap()).map(|d| d.root_node.props())

@@ -33,7 +33,20 @@ impl<'a, T: 'a> Column<'a, T> {
         self
     }
 
-    fn layout(&mut self, layout: Rectangle, style: &Stylesheet) -> impl Iterator<Item = (&mut Node<'a, T>, Rectangle)> {
+    fn layout(&self, layout: Rectangle, style: &Stylesheet) -> impl Iterator<Item = (&Node<'a, T>, Rectangle)> {
+        let layout = style.background.content_rect(layout, style.padding);
+        self.children.iter().zip(
+            self.layout
+                .iter()
+                .map(move |relative| relative.translate(layout.left, layout.top)),
+        )
+    }
+
+    fn layout_mut(
+        &mut self,
+        layout: Rectangle,
+        style: &Stylesheet,
+    ) -> impl Iterator<Item = (&mut Node<'a, T>, Rectangle)> {
         let layout = style.background.content_rect(layout, style.padding);
         if self.layout.len() != self.children.len() {
             let align = style.align_horizontal;
@@ -118,6 +131,28 @@ impl<'a, T: 'a + Send> Widget<'a, T> for Column<'a, T> {
             .resolve_size((style.width, style.height), (width, height), style.padding)
     }
 
+    fn hit(
+        &self,
+        _state: &Self::State,
+        layout: Rectangle,
+        clip: Rectangle,
+        style: &Stylesheet,
+        x: f32,
+        y: f32,
+        recursive: bool,
+    ) -> bool {
+        if layout.point_inside(x, y) && clip.point_inside(x, y) {
+            if recursive && !style.background.is_solid() {
+                self.layout(layout, style)
+                    .any(|(child, layout)| child.hit(layout, clip, x, y, recursive))
+            } else {
+                true
+            }
+        } else {
+            false
+        }
+    }
+
     fn focused(&self, _: &()) -> bool {
         self.children.iter().any(|child| child.focused())
     }
@@ -133,7 +168,7 @@ impl<'a, T: 'a + Send> Widget<'a, T> for Column<'a, T> {
     ) {
         let focused = self.children.iter().position(|child| child.focused());
 
-        for (index, (child, layout)) in self.layout(layout, stylesheet).enumerate() {
+        for (index, (child, layout)) in self.layout_mut(layout, stylesheet).enumerate() {
             if Some(index) == focused {
                 child.event(layout, clip, event, context);
             } else if focused.is_none() {
@@ -150,7 +185,7 @@ impl<'a, T: 'a + Send> Widget<'a, T> for Column<'a, T> {
         result.extend(stylesheet.background.render(layout));
 
         result = self
-            .layout(layout, stylesheet)
+            .layout_mut(layout, stylesheet)
             .fold(result, |mut result, (child, layout)| {
                 result.extend(child.draw(layout, clip));
                 result

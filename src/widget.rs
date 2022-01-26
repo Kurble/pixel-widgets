@@ -147,6 +147,7 @@ pub trait Widget<'a, Message>: Send {
         _style: &Stylesheet,
         x: f32,
         y: f32,
+        _recursive: bool,
     ) -> bool {
         layout.point_inside(x, y) && clip.point_inside(x, y)
     }

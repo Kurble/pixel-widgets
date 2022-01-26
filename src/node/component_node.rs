@@ -185,8 +185,8 @@ impl<'a, C: 'a + Component> GenericNode<'a, C::Output> for ComponentNode<'a, C> 
         self.view().size()
     }
 
-    fn hit(&self, layout: Rectangle, clip: Rectangle, x: f32, y: f32) -> bool {
-        self.view().hit(layout, clip, x, y)
+    fn hit(&self, layout: Rectangle, clip: Rectangle, x: f32, y: f32, recursive: bool) -> bool {
+        self.view().hit(layout, clip, x, y, recursive)
     }
 
     fn focused(&self) -> bool {

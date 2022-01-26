@@ -144,7 +144,7 @@ impl<'a, T: 'a> Widget<'a, T> for Window<'a, T> {
         (Size::Fill(1), Size::Fill(1))
     }
 
-    fn hit(&self, state: &State, viewport: Rectangle, clip: Rectangle, style: &Stylesheet, x: f32, y: f32) -> bool {
+    fn hit(&self, state: &State, viewport: Rectangle, clip: Rectangle, style: &Stylesheet, x: f32, y: f32, _recursive: bool) -> bool {
         if clip.point_inside(x, y) {
             let (layout, _, _) = self.layout(state, viewport, style);
             layout.point_inside(x, y)

@@ -165,10 +165,20 @@ impl<'a, T: 'a> Widget<'a, T> for Panel<'a, T> {
         (style.width, style.height)
     }
 
-    fn hit(&self, _: &(), layout: Rectangle, clip: Rectangle, _: &Stylesheet, x: f32, y: f32) -> bool {
+    fn hit(&self, _: &(), layout: Rectangle, clip: Rectangle, _: &Stylesheet, x: f32, y: f32, recursive: bool) -> bool {
         if layout.point_inside(x, y) && clip.point_inside(x, y) {
             self.layout(layout)
-                .map(|layout| layout.point_inside(x, y))
+                .map(|layout| {
+                    if layout.point_inside(x, y) {
+                        if recursive {
+                            self.content().hit(layout, clip, x, y, recursive)
+                        } else {
+                            true
+                        }
+                    } else {
+                        false
+                    }
+                })
                 .unwrap_or(false)
         } else {
             false

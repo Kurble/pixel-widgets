@@ -28,7 +28,7 @@ pub trait GenericNode<'a, Message>: Send {
 
     fn size(&self) -> (Size, Size);
 
-    fn hit(&self, layout: Rectangle, clip: Rectangle, x: f32, y: f32) -> bool;
+    fn hit(&self, layout: Rectangle, clip: Rectangle, x: f32, y: f32, recursive: bool) -> bool;
 
     fn focused(&self) -> bool;
 
