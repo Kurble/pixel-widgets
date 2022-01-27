@@ -7,6 +7,7 @@ use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use futures::future::poll_fn;
+use graphics::Graphics;
 use node::GenericNode;
 use owning_ref::{MutexGuardRef, MutexGuardRefMut};
 use widget::Context;
@@ -121,6 +122,11 @@ impl<C: 'static + Component> Ui<C> {
             style,
             task_created: false,
         })
+    }
+
+    /// Retrieve a `Graphics` loader that can be used to load images
+    pub fn graphics(&self) -> Graphics {
+        self.style.graphics()
     }
 
     /// Create a task that will drive all ui futures.
@@ -263,6 +269,15 @@ impl<C: 'static + Component> Ui<C> {
         let mut data = self.data.lock().unwrap();
 
         let viewport = data.viewport;
+        let viewport_center = (
+            (viewport.left + viewport.right) * 0.5,
+            (viewport.top + viewport.bottom) * 0.5,
+        );
+        let viewport_inverse_size = (
+            ((viewport.right - viewport.left) * 0.5).recip(),
+            ((viewport.top - viewport.bottom) * -0.5).recip(),
+        );
+
         let primitives = {
             let mut view = data.root_node.view();
             let (w, h) = view.size();
@@ -390,6 +405,24 @@ impl<C: 'static + Component> Ui<C> {
                             mode,
                         });
                         layers[layer].append(Command::Colored { offset, count: 6 });
+                    }
+                }
+
+                Primitive::DrawTriangle(vtx, color) => {
+                    if draw_enabled {
+                        let color = [color.r, color.g, color.b, color.a];
+                        let mode = 1.0;
+                        let offset = layers[layer].vtx.len();
+                        layers[layer].vtx.extend(vtx.map(|[x, y]| Vertex {
+                            pos: [
+                                (x-viewport_center.0) * viewport_inverse_size.0,
+                                (y-viewport_center.1) * viewport_inverse_size.1,
+                            ],
+                            uv: [0.0; 2],
+                            color,
+                            mode,
+                        }));
+                        layers[layer].append(Command::Colored { offset, count: 3 });
                     }
                 }
 
@@ -595,6 +628,9 @@ impl<C: 'static + Component> Ui<C> {
                     }));
                     (vtx, cmd)
                 });
+
+        drop(data);
+        self.handle_event(Event::Animate);
 
         DrawList {
             updates: self.style.cache().lock().unwrap().take_updates(),

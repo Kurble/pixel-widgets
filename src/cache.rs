@@ -2,7 +2,7 @@ use std::mem;
 use std::sync::{Arc, Weak};
 
 use anyhow::*;
-use image::{Rgba, RgbaImage};
+use image::{RgbaImage, Pixel};
 use rusttype::{point, vector};
 use smallvec::SmallVec;
 
@@ -150,9 +150,6 @@ impl Cache {
     }
 
     pub(crate) fn load_patch(&mut self, mut image: RgbaImage) -> Patch {
-        // find 9 patch borders in image data
-        let black = Rgba([0u8, 0u8, 0u8, 255u8]);
-
         let mut h_stretch = SmallVec::<[(f32, f32); 2]>::new();
         let mut h_content = (1.0, 0.0);
         let mut v_stretch = SmallVec::<[(f32, f32); 2]>::new();
@@ -166,14 +163,14 @@ impl Cache {
             let h_end = (x) as f32 / (image.width() - 2) as f32;
 
             // check stretch pixel
-            if image[(x, 0)] == black {
+            if image[(x, 0)].channels()[3] > 128 {
                 h_current_stretch = Some(h_current_stretch.map_or_else(|| (h_begin, h_end), |(s, _)| (s, h_end)));
             } else if let Some(s) = h_current_stretch.take() {
                 h_stretch.push(s);
             }
 
             // check content pixel
-            if image[(x, image.height() - 1)] == black {
+            if image[(x, image.height() - 1)].channels()[3] > 128 {
                 h_content.0 = h_begin.min(h_content.0);
                 h_content.1 = h_end.max(h_content.1);
             }
@@ -185,14 +182,14 @@ impl Cache {
             let v_end = (y) as f32 / (image.height() - 2) as f32;
 
             // check stretch pixel
-            if image[(0, y)] == black {
+            if image[(0, y)].channels()[3] > 128 {
                 v_current_stretch = Some(v_current_stretch.map_or_else(|| (v_begin, v_end), |(s, _)| (s, v_end)));
             } else if let Some(s) = v_current_stretch.take() {
                 v_stretch.push(s);
             }
 
             // check content pixel
-            if image[(image.width() - 1, y)] == black {
+            if image[(image.width() - 1, y)].channels()[3] > 128 {
                 v_content.0 = v_begin.min(v_content.0);
                 v_content.1 = v_end.max(v_content.1);
             }

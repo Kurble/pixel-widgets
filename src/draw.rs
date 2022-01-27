@@ -20,6 +20,8 @@ pub enum Primitive<'a> {
     LayerDown,
     /// Draw a rectangle filled with a color.
     DrawRect(Rectangle, Color),
+    /// Draw a triangle filled with a color.
+    DrawTriangle([[f32; 2]; 3], Color),
     /// Draw some text within the bounds of a rectangle.
     /// See [`Text`](../text/struct.Text.html) for more information.
     DrawText(Text<'a>, Rectangle),

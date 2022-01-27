@@ -183,4 +183,6 @@ pub enum Event {
     Focus(bool),
     /// The application exited it's main event loop
     Exit,
+    /// The ui was redrawn, maybe you want to do it again?
+    Animate,
 }
