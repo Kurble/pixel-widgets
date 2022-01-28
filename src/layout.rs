@@ -31,7 +31,7 @@ pub enum Direction {
 
 /// A rectangle
 #[allow(missing_docs)]
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Rectangle {
     pub left: f32,
     pub top: f32,

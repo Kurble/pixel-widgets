@@ -76,6 +76,8 @@ pub struct Ui<C: 'static + Component> {
     data: Arc<Mutex<Data<C>>>,
     style: Arc<Style>,
     task_created: bool,
+    viewport: Rectangle,
+    hidpi_scale: f32,
 }
 
 struct Data<C: 'static + Component> {
@@ -121,6 +123,13 @@ impl<C: 'static + Component> Ui<C> {
             })),
             style,
             task_created: false,
+            viewport: Rectangle {
+                left: viewport.left / hidpi_scale,
+                top: viewport.top / hidpi_scale,
+                right: viewport.right / hidpi_scale,
+                bottom: viewport.bottom / hidpi_scale,
+            },
+            hidpi_scale,
         })
     }
 
@@ -204,18 +213,23 @@ impl<C: 'static + Component> Ui<C> {
     }
 
     /// Resizes the viewport.
-    /// This forces the view to be rerendered.
+    /// This forces the view to be rerendered, but only if the size actually changed.
     pub fn resize(&mut self, viewport: Rectangle, hidpi_scale: f32) {
-        let mut data = self.data.lock().unwrap();
-        data.root_node.set_dirty();
-        data.redraw = true;
-        data.hidpi_scale = hidpi_scale;
-        data.viewport = Rectangle {
-            left: viewport.left / data.hidpi_scale,
-            top: viewport.top / data.hidpi_scale,
-            right: viewport.right / data.hidpi_scale,
-            bottom: viewport.bottom / data.hidpi_scale,
+        let viewport = Rectangle {
+            left: viewport.left / hidpi_scale,
+            top: viewport.top / hidpi_scale,
+            right: viewport.right / hidpi_scale,
+            bottom: viewport.bottom / hidpi_scale,
         };
+        if self.viewport != viewport || self.hidpi_scale != hidpi_scale {
+            self.viewport = viewport;
+            self.hidpi_scale = hidpi_scale;
+            let mut data = self.data.lock().unwrap();
+            data.root_node.set_dirty();
+            data.redraw = true;
+            data.hidpi_scale = hidpi_scale;
+            data.viewport = viewport;
+        }
     }
 
     /// Check whether any widget in the ui has input focus
@@ -225,7 +239,7 @@ impl<C: 'static + Component> Ui<C> {
         view.focused()
     }
 
-    /// Perform a hitdetect on the root component, 
+    /// Perform a hitdetect on the root component,
     ///  to see if a future pointer event would be handled
     pub fn hit(&self, x: f32, y: f32) -> bool {
         let data = self.data.lock().unwrap();
@@ -415,8 +429,8 @@ impl<C: 'static + Component> Ui<C> {
                         let offset = layers[layer].vtx.len();
                         layers[layer].vtx.extend(vtx.map(|[x, y]| Vertex {
                             pos: [
-                                (x-viewport_center.0) * viewport_inverse_size.0,
-                                (y-viewport_center.1) * viewport_inverse_size.1,
+                                (x - viewport_center.0) * viewport_inverse_size.0,
+                                (y - viewport_center.1) * viewport_inverse_size.1,
                             ],
                             uv: [0.0; 2],
                             color,
