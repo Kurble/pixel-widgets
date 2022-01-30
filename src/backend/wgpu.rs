@@ -19,6 +19,7 @@ pub struct Ui<C: 'static + Component> {
     pipeline: RenderPipeline,
     bind_group_layout: BindGroupLayout,
     sampler: Sampler,
+    linear_sampler: Sampler,
     textures: HashMap<usize, TextureEntry>,
     vertex_buffer: Option<Buffer>,
     draw_commands: Vec<DrawCommand>,
@@ -77,6 +78,15 @@ impl<C: Component> Ui<C> {
                     },
                     count: None,
                 },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler {
+                        filtering: true,
+                        comparison: false,
+                    },
+                    count: None,
+                },
             ],
         });
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -110,7 +120,7 @@ impl<C: Component> Ui<C> {
                             shader_location: 2,
                         },
                         wgpu::VertexAttribute {
-                            format: VertexFormat::Float32,
+                            format: VertexFormat::Float32x4,
                             offset: 32,
                             shader_location: 3,
                         },
@@ -149,11 +159,27 @@ impl<C: Component> Ui<C> {
             border_color: None,
         });
 
+        let linear_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: None,
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::FilterMode::Linear,
+            lod_min_clamp: 0.0,
+            lod_max_clamp: 0.0,
+            compare: None,
+            anisotropy_clamp: None,
+            border_color: None,
+        });
+
         Self {
             inner,
             pipeline,
             bind_group_layout,
             sampler,
+            linear_sampler,
             textures: HashMap::new(),
             vertex_buffer: None,
             draw_commands: Vec::new(),
@@ -218,6 +244,10 @@ impl<C: Component> Ui<C> {
                                             wgpu::BindGroupEntry {
                                                 binding: 1,
                                                 resource: wgpu::BindingResource::Sampler(&self.sampler),
+                                            },
+                                            wgpu::BindGroupEntry {
+                                                binding: 2,
+                                                resource: wgpu::BindingResource::Sampler(&self.linear_sampler),
                                             },
                                         ],
                                         label: None,

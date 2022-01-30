@@ -3,7 +3,6 @@ use std::time::Instant;
 
 #[cfg(feature = "clipboard")]
 use clipboard::{ClipboardContext, ClipboardProvider};
-use rusttype::Scale;
 use smallvec::smallvec;
 
 use crate::draw::*;
@@ -191,8 +190,8 @@ where
                 let width = self.placeholder_text(stylesheet).measure(None).width()
                     + stylesheet.padding.left
                     + stylesheet.padding.right;
-                let metrics = stylesheet.font.inner.v_metrics(Scale::uniform(stylesheet.text_size));
-                let height = metrics.ascent - metrics.descent + stylesheet.padding.top + stylesheet.padding.bottom;
+                let metrics = stylesheet.font.metrics.scale(stylesheet.text_size);
+                let height = metrics.ascender - metrics.descender + stylesheet.padding.top + stylesheet.padding.bottom;
                 (Size::Exact(width), Size::Exact(height))
             }
 
@@ -204,8 +203,8 @@ where
             }
 
             (other, Size::Shrink) => {
-                let metrics = stylesheet.font.inner.v_metrics(Scale::uniform(stylesheet.text_size));
-                let height = metrics.ascent - metrics.descent + stylesheet.padding.top + stylesheet.padding.bottom;
+                let metrics = stylesheet.font.metrics.scale(stylesheet.text_size);
+                let height = metrics.ascender - metrics.descender + stylesheet.padding.top + stylesheet.padding.bottom;
                 (other, Size::Exact(height))
             }
 

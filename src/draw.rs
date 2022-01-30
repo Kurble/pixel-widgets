@@ -150,13 +150,17 @@ pub struct Vertex {
     /// The color is multiplied by the end result of the fragment shader.
     /// When `mode` is not 1, the default value is white ([1.0; 4])
     pub color: [f32; 4],
-    /// The mode with which the `Vertex` will be drawn within the fragment shader.
-    ///
+    /// Extra arguments for the fragment shader.
+    /// The first value is the mode with which the `Vertex` will be drawn within the fragment shader.
     /// `0` for rendering an image.
     /// `1` for rendering non-textured 2D geometry.
+    /// `2` for rendering msdf text.
+    /// If any other value is given, the fragment shader will treat it as mode 0.
     ///
-    /// If any other value is given, the fragment shader will not output any color.
-    pub mode: f32,
+    /// The second value is the pixel range for msdf text.
+    ///
+    /// The third value is the border thickness for msdf text.
+    pub extras: [f32; 4],
 }
 
 /// A draw `Command` that is to be translated to a draw command specific to the backend

@@ -16,7 +16,6 @@ resolver = "2"
 default = ["clipboard", "winit", "wgpu"]
 
 [dependencies]
-rusttype = { version = "0.9", features = ["gpu_cache"] }
 image = "0.23"
 smallvec = "1"
 zerocopy = "0.3"
@@ -26,12 +25,13 @@ winit = { version = "0.25", optional = true }
 clipboard = { version = "0.5", optional = true }
 anyhow = "1"
 owning_ref = "0.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 
 [dev-dependencies]
 tokio = { version = "0.2.22", features = ["full"] }
 reqwest = "0.10.7"
 ron = "0.6.0"
-serde = { version = "1", features = ["derive"] }
 
 [package.metadata.docs.rs]
 # NOTE: clipboard feature is causing build failures

@@ -380,43 +380,43 @@ impl<C: 'static + Component> Ui<C> {
                     if draw_enabled {
                         let r = r.to_device_coordinates(viewport);
                         let color = [color.r, color.g, color.b, color.a];
-                        let mode = 1.0;
+                        let extras = [1.0, 0.0, 0.0, 0.0];
                         let offset = layers[layer].vtx.len();
                         layers[layer].vtx.push(Vertex {
                             pos: [r.left, r.top],
                             uv: [0.0; 2],
                             color,
-                            mode,
+                            extras,
                         });
                         layers[layer].vtx.push(Vertex {
                             pos: [r.right, r.top],
                             uv: [0.0; 2],
                             color,
-                            mode,
+                            extras,
                         });
                         layers[layer].vtx.push(Vertex {
                             pos: [r.right, r.bottom],
                             uv: [0.0; 2],
                             color,
-                            mode,
+                            extras,
                         });
                         layers[layer].vtx.push(Vertex {
                             pos: [r.left, r.top],
                             uv: [0.0; 2],
                             color,
-                            mode,
+                            extras,
                         });
                         layers[layer].vtx.push(Vertex {
                             pos: [r.right, r.bottom],
                             uv: [0.0; 2],
                             color,
-                            mode,
+                            extras,
                         });
                         layers[layer].vtx.push(Vertex {
                             pos: [r.left, r.bottom],
                             uv: [0.0; 2],
                             color,
-                            mode,
+                            extras,
                         });
                         layers[layer].append(Command::Colored { offset, count: 6 });
                     }
@@ -425,7 +425,7 @@ impl<C: 'static + Component> Ui<C> {
                 Primitive::DrawTriangle(vtx, color) => {
                     if draw_enabled {
                         let color = [color.r, color.g, color.b, color.a];
-                        let mode = 1.0;
+                        let extras = [1.0, 0.0, 0.0, 0.0];
                         let offset = layers[layer].vtx.len();
                         layers[layer].vtx.extend(vtx.map(|[x, y]| Vertex {
                             pos: [
@@ -434,7 +434,7 @@ impl<C: 'static + Component> Ui<C> {
                             ],
                             uv: [0.0; 2],
                             color,
-                            mode,
+                            extras,
                         }));
                         layers[layer].append(Command::Colored { offset, count: 3 });
                     }
@@ -443,10 +443,15 @@ impl<C: 'static + Component> Ui<C> {
                 Primitive::DrawText(text, rect) => {
                     if draw_enabled {
                         let color = [text.color.r, text.color.g, text.color.b, text.color.a];
-                        let mode = 0.0;
+                        let extras = [
+                            2.0,
+                            ((text.size * data.hidpi_scale) / text.font.atlas.size) * text.font.atlas.distance_range,
+                            0.0,
+                            0.0,
+                        ];
                         let offset = layers[layer].vtx.len();
 
-                        self.style.cache().lock().unwrap().draw_text(&text, rect, |uv, pos| {
+                        text.draw(rect, |uv, pos| {
                             let rc = Rectangle {
                                 left: pos.left,
                                 top: pos.top,
@@ -459,43 +464,43 @@ impl<C: 'static + Component> Ui<C> {
                                 pos: [rc.left, rc.top],
                                 uv: uv.pt(0.0, 0.0),
                                 color,
-                                mode,
+                                extras,
                             });
                             layers[layer].vtx.push(Vertex {
                                 pos: [rc.right, rc.top],
                                 uv: uv.pt(1.0, 0.0),
                                 color,
-                                mode,
+                                extras,
                             });
                             layers[layer].vtx.push(Vertex {
                                 pos: [rc.right, rc.bottom],
                                 uv: uv.pt(1.0, 1.0),
                                 color,
-                                mode,
+                                extras,
                             });
                             layers[layer].vtx.push(Vertex {
                                 pos: [rc.left, rc.top],
                                 uv: uv.pt(0.0, 0.0),
                                 color,
-                                mode,
+                                extras,
                             });
                             layers[layer].vtx.push(Vertex {
                                 pos: [rc.right, rc.bottom],
                                 uv: uv.pt(1.0, 1.0),
                                 color,
-                                mode,
+                                extras,
                             });
                             layers[layer].vtx.push(Vertex {
                                 pos: [rc.left, rc.bottom],
                                 uv: uv.pt(0.0, 1.0),
                                 color,
-                                mode,
+                                extras,
                             });
                         });
 
                         let count = layers[layer].vtx.len() - offset;
                         layers[layer].append(Command::Textured {
-                            texture: text.font.tex_slot,
+                            texture: text.font.texture(),
                             offset,
                             count,
                         });
@@ -506,7 +511,7 @@ impl<C: 'static + Component> Ui<C> {
                     if draw_enabled {
                         let uv = patch.image.texcoords;
                         let color = [color.r, color.g, color.b, color.a];
-                        let mode = 0.0;
+                        let extras = [0.0; 4];
                         let offset = layers[layer].vtx.len();
 
                         patch.iterate_sections(false, rect.width(), |x, u| {
@@ -523,37 +528,37 @@ impl<C: 'static + Component> Ui<C> {
                                     pos: [rc.left, rc.top],
                                     uv: uv.pt(u.0, v.0),
                                     color,
-                                    mode,
+                                    extras,
                                 });
                                 layers[layer].vtx.push(Vertex {
                                     pos: [rc.right, rc.top],
                                     uv: uv.pt(u.1, v.0),
                                     color,
-                                    mode,
+                                    extras,
                                 });
                                 layers[layer].vtx.push(Vertex {
                                     pos: [rc.right, rc.bottom],
                                     uv: uv.pt(u.1, v.1),
                                     color,
-                                    mode,
+                                    extras,
                                 });
                                 layers[layer].vtx.push(Vertex {
                                     pos: [rc.left, rc.top],
                                     uv: uv.pt(u.0, v.0),
                                     color,
-                                    mode,
+                                    extras,
                                 });
                                 layers[layer].vtx.push(Vertex {
                                     pos: [rc.right, rc.bottom],
                                     uv: uv.pt(u.1, v.1),
                                     color,
-                                    mode,
+                                    extras,
                                 });
                                 layers[layer].vtx.push(Vertex {
                                     pos: [rc.left, rc.bottom],
                                     uv: uv.pt(u.0, v.1),
                                     color,
-                                    mode,
+                                    extras,
                                 });
                             });
                         });
@@ -572,44 +577,44 @@ impl<C: 'static + Component> Ui<C> {
                         let r = r.to_device_coordinates(viewport);
                         let uv = image.texcoords;
                         let color = [color.r, color.g, color.b, color.a];
-                        let mode = 0.0;
+                        let extras = [0.0; 4];
                         let offset = layers[layer].vtx.len();
 
                         layers[layer].vtx.push(Vertex {
                             pos: [r.left, r.top],
                             uv: [uv.left, uv.top],
                             color,
-                            mode,
+                            extras,
                         });
                         layers[layer].vtx.push(Vertex {
                             pos: [r.right, r.top],
                             uv: [uv.right, uv.top],
                             color,
-                            mode,
+                            extras,
                         });
                         layers[layer].vtx.push(Vertex {
                             pos: [r.right, r.bottom],
                             uv: [uv.right, uv.bottom],
                             color,
-                            mode,
+                            extras,
                         });
                         layers[layer].vtx.push(Vertex {
                             pos: [r.left, r.top],
                             uv: [uv.left, uv.top],
                             color,
-                            mode,
+                            extras,
                         });
                         layers[layer].vtx.push(Vertex {
                             pos: [r.right, r.bottom],
                             uv: [uv.right, uv.bottom],
                             color,
-                            mode,
+                            extras,
                         });
                         layers[layer].vtx.push(Vertex {
                             pos: [r.left, r.bottom],
                             uv: [uv.left, uv.bottom],
                             color,
-                            mode,
+                            extras,
                         });
 
                         layers[layer].append(Command::Textured {

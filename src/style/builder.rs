@@ -13,7 +13,7 @@ type DataFuture = Pin<Box<dyn Future<Output = Result<Vec<u8>>>>>;
 pub struct StyleBuilder {
     pub(crate) images: HashMap<String, RgbaImageFuture>,
     pub(crate) patches: HashMap<String, RgbaImageFuture>,
-    pub(crate) fonts: HashMap<String, DataFuture>,
+    pub(crate) fonts: HashMap<String, (RgbaImageFuture, DataFuture)>,
     pub(crate) rule_tree: tree::RuleTreeBuilder,
 }
 
@@ -163,8 +163,13 @@ impl StyleBuilder {
     /// Returns a `FontId` for the `key`.
     /// When the style is built, the font is loaded using the closure.
     /// The closure must return the bytes of a .ttf file.
-    pub fn load_font(&mut self, key: impl Into<String>, load: impl FnOnce() -> Result<Vec<u8>> + 'static) -> FontId {
-        self.load_font_async(key, async move { load() })
+    pub fn load_font(
+        &mut self,
+        key: impl Into<String>,
+        load_rgba: impl FnOnce() -> Result<RgbaImage> + 'static,
+        load_data: impl FnOnce() -> Result<Vec<u8>> + 'static,
+    ) -> FontId {
+        self.load_font_async(key, async move { load_rgba() }, async move { load_data() })
     }
 
     /// Returns an `ImageId` for the `key`.
@@ -201,11 +206,12 @@ impl StyleBuilder {
     pub fn load_font_async(
         &mut self,
         key: impl Into<String>,
-        fut: impl Future<Output = Result<Vec<u8>>> + 'static,
+        fut_rgba: impl Future<Output = Result<RgbaImage>> + 'static,
+        fut_data: impl Future<Output = Result<Vec<u8>>> + 'static,
     ) -> FontId {
         let key = key.into();
         if let std::collections::hash_map::Entry::Vacant(v) = self.fonts.entry(key.clone()) {
-            v.insert(Box::pin(fut));
+            v.insert((Box::pin(fut_rgba), Box::pin(fut_data)));
         }
         FontId(key)
     }
@@ -217,7 +223,12 @@ impl StyleBuilder {
 
         let mut cache = Cache::new(512);
 
-        let font = cache.load_font(include_bytes!("default_font.ttf").to_vec()).unwrap();
+        let font_image = image::load_from_memory(include_bytes!("default_font.png"))
+            .unwrap()
+            .into_rgba8();
+        let font = cache
+            .load_font(include_bytes!("default_font.json"), font_image)
+            .unwrap();
 
         let mut images = HashMap::new();
         for (key, value) in self.images {
@@ -244,8 +255,8 @@ impl StyleBuilder {
         }
 
         let mut fonts = HashMap::new();
-        for (key, value) in self.fonts {
-            let load = async { Result::<_, Error>::Ok(cache.load_font(value.await?)?) };
+        for (key, (rgba, data)) in self.fonts {
+            let load = async { Result::<_, Error>::Ok(cache.load_font(data.await?, rgba.await?)?) };
             fonts.insert(
                 key.clone(),
                 load.await

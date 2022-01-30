@@ -218,9 +218,20 @@ async fn parse_background<I: Iterator<Item = Token>, L: ReadFn + 'static>(
 async fn parse_font<I: Iterator<Item = Token>, L: ReadFn>(c: &mut LoadContext<'_, I, L>) -> anyhow::Result<FontId> {
     match c.tokens.next() {
         Some(Token(TokenValue::Path(url), _)) => {
-            let read = c.loader.clone();
-            Ok(c.builder
-                .load_font_async(url.clone(), async move { read.read(Path::new(url.as_str())).await }))
+            let rgba_read = c.loader.clone();
+            let json_read = c.loader.clone();
+            let rgba_url = format!("{url}.png");
+            let json_url = format!("{url}.json");
+            Ok(c.builder.load_font_async(
+                url.clone(),
+                async move {
+                    Ok(
+                        image::load_from_memory(rgba_read.read(Path::new(rgba_url.as_str())).await?.as_ref())?
+                            .to_rgba8(),
+                    )
+                },
+                async move { json_read.read(Path::new(json_url.as_str())).await },
+            ))
         }
         Some(Token(_, pos)) => Err(anyhow!("Expected <url> at {}", pos)),
         None => Err(anyhow!("EOF")),

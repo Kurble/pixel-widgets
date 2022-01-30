@@ -2,27 +2,20 @@ use std::mem;
 use std::sync::{Arc, Weak};
 
 use anyhow::*;
-use image::{RgbaImage, Pixel};
-use rusttype::{point, vector};
+use image::{Pixel, RgbaImage};
 use smallvec::SmallVec;
 
 use crate::atlas::*;
 use crate::draw::*;
 use crate::layout::Rectangle;
-use crate::text::Text;
-
-type GlyphCache = rusttype::gpu_cache::Cache<'static>;
-pub(crate) type Font = rusttype::Font<'static>;
-pub(crate) type FontId = usize;
+use crate::text::Font;
 
 /// A cache for textures and text
 pub struct Cache {
     #[allow(unused)]
     size: usize,
-    glyphs: GlyphCache,
     textures: Vec<TextureSlot>,
     updates: Vec<Update>,
-    font_id_counter: usize,
     image_id_counter: usize,
 }
 
@@ -35,13 +28,10 @@ impl Cache {
     /// Create a new cache. Size is the width and height of textures in pixels.
     /// Offset is the offset to apply to texture ids
     pub fn new(size: usize) -> Cache {
-        let glyphs = GlyphCache::builder().dimensions(size as u32, size as u32).build();
-
         let atlas = Atlas::new(size);
 
         Cache {
             size,
-            glyphs,
             textures: vec![
                 // glyph cache
                 TextureSlot::Big,
@@ -64,7 +54,6 @@ impl Cache {
                     atlas: true,
                 },
             ],
-            font_id_counter: 0,
             image_id_counter: 1,
         }
     }
@@ -72,65 +61,6 @@ impl Cache {
     /// Take updates for the texture system from the cache
     pub fn take_updates(&mut self) -> Vec<Update> {
         mem::take(&mut self.updates)
-    }
-
-    pub(crate) fn draw_text<F: FnMut(Rectangle, Rectangle)>(
-        &mut self,
-        text: &Text,
-        rect: Rectangle,
-        mut place_glyph: F,
-    ) {
-        let start = point(rect.left, rect.top);
-
-        let mut placed_glyphs = Vec::with_capacity(text.text.len());
-        text.layout(rect, |g, x, _, y| {
-            placed_glyphs.push(g.positioned(start + vector(x, y)));
-        });
-
-        for g in placed_glyphs.iter() {
-            self.glyphs.queue_glyph(text.font.id as usize, g.clone());
-        }
-
-        let updates = &mut self.updates;
-        self.glyphs
-            .cache_queued(|rect, data| {
-                let mut new_data = Vec::with_capacity(data.len() * 4);
-                for x in data {
-                    new_data.push(255);
-                    new_data.push(255);
-                    new_data.push(255);
-                    new_data.push(*x);
-                }
-
-                let update = Update::TextureSubresource {
-                    id: 0,
-                    offset: [rect.min.x, rect.min.y],
-                    size: [rect.width(), rect.height()],
-                    data: new_data,
-                };
-
-                updates.push(update);
-            })
-            .unwrap();
-
-        for g in placed_glyphs.iter() {
-            if let Some((uv, pos)) = self.glyphs.rect_for(text.font.id as usize, g).unwrap() {
-                place_glyph(
-                    Rectangle {
-                        left: uv.min.x,
-                        top: uv.min.y,
-                        right: uv.max.x,
-                        bottom: uv.max.y,
-                    },
-                    Rectangle {
-                        left: pos.min.x as f32,
-                        top: pos.min.y as f32,
-                        right: pos.max.x as f32,
-                        bottom: pos.max.y as f32,
-                    },
-                );
-            }
-        }
     }
 
     pub(crate) fn load_image(&mut self, image: RgbaImage) -> ImageData {
@@ -228,13 +158,9 @@ impl Cache {
         }
     }
 
-    pub(crate) fn load_font<D: Into<Vec<u8>>>(&mut self, data: D) -> Result<crate::text::Font> {
-        let inner = Font::try_from_vec(data.into()).ok_or_else(|| anyhow!("Invalid .ttf data"))?;
-
-        let id = self.font_id_counter;
-        self.font_id_counter += 1;
-
-        Ok(crate::text::Font { inner, id, tex_slot: 0 })
+    pub(crate) fn load_font<D: AsRef<[u8]>>(&mut self, data: D, image: RgbaImage) -> Result<crate::text::Font> {
+        let atlas = self.load_image(image);
+        Font::from_data(data, atlas)
     }
 
     fn insert_image(&mut self, image: image::RgbaImage) -> (usize, Arc<usize>, Rectangle) {

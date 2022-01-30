@@ -1,3 +1,5 @@
+use serde::Deserialize;
+
 /// A sizing request
 #[derive(Debug, Clone, Copy)]
 pub enum Size {
@@ -31,7 +33,7 @@ pub enum Direction {
 
 /// A rectangle
 #[allow(missing_docs)]
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Deserialize)]
 pub struct Rectangle {
     pub left: f32,
     pub top: f32,
