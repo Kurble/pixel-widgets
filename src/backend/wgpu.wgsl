@@ -31,21 +31,26 @@ var u_linear_sampler: sampler;
 fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
     var tex: vec4<f32> = textureSample(u_color_texture, u_sampler, in.uv);
     var font: vec4<f32> = textureSample(u_color_texture, u_linear_sampler, in.uv);
-
     switch (u32(in.mode.x)) {
         case 1: {
-            tex = vec4<f32>(1.0);
-            break;
+            return in.color;
         }
         case 2: {
+            let border = 0.3;
+            
             let sd = max(min(font.r, font.g), min(max(font.r, font.g), font.b));
-            let px_range = 1.0;
-            let screen_px_dist = in.mode.y * (sd - 0.5);
-            let opacity = clamp(screen_px_dist + 0.5, 0.0, 1.0);
-            tex = vec4<f32>(1.0, 1.0, 1.0, opacity);
-            break;
+
+            let outside_distance = clamp(in.mode.y * (sd - 0.5 + border) + 0.5, 0.0, 1.0);
+            let inside_distance = clamp(in.mode.y * (sd - 0.5) + 0.5, 0.0, 1.0);
+
+            return mix(
+                vec4<f32>(0.0, 0.0, 0.0, outside_distance), 
+                vec4<f32>(in.color), 
+                inside_distance
+            );
+        }
+        default: {
+            return in.color * tex;
         }
     }
-    
-    return in.color * tex;
 }
