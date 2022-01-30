@@ -121,6 +121,7 @@ where
             text: Cow::Borrowed(self.value.as_ref()),
             font: stylesheet.font.clone(),
             size: stylesheet.text_size,
+            border: stylesheet.text_border,
             wrap: TextWrap::NoWrap,
             color: stylesheet.color,
         }
@@ -131,6 +132,7 @@ where
             text: Cow::Borrowed(self.placeholder),
             font: stylesheet.font.clone(),
             size: stylesheet.text_size,
+            border: stylesheet.text_border,
             wrap: TextWrap::NoWrap,
             color: stylesheet.color.with_alpha(0.5),
         }
@@ -501,6 +503,7 @@ where
                     text: Cow::Borrowed(new_text.as_deref().unwrap_or_else(|| self.value.as_ref())),
                     font: stylesheet.font.clone(),
                     size: stylesheet.text_size,
+                    border: stylesheet.text_border,
                     wrap: TextWrap::NoWrap,
                     color: stylesheet.color,
                 };
@@ -657,6 +660,7 @@ fn text_display(buffer: Text<'_>, password: bool) -> Text<'static> {
             text: Cow::Owned("\u{25cf}".repeat(buffer.text.chars().count())),
             font: buffer.font.clone(),
             size: buffer.size,
+            border: buffer.border,
             color: buffer.color,
             wrap: buffer.wrap,
         }

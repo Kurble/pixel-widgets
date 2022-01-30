@@ -118,6 +118,7 @@ async fn parse_declaration<I: Iterator<Item = Token>, L: ReadFn>(
                 "margin-top" => Ok(Declaration::MarginTop(parse_float(&mut c.tokens)?)),
                 "margin-bottom" => Ok(Declaration::MarginBottom(parse_float(&mut c.tokens)?)),
                 "text-size" => Ok(Declaration::TextSize(parse_float(&mut c.tokens)?)),
+                "text-border" => Ok(Declaration::TextBorder(parse_float(&mut c.tokens)?)),
                 "text-wrap" => Ok(Declaration::TextWrap(parse_text_wrap(&mut c.tokens)?)),
                 "width" => Ok(Declaration::Width(parse_size(&mut c.tokens)?)),
                 "height" => Ok(Declaration::Height(parse_size(&mut c.tokens)?)),

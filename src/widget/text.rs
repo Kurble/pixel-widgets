@@ -49,6 +49,7 @@ impl<'a, T> Widget<'a, T> for Text {
             text: Cow::Borrowed(self.text.as_str()),
             font: style.font.clone(),
             size: style.text_size,
+            border: style.text_border,
             wrap: style.text_wrap,
             color: style.color,
         };
@@ -82,6 +83,7 @@ impl<'a, T> Widget<'a, T> for Text {
                 text: Cow::Owned(self.text.clone()),
                 font: style.font.clone(),
                 size: style.text_size,
+                border: style.text_border,
                 wrap: style.text_wrap,
                 color: style.color,
             },

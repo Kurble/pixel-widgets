@@ -274,6 +274,7 @@ impl StyleBuilder {
                 padding: Rectangle::zero(),
                 margin: Rectangle::zero(),
                 text_size: 16.0,
+                text_border: 0.3,
                 text_wrap: TextWrap::NoWrap,
                 width: Size::Shrink,
                 height: Size::Shrink,

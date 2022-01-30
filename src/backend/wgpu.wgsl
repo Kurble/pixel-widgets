@@ -36,18 +36,22 @@ fn fs_main(in: VertexOutput) -> [[location(0)]] vec4<f32> {
             return in.color;
         }
         case 2: {
-            let border = 0.3;
+            let border = in.mode.z;
             
             let sd = max(min(font.r, font.g), min(max(font.r, font.g), font.b));
 
             let outside_distance = clamp(in.mode.y * (sd - 0.5 + border) + 0.5, 0.0, 1.0);
             let inside_distance = clamp(in.mode.y * (sd - 0.5) + 0.5, 0.0, 1.0);
-
-            return mix(
-                vec4<f32>(0.0, 0.0, 0.0, outside_distance), 
-                vec4<f32>(in.color), 
-                inside_distance
-            );
+            
+            if (border > 0.0) {
+                return mix(
+                    vec4<f32>(0.0, 0.0, 0.0, outside_distance), 
+                    vec4<f32>(in.color), 
+                    inside_distance
+                );
+            } else {
+                return vec4<f32>(in.color.rgb, in.color.a * inside_distance);
+            }
         }
         default: {
             return in.color * tex;

@@ -216,6 +216,7 @@ impl RuleTreeBuilder {
                         Declaration::MarginTop(x) => Declaration::MarginTop(x),
                         Declaration::MarginBottom(x) => Declaration::MarginBottom(x),
                         Declaration::TextSize(x) => Declaration::TextSize(x),
+                        Declaration::TextBorder(x) => Declaration::TextBorder(x),
                         Declaration::TextWrap(x) => Declaration::TextWrap(x),
                         Declaration::Width(x) => Declaration::Width(x),
                         Declaration::Height(x) => Declaration::Height(x),

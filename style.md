@@ -89,6 +89,7 @@ Take a look at the table to see what properties exist.
 | `font` | Font to use for text rendering | url |
 | `color` | Color to use for foreground drawing, including text | color |
 | `text-size` | Size of text | number |
+| `text-border` | Border of text | number |
 | `text-wrap` | Wrapping strategy for text | textwrap |
 | `layout-direction` | Layout direction for widgets that support it | direction |
 | `align-horizontal` | how to align children horizontally | align |

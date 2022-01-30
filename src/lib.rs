@@ -446,7 +446,7 @@ impl<C: 'static + Component> Ui<C> {
                         let extras = [
                             2.0,
                             ((text.size * data.hidpi_scale) / text.font.atlas.size) * text.font.atlas.distance_range,
-                            0.0,
+                            text.border,
                             0.0,
                         ];
                         let offset = layers[layer].vtx.len();

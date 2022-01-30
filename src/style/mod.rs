@@ -87,6 +87,8 @@ pub struct Stylesheet {
     pub font: Font,
     /// Size of text
     pub text_size: f32,
+    /// Size of border of text
+    pub text_border: f32,
     /// Wrapping strategy for text
     pub text_wrap: TextWrap,
     /// Layout direction for widgets that support it (atm not text unfortunately..)
@@ -136,6 +138,8 @@ pub enum Declaration<I = ImageId, P = PatchId, F = FontId> {
     MarginBottom(f32),
     /// text-size
     TextSize(f32),
+    /// text-border
+    TextBorder(f32),
     /// text-wrap
     TextWrap(TextWrap),
     /// width
@@ -290,6 +294,7 @@ impl Declaration<ImageData, Patch, Font> {
             Declaration::MarginTop(x) => stylesheet.margin.top = *x,
             Declaration::MarginBottom(x) => stylesheet.margin.bottom = *x,
             Declaration::TextSize(x) => stylesheet.text_size = *x,
+            Declaration::TextBorder(x) => stylesheet.text_border = *x,
             Declaration::TextWrap(x) => stylesheet.text_wrap = *x,
             Declaration::Width(x) => stylesheet.width = *x,
             Declaration::Height(x) => stylesheet.height = *x,

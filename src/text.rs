@@ -109,6 +109,8 @@ pub struct Text<'a> {
     pub font: Font,
     /// Font size to render the text with
     pub size: f32,
+    /// Border weight to render the text with
+    pub border: f32,
     /// Wrapping style to use
     pub wrap: TextWrap,
     /// Color to render the text with
@@ -438,6 +440,7 @@ impl<'a> Text<'a> {
             text: Cow::Owned(self.text.clone().into_owned()),
             font: self.font.clone(),
             size: self.size,
+            border: self.border,
             wrap: self.wrap,
             color: self.color,
         }
