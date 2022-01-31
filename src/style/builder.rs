@@ -221,7 +221,7 @@ impl StyleBuilder {
     pub async fn build_async(mut self) -> Result<Style> {
         self = Self::base(Color::white(), Color::rgb(0.3, 0.3, 0.3), Color::blue()).merge(self);
 
-        let mut cache = Cache::new(512);
+        let mut cache = Cache::new(2048);
 
         let font_image = image::load_from_memory(include_bytes!("default_font.png"))
             .unwrap()

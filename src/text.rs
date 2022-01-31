@@ -305,7 +305,7 @@ impl<'t> Text<'t> {
         let line = self.font.data.metrics.scale(self.size);
 
         let width = rect.width();
-        let height = -line.descender + line.line_height + line.ascender;
+        let height = /*-line.descender +*/ line.line_height /*+ line.ascender*/;
 
         match self.wrap {
             TextWrap::NoWrap => {
