@@ -124,7 +124,8 @@ impl Component for Alchemy {
                         },
                     } => { Spacer }
 
-                    :for (item, id, pos) in state.playground.iter() => Panel {
+                    [for (item, id, pos) in state.playground.iter()] 
+                    Panel {
                         offset: *pos,
                         anchor: Anchor::TopLeft,
                         key: id
@@ -147,8 +148,10 @@ impl Component for Alchemy {
                 // inventory
                 Scroll => {
                     Column => {
-                        :for row in filtered.chunks(4) => Row => {
-                            :for (i, item) in row.iter() => Drag {
+                        [for row in filtered.chunks(4)]
+                        Row => {
+                            [for (i, item) in row.iter()]
+                            Drag {
                                 context: cx,
                                 val: DragItem::FromInventory(*i),
                                 key: *i,

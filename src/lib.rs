@@ -148,11 +148,14 @@ impl<C: 'static + Component> Ui<C> {
         let data = self.data.clone();
         poll_fn(move |cx| {
             if let Ok(mut data) = data.lock() {
-                let mut context = Context::new(false, data.cursor);
+                let mut context = Context::new(false, false, data.cursor);
                 data.root_node.poll(&mut context, cx);
                 if context.redraw_requested() {
                     (on_redraw)();
                     data.redraw = true;
+                }
+                if context.rebuild_requested() {
+                    data.root_node.set_dirty();
                 }
                 data.output.extend(context);
 
@@ -166,8 +169,11 @@ impl<C: 'static + Component> Ui<C> {
     /// Updates the root component with a message.
     pub fn update(&mut self, message: C::Message) {
         let mut data = self.data.lock().unwrap();
-        let mut context = Context::new(data.redraw, data.cursor);
+        let mut context = Context::new(data.redraw, false, data.cursor);
         data.root_node.update(message, &mut context);
+        if context.rebuild_requested() {
+            data.root_node.set_dirty();
+        }
         data.redraw |= context.redraw_requested();
         data.output.extend(context);
     }
@@ -185,7 +191,7 @@ impl<C: 'static + Component> Ui<C> {
             data.cursor = (x / data.hidpi_scale, y / data.hidpi_scale);
         }
 
-        let mut context = Context::new(data.redraw, data.cursor);
+        let mut context = Context::new(data.redraw, false, data.cursor);
 
         let result = {
             let mut view = data.root_node.view();
@@ -200,10 +206,14 @@ impl<C: 'static + Component> Ui<C> {
 
         data.redraw |= context.redraw_requested();
 
-        let mut outer_context = Context::new(data.redraw, data.cursor);
+        let mut outer_context = Context::new(data.redraw, context.rebuild_requested(), data.cursor);
 
         for message in context {
             data.root_node.update(message, &mut outer_context);
+        }
+
+        if outer_context.rebuild_requested() {
+            data.root_node.set_dirty();
         }
 
         data.redraw |= outer_context.redraw_requested();

@@ -60,7 +60,8 @@ impl Component for Tour {
                     }
                 }
 
-                :if let Some(pos) = state.context_position => Menu {
+                [if let Some(pos) = state.context_position]
+                Menu {
                     position: pos,
                     on_close: Message::CloseContext,
                     items: vec![
@@ -76,9 +77,11 @@ impl Component for Tour {
                     key: 0
                 }
 
-                :if state.show_dummy => DummyWindow,
+                [if state.show_dummy]
+                DummyWindow,
 
-                :if state.show_login => LoginWindow,
+                [if state.show_login]
+                LoginWindow,
             }
         }
     }

@@ -57,11 +57,15 @@ fn view<'a>(state: &'a State) -> Node<'a, ()> {
         Column => {
             Text { val: "Hello world" },
 
-            :if state.show_secret => Text { val: "Secret message" },
+            [if state.show_secret]
+            Text { val: "Secret message" },
 
-            :if state.foo => Text { val: "foo" },
-            :else if state.bar => Text { val: "bar" },
-            :else => Text { val: "foobar"},
+            [if state.foo] 
+            Text { val: "foo" },
+            [else if state.bar] 
+            Text { val: "bar" },
+            [else]
+            Text { val: "foobar"},
         }
     }
 }
@@ -74,7 +78,8 @@ fn view<'a>() -> Node<'a, ()> {
     view! {
         Column => {
             Text { val: "Title" },
-            :if 2 > 1 => Column => {
+            [if 2 > 1]
+            Column => {
                 Text { val: "Line 1" },
                 Text { val: "Line 2" },
                 Text { val: "Line 3" },
@@ -98,7 +103,8 @@ fn view<'a>() -> Node<'a, Msg> {
 
     view! {
         Dropdown { on_select: Msg::Selected } => {
-            :for option in options => Text { val: option },
+            [for option in options]
+            Text { val: option },
         }
     }
 }
@@ -114,12 +120,17 @@ fn view<'a>() -> Node<'a, ()> {
     let x = 2;
     view! {
         Column => {
-            :match x;
-            :case 1 => Text { val: "Option 1" },
-            :case 2 => Text { val: "Option 2" },
-            :case 3 => Text { val: "Option 3" },
-            :case 4 => Text { val: "Option 4" },
-            :case _ => Text { val: "Unknown option" },
+            [match x]
+            [case 1] 
+            Text { val: "Option 1" },
+            [case 2] 
+            Text { val: "Option 2" },
+            [case 3] 
+            Text { val: "Option 3" },
+            [case 4] 
+            Text { val: "Option 4" },
+            [case _] 
+            Text { val: "Unknown option" },
         }
     }
 }

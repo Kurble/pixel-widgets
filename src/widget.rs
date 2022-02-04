@@ -204,14 +204,16 @@ pub type StateVec = SmallVec<[StyleState<&'static str>; 3]>;
 pub struct Context<Message> {
     cursor: (f32, f32),
     redraw: bool,
+    rebuild: bool,
     messages: Vec<Message>,
 }
 
 impl<Message> Context<Message> {
-    pub(crate) fn new(redraw: bool, cursor: (f32, f32)) -> Self {
+    pub(crate) fn new(redraw: bool, rebuild: bool, cursor: (f32, f32)) -> Self {
         Context {
             cursor,
             redraw,
+            rebuild,
             messages: Vec::new(),
         }
     }
@@ -220,6 +222,7 @@ impl<Message> Context<Message> {
         Context {
             cursor: self.cursor,
             redraw: self.redraw,
+            rebuild: self.rebuild,
             messages: Vec::new(),
         }
     }
@@ -242,6 +245,16 @@ impl<Message> Context<Message> {
     /// Returns the redraw flag.
     pub fn redraw_requested(&self) -> bool {
         self.redraw
+    }
+
+    /// Request of rebuild of the ui.
+    pub fn rebuild(&mut self) {
+        self.rebuild = true;
+    }
+
+    /// Returns the rebuild flag.
+    pub fn rebuild_requested(&self) -> bool {
+        self.rebuild
     }
 
     /// Returns the cursor position

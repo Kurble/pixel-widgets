@@ -271,6 +271,9 @@ impl<'a, C: 'a + Component> GenericNode<'a, C::Output> for ComponentNode<'a, C> 
         if sub_context.redraw_requested() {
             context.redraw();
         }
+        if sub_context.rebuild_requested() {
+            self.set_dirty();
+        }
 
         for message in sub_context {
             self.update(message, context);
@@ -289,6 +292,9 @@ impl<'a, C: 'a + Component> GenericNode<'a, C::Output> for ComponentNode<'a, C> 
 
         if sub_context.redraw_requested() {
             context.redraw();
+        }
+        if sub_context.rebuild_requested() {
+            self.set_dirty();
         }
 
         for message in sub_context {

@@ -25,7 +25,8 @@ impl Component for DummyWindow {
                 Column => {
                     Text { val: "Select a planet from the dropdown list: " }
                     Dropdown { on_select: Message::PlanetSelected } => {
-                        :for &option in options.iter() => Text { val: option }
+                        [for &option in options.iter()] 
+                        Text { val: option }
                     }
                 }
             }

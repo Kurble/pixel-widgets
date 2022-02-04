@@ -29,8 +29,9 @@ impl Component for LoginWindow {
                     Spacer { class: "close" }
                 }
 
-                :match state;
-                :case LoginWindowState::Prompt { name, password } => Column => {
+                [match state]
+                [case LoginWindowState::Prompt { name, password }]
+                Column => {
                     Input {
                         placeholder: "username",
                         val: name.as_str(),
@@ -45,7 +46,8 @@ impl Component for LoginWindow {
                     }
                     Button { text: "Login", on_clicked: Message::LoginPressed }
                 }
-                :case LoginWindowState::Busy => Column => {
+                [case LoginWindowState::Busy] 
+                Column => {
                     Text { val: "logging in!" }
                 }
             }
