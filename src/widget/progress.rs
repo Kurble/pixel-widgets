@@ -3,7 +3,7 @@ use crate::event::Event;
 use crate::layout::{Direction, Rectangle, Size};
 use crate::node::{GenericNode, IntoNode, Node};
 use crate::style::Stylesheet;
-use crate::widget::{dummy::Dummy, Widget, Context};
+use crate::widget::{dummy::Dummy, Context, Widget};
 
 /// A progress bar that fill up according to some progress
 /// The bar part of the progress bar can be styled by selecting the child widget `bar` of the `progress` widget.
@@ -11,13 +11,13 @@ use crate::widget::{dummy::Dummy, Widget, Context};
 /// at full size and then clipped according to the progress. When `clip-bar` is not set, the bar itself is rendered
 /// with a size that matches the progress.
 pub struct Progress<'a, T> {
-    progress: ProgressValue,
+    progress: ProgressValue<'a>,
     fill: Node<'a, T>,
 }
 
-enum ProgressValue {
+enum ProgressValue<'a> {
     Static(f32),
-    Dynamic(Box<dyn 'static + Send + FnMut() -> f32>),
+    Dynamic(Box<dyn 'a + Send + FnMut() -> f32>),
 }
 
 impl<'a, T: 'a> Progress<'a, T> {
@@ -35,10 +35,10 @@ impl<'a, T: 'a> Progress<'a, T> {
         self
     }
 
-    /// Sets the progress value to be calculated from a function. 
+    /// Sets the progress value to be calculated from a function.
     /// The function will be called every time the progress is drawn.
     /// The returned progress must be in the range [0.0, 1.0]
-    pub fn val_with(mut self, val: impl 'static + Send + FnMut() -> f32) -> Self {
+    pub fn val_with(mut self, val: impl 'a + Send + FnMut() -> f32) -> Self {
         self.progress = ProgressValue::Dynamic(Box::new(val));
         self
     }
@@ -74,28 +74,11 @@ impl<'a, T: 'a> Widget<'a, T> for Progress<'a, T> {
         (style.width, style.height)
     }
 
-    fn hit(
-        &self,
-        _: &Self::State,
-        _: Rectangle,
-        _: Rectangle,
-        _: &Stylesheet,
-        _: f32,
-        _: f32,
-        _: bool,
-    ) -> bool {
+    fn hit(&self, _: &Self::State, _: Rectangle, _: Rectangle, _: &Stylesheet, _: f32, _: f32, _: bool) -> bool {
         true
     }
 
-    fn event(
-        &mut self,
-        _: &mut (),
-        _: Rectangle,
-        _: Rectangle,
-        _: &Stylesheet,
-        _: Event,
-        context: &mut Context<T>,
-    ) {
+    fn event(&mut self, _: &mut (), _: Rectangle, _: Rectangle, _: &Stylesheet, _: Event, context: &mut Context<T>) {
         if let ProgressValue::Dynamic(_) = self.progress {
             context.redraw();
         }
