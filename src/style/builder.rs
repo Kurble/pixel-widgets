@@ -135,9 +135,16 @@ impl StyleBuilder {
     where
         P: AsRef<Path>,
     {
-        futures::executor::block_on(Self::from_read_fn(path, |path: &Path| {
-            std::future::ready(std::fs::read(path))
-        }))
+        let mut fut = Self::from_read_fn(path, |path: &Path| std::future::ready(std::fs::read(path)));
+        // this is safe because we are using a noop_waker
+        unsafe {
+            match Pin::new_unchecked(&mut fut)
+                .poll(&mut std::task::Context::from_waker(futures::task::noop_waker_ref()))
+            {
+                std::task::Poll::Ready(result) => result,
+                std::task::Poll::Pending => unreachable!(),
+            }
+        }
     }
 
     /// Returns an `ImageId` for the `key`.
@@ -298,7 +305,18 @@ impl TryInto<Style> for StyleBuilder {
     type Error = Error;
 
     fn try_into(self) -> Result<Style> {
-        self.build()
+        let mut fut = self.build_async();
+        // this is safe because we are using a noop_waker
+        unsafe {
+            match Pin::new_unchecked(&mut fut)
+                .poll(&mut std::task::Context::from_waker(futures::task::noop_waker_ref()))
+            {
+                std::task::Poll::Ready(result) => result,
+                std::task::Poll::Pending => {
+                    anyhow::bail!("TryInto<Style> not implemented for async loaded `StyleBuilder`")
+                }
+            }
+        }
     }
 }
 

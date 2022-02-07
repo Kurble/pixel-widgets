@@ -124,7 +124,7 @@ impl Component for Alchemy {
                         },
                     } => { Spacer }
 
-                    [for (item, id, pos) in state.playground.iter()] 
+                    [for (item, id, pos) in state.playground.iter()]
                     Panel {
                         offset: *pos,
                         anchor: Anchor::TopLeft,
