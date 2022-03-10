@@ -20,8 +20,8 @@ image = "0.23"
 smallvec = "1"
 zerocopy = "0.3"
 futures = "0.3"
-wgpu = { version = "0.11", optional = true }
-winit = { version = "0.25", optional = true }
+wgpu = { version = "0.12", optional = true }
+winit = { version = "0.26", optional = true }
 clipboard = { version = "0.5", optional = true }
 anyhow = "1"
 owning_ref = "0.4"
